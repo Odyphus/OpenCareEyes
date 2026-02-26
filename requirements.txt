@@ -1,0 +1,4 @@
+PySide6>=6.6
+astral>=3.2
+keyboard>=0.13
+darkdetect>=0.8
