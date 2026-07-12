@@ -1,0 +1,51 @@
+# Python bytecode and packaging
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+*.egg
+.Python
+build/
+dist/
+installer_output/
+
+# Test, lint and coverage caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# PyInstaller and release output
+*.spec.bak
+*.manifest
+*.exe
+*.dll
+SHA256SUMS.txt
+/OpenCareEyes_Source_*.zip
+
+# Editors and operating systems
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Local logs, settings and temporary files
+*.log
+*.ini
+*.cfg
+*.tmp
+*.bak
+/work/
+/work-font-test*.png
