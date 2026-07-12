@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-07-12
+
 ### Added
 
 - 可拖动、可关闭并能从休息设置重新开启的置顶倒计时桌宠。
@@ -36,4 +38,6 @@
 - 修正 `src/` 布局的源码安装命令、包版本不一致、嵌套源码 ZIP 与安装器输入路径。
 - 补全 Apache License 2.0 正文和卸载后本地设置的说明。
 
+[Unreleased]: https://github.com/Odyphus/OpenCareEyes/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/Odyphus/OpenCareEyes/releases/tag/v0.2.1
 [0.2.0]: https://github.com/Odyphus/OpenCareEyes/releases/tag/v0.2.0
