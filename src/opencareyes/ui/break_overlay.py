@@ -29,6 +29,7 @@ class BreakOverlay(QWidget):
         self.setAttribute(Qt.WA_TranslucentBackground)
         self.setAccessibleName("全屏休息提醒")
         self._remaining = 0
+        self._force = False
         self._tip_index = 0
         self._fallback_timer = QTimer(self)
         self._fallback_timer.setInterval(1000)
@@ -40,6 +41,9 @@ class BreakOverlay(QWidget):
             self.skip_requested.connect(controller.skip_break)
             self.snooze_requested.connect(controller.snooze_break)
             self.render(controller.state)
+        else:
+            self.skip_requested.connect(self.end_break)
+            self.snooze_requested.connect(lambda _minutes: self.end_break())
 
     def _build_ui(self) -> None:
         self._title_label = QLabel("该休息一下眼睛了")
@@ -92,33 +96,49 @@ class BreakOverlay(QWidget):
         """Compatibility entry point for integrations without a controller."""
 
         self._remaining = max(0, int(duration_seconds))
-        self._show_break(force)
+        self._show_break(force, paused=False)
         if self._controller is None:
             self._fallback_timer.start()
 
     def end_break(self) -> None:
         self._fallback_timer.stop()
+        self._force = False
         self.hide()
 
-    def _show_break(self, force: bool) -> None:
+    def _show_break(self, force: bool, paused: bool) -> None:
+        self._force = bool(force)
+        if paused:
+            title = "休息计时已暂停"
+        elif self._force:
+            title = "现在是严格休息时间"
+        else:
+            title = "该休息一下眼睛了"
+        self._title_label.setText(title)
+        self._snooze_button.setVisible(not self._force)
+        self._skip_button.setText(
+            "安全结束本次休息" if self._force else "结束本次休息"
+        )
         self._update_display()
+        self._cover_all_screens()
         if not self.isVisible():
             self._tip_label.setText(_TIPS[self._tip_index % len(_TIPS)])
             self._tip_index += 1
-            self._cover_all_screens()
             self.show()
             self.raise_()
             self.activateWindow()
-        # Safety exit remains available even for the advanced "force" option.
+        # Safety exit remains available even for strict rest mode.
         self._skip_button.setVisible(True)
 
     def render(self, state) -> None:
         enabled = bool(first_state_value(state, "breaks.enabled", default=False))
         phase = str(first_state_value(state, "breaks.phase", default="stopped"))
+        paused = bool(first_state_value(state, "breaks.paused", default=False))
         self._remaining = int(first_state_value(state, "breaks.remaining", default=0))
         force = bool(first_state_value(state, "breaks.force_break", default=False))
-        if enabled and phase == "resting" and force:
-            self._show_break(force)
+        # Every active rest phase gets a visible full-screen surface.  Strict
+        # mode controls postponement, not whether the reminder can be seen.
+        if enabled and phase == "resting":
+            self._show_break(force, paused)
         else:
             self.end_break()
 

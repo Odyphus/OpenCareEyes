@@ -61,9 +61,9 @@ class TrayIcon(QSystemTrayIcon):
         self._break_control_menu = self._menu.addMenu("休息计时")
         self._pause_break_action = self._break_control_menu.addAction("暂停计时")
         self._pause_break_action.triggered.connect(self._toggle_break_pause)
-        snooze_menu = self._break_control_menu.addMenu("稍后提醒")
+        self._snooze_menu = self._break_control_menu.addMenu("稍后提醒")
         for minutes in (5, 10, 30):
-            snooze_menu.addAction(f"{minutes} 分钟").triggered.connect(
+            self._snooze_menu.addAction(f"{minutes} 分钟").triggered.connect(
                 lambda checked=False, delay=minutes: self._controller.snooze_break(delay)
             )
 
@@ -178,6 +178,7 @@ class TrayIcon(QSystemTrayIcon):
         break_enabled = bool(first_state_value(state, "breaks.enabled", default=False))
         focus_enabled = bool(first_state_value(state, "focus.enabled", default=False))
         break_paused = bool(first_state_value(state, "breaks.paused", default=False))
+        force_break = bool(first_state_value(state, "breaks.force_break", default=False))
         break_phase = str(first_state_value(state, "breaks.phase", default="stopped"))
         countdown_display = str(first_state_value(
             state, "breaks.countdown_display", default="tray"
@@ -215,6 +216,7 @@ class TrayIcon(QSystemTrayIcon):
         self._break_action.setText(break_text)
         self._pause_break_action.setText("继续计时" if break_paused else "暂停计时")
         self._break_control_menu.setEnabled(break_enabled)
+        self._snooze_menu.setEnabled(break_enabled and not force_break)
         for name, action in self._profile_actions.items():
             with QSignalBlocker(action):
                 action.setChecked(name == preset)

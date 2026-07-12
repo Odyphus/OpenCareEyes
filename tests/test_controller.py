@@ -255,3 +255,15 @@ def test_invalid_break_countdown_display_is_rejected(controller):
 
     assert settings.break_countdown_display == "tray"
     assert spy.count() == 1
+
+
+def test_strict_break_rejects_snooze_from_every_entry_point(controller):
+    instance, settings, _, _, reminder, *_ = controller
+    spy = QSignalSpy(instance.operation_failed)
+
+    assert instance.set_force_break(True) is True
+    assert instance.snooze_break(5) is False
+
+    assert settings.force_break is True
+    assert reminder.force_break is True
+    assert spy.count() == 1
