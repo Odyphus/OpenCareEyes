@@ -1,0 +1,62 @@
+[build-system]
+requires = ["setuptools>=77", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "opencareyes"
+version = "0.2.0"
+description = "Local-first, low-interruption eye comfort assistant for Windows"
+readme = { file = "README.md", content-type = "text/markdown" }
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+requires-python = ">=3.10"
+keywords = ["eye-comfort", "break-reminder", "screen-dimmer", "windows"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Win32 (MS Windows)",
+    "Intended Audience :: End Users/Desktop",
+    "Operating System :: Microsoft :: Windows :: Windows 10",
+    "Operating System :: Microsoft :: Windows :: Windows 11",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+dependencies = [
+    "PySide6>=6.6",
+    "astral>=3.2",
+    "keyboard>=0.13",
+    "darkdetect>=0.8",
+]
+
+[project.optional-dependencies]
+build = [
+    "pyinstaller>=6.3",
+    "pillow>=10.0",
+]
+dev = [
+    "pytest>=8.0",
+    "pytest-qt>=4.4",
+    "ruff>=0.6",
+]
+
+[project.scripts]
+opencareyes = "opencareyes.__main__:main"
+
+[project.urls]
+Homepage = "https://github.com/Odyphus/OpenCareEyes"
+Repository = "https://github.com/Odyphus/OpenCareEyes"
+Issues = "https://github.com/Odyphus/OpenCareEyes/issues"
+Changelog = "https://github.com/Odyphus/OpenCareEyes/blob/main/CHANGELOG.md"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F"]

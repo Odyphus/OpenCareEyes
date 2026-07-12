@@ -1,0 +1,157 @@
+"""Calm, escapable full-screen break reminder."""
+
+from __future__ import annotations
+
+from PySide6.QtCore import Qt, QTimer, Signal
+from PySide6.QtGui import QColor, QFont, QKeyEvent, QPainter
+from PySide6.QtWidgets import QApplication, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
+
+from opencareyes.ui.widgets import first_state_value
+
+
+_TIPS = (
+    "看向约 6 米外的物体，让眼睛慢慢放松。",
+    "轻轻闭眼，放松眼周与肩颈。",
+    "缓慢眨眼十次，让眼睛保持湿润。",
+    "站起来伸展身体，再做几次深呼吸。",
+)
+
+
+class BreakOverlay(QWidget):
+    skip_requested = Signal()
+    snooze_requested = Signal(int)
+
+    def __init__(self, controller=None, parent=None):
+        super().__init__(parent)
+        self._controller = controller
+        self.setObjectName("breakOverlay")
+        self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)
+        self.setAttribute(Qt.WA_TranslucentBackground)
+        self.setAccessibleName("全屏休息提醒")
+        self._remaining = 0
+        self._tip_index = 0
+        self._fallback_timer = QTimer(self)
+        self._fallback_timer.setInterval(1000)
+        self._fallback_timer.timeout.connect(self._fallback_tick)
+        self._build_ui()
+
+        if controller is not None:
+            controller.state_changed.connect(self.render)
+            self.skip_requested.connect(controller.skip_break)
+            self.snooze_requested.connect(controller.snooze_break)
+            self.render(controller.state)
+
+    def _build_ui(self) -> None:
+        self._title_label = QLabel("该休息一下眼睛了")
+        self._title_label.setAlignment(Qt.AlignCenter)
+        self._title_label.setFont(QFont("Segoe UI", 28, QFont.DemiBold))
+        self._title_label.setStyleSheet("color: white; background: transparent;")
+        self._countdown_label = QLabel("0:00")
+        self._countdown_label.setAlignment(Qt.AlignCenter)
+        self._countdown_label.setFont(QFont("Segoe UI", 64, QFont.DemiBold))
+        self._countdown_label.setStyleSheet("color: white; background: transparent;")
+        self._tip_label = QLabel("")
+        self._tip_label.setAlignment(Qt.AlignCenter)
+        self._tip_label.setFont(QFont("Segoe UI", 15))
+        self._tip_label.setStyleSheet("color: rgba(255,255,255,190); background: transparent;")
+        self._tip_label.setWordWrap(True)
+
+        self._snooze_button = QPushButton("5 分钟后提醒")
+        self._skip_button = QPushButton("结束本次休息")
+        for button in (self._snooze_button, self._skip_button):
+            button.setMinimumSize(136, 42)
+            button.setStyleSheet(
+                "QPushButton { color: white; background: rgba(255,255,255,28); "
+                "border: 1px solid rgba(255,255,255,70); border-radius: 10px; padding: 8px 16px; }"
+                "QPushButton:hover, QPushButton:focus { background: rgba(255,255,255,48); "
+                "border-color: rgba(255,255,255,150); }"
+            )
+        self._snooze_button.setAccessibleName("5 分钟后再次提醒")
+        self._skip_button.setAccessibleName("安全结束本次休息")
+        self._snooze_button.clicked.connect(lambda: self.snooze_requested.emit(5))
+        self._skip_button.clicked.connect(self.skip_requested.emit)
+
+        actions = QHBoxLayout()
+        actions.addStretch()
+        actions.addWidget(self._snooze_button)
+        actions.addWidget(self._skip_button)
+        actions.addStretch()
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(48, 48, 48, 48)
+        layout.addStretch()
+        layout.addWidget(self._title_label)
+        layout.addSpacing(18)
+        layout.addWidget(self._countdown_label)
+        layout.addSpacing(14)
+        layout.addWidget(self._tip_label)
+        layout.addSpacing(30)
+        layout.addLayout(actions)
+        layout.addStretch()
+
+    def start_break(self, duration_seconds: int, force: bool = False) -> None:
+        """Compatibility entry point for integrations without a controller."""
+
+        self._remaining = max(0, int(duration_seconds))
+        self._show_break(force)
+        if self._controller is None:
+            self._fallback_timer.start()
+
+    def end_break(self) -> None:
+        self._fallback_timer.stop()
+        self.hide()
+
+    def _show_break(self, force: bool) -> None:
+        self._update_display()
+        if not self.isVisible():
+            self._tip_label.setText(_TIPS[self._tip_index % len(_TIPS)])
+            self._tip_index += 1
+            self._cover_all_screens()
+            self.show()
+            self.raise_()
+            self.activateWindow()
+        # Safety exit remains available even for the advanced "force" option.
+        self._skip_button.setVisible(True)
+
+    def render(self, state) -> None:
+        enabled = bool(first_state_value(state, "breaks.enabled", default=False))
+        phase = str(first_state_value(state, "breaks.phase", default="stopped"))
+        self._remaining = int(first_state_value(state, "breaks.remaining", default=0))
+        force = bool(first_state_value(state, "breaks.force_break", default=False))
+        if enabled and phase == "resting" and force:
+            self._show_break(force)
+        else:
+            self.end_break()
+
+    def _fallback_tick(self) -> None:
+        self._remaining -= 1
+        self._update_display()
+        if self._remaining <= 0:
+            self.end_break()
+
+    def _update_display(self) -> None:
+        minutes, seconds = divmod(max(0, self._remaining), 60)
+        text = f"{minutes}:{seconds:02d}"
+        self._countdown_label.setText(text)
+        self.setAccessibleDescription(f"休息剩余 {minutes} 分 {seconds} 秒")
+
+    def _cover_all_screens(self) -> None:
+        app = QApplication.instance()
+        screens = app.screens() if app is not None else []
+        if not screens:
+            return
+        combined = screens[0].geometry()
+        for screen in screens[1:]:
+            combined = combined.united(screen.geometry())
+        self.setGeometry(combined)
+
+    def paintEvent(self, event) -> None:
+        painter = QPainter(self)
+        painter.fillRect(self.rect(), QColor(10, 14, 24, 222))
+        painter.end()
+
+    def keyPressEvent(self, event: QKeyEvent) -> None:
+        if event.key() == Qt.Key_Escape:
+            self.skip_requested.emit()
+            event.accept()
+        else:
+            super().keyPressEvent(event)

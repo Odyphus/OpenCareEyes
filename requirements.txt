@@ -1,0 +1,3 @@
+# Compatibility entry point for users who prefer requirements.txt.
+# Runtime dependencies are declared once in pyproject.toml.
+-e .
