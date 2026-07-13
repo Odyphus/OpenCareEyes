@@ -62,7 +62,7 @@ jobs:
           $env:OPENCAREYES_SETTINGS_PATH = Join-Path $env:RUNNER_TEMP "opencareeyes-smoke.ini"
           $env:OPENCAREYES_INSTANCE_KEY = "OpenCareEyes-CI-$PID"
           $env:LOCALAPPDATA = Join-Path $env:RUNNER_TEMP "opencareeyes-localappdata"
-          python -c "from opencareyes.config.settings import Settings; s=Settings(); s.onboarding_completed=True; s.autostart_enabled=False"
+          python -c "from opencareyes.config.settings import Settings; s=Settings(); s.onboarding_completed=True; s.autostart=False"
           $first = Start-Process -FilePath $exe -PassThru
           try {
             Start-Sleep -Seconds 15

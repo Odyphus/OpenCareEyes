@@ -261,9 +261,10 @@ class BreakReminder(QObject):
             return max(0, self._remaining)
         delta = self._deadline - self._clock()
         # A 1 s Qt wake-up may land a few milliseconds before the exact
-        # deadline on some Windows timer backends.  Treat that tiny margin as
-        # due so one-second phases do not take two ticks.
-        if delta <= 0.05:
+        # second boundary on some Windows timer backends. Treat that tiny
+        # margin as due for every displayed second, not only the final one.
+        delta -= 0.05
+        if delta <= 0:
             return 0
         return max(0, int(math.ceil(delta)))
 

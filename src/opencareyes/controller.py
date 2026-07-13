@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Callable
 
 from PySide6.QtCore import QObject, QTimer, Signal
 
+from opencareyes.application.state_projector import StateProjector
 from opencareyes.constants import (
     DIM_MAX,
     DIM_MIN,
@@ -21,17 +22,7 @@ from opencareyes.constants import (
     TEMP_MIN,
 )
 from opencareyes.diagnostics import export_diagnostics as write_diagnostics
-from opencareyes.state import (
-    AppState,
-    AutomationState,
-    BreakState,
-    CapabilitiesState,
-    DisplayState,
-    FocusState,
-    GeneralState,
-    GlobalPauseState,
-    HotkeyState,
-)
+from opencareyes.state import AppState, ContextState, EffectivePolicyState
 
 if TYPE_CHECKING:
     from opencareyes.config.settings import Settings
@@ -68,7 +59,19 @@ class AppController(QObject):
         self._focus_mode = focus_mode
         self._scheduler = scheduler
         self._hotkeys = hotkeys
+        self._context_runtime = None
         self._restored = False
+        self._context_state = ContextState()
+        self._effective_policy: EffectivePolicyState | None = None
+        self._state_projector = StateProjector(
+            settings,
+            blue_filter=blue_filter,
+            dimmer=dimmer,
+            break_reminder=break_reminder,
+            focus_mode=focus_mode,
+            scheduler=scheduler,
+            hotkeys=hotkeys,
+        )
 
         self._pause_timer = QTimer(self)
         self._pause_timer.setSingleShot(True)
@@ -156,6 +159,27 @@ class AppController(QObject):
             self._state = new_state
             self.state_changed.emit(new_state)
         return self._state
+
+    def update_runtime_state(
+        self,
+        context: ContextState,
+        effective_policy: EffectivePolicyState,
+    ) -> AppState:
+        """Receive the context layer's read-only runtime projection."""
+
+        self._context_state = context
+        self._effective_policy = effective_policy
+        return self.refresh_state(force=True)
+
+    def attach_context_runtime(self, runtime) -> None:
+        """Attach the context application layer after all services exist."""
+
+        self._context_runtime = runtime
+        runtime.runtime_changed.connect(self.update_runtime_state)
+        failure = getattr(runtime, "operation_failed", None)
+        if failure is not None:
+            failure.connect(self.operation_failed)
+        runtime.recompute()
 
     # ---- Feature switches ----
 
@@ -540,6 +564,58 @@ class AppController(QObject):
             return False
         return self._run("theme", lambda: setattr(self._settings, "theme", theme))
 
+    def set_motion_mode(self, mode: str) -> bool:
+        if mode not in {"system", "standard", "reduced"}:
+            self.operation_failed.emit("motion_mode", f"Unknown motion mode: {mode}")
+            return False
+        return self._run(
+            "motion_mode",
+            lambda: setattr(self._settings, "motion_mode", mode),
+        )
+
+    def set_smart_pause_enabled(self, enabled: bool) -> bool:
+        return self._set_context_preference("smart_pause_enabled", bool(enabled))
+
+    def set_fullscreen_pause_enabled(self, enabled: bool) -> bool:
+        return self._set_context_preference(
+            "fullscreen_pause_enabled", bool(enabled)
+        )
+
+    def set_natural_rest_enabled(self, enabled: bool) -> bool:
+        return self._set_context_preference("natural_rest_enabled", bool(enabled))
+
+    def upsert_app_rule(self, rule) -> bool:
+        def operation() -> None:
+            updater = getattr(self._settings, "upsert_app_rule", None)
+            if not callable(updater):
+                raise RuntimeError("Application rules are unavailable")
+            updater(rule)
+
+        return self._run("app_rule", operation)
+
+    def remove_app_rule(self, app_id: str) -> bool:
+        def operation() -> None:
+            remover = getattr(self._settings, "remove_app_rule", None)
+            if not callable(remover):
+                raise RuntimeError("Application rules are unavailable")
+            remover(app_id)
+
+        return self._run("app_rule", operation)
+
+    def resume_breaks_for_current_context(self) -> bool:
+        if self._context_runtime is None:
+            self.operation_failed.emit(
+                "context_override", "Smart pause is unavailable"
+            )
+            return False
+        return bool(self._context_runtime.resume_breaks_for_current_context())
+
+    def _set_context_preference(self, name: str, value: bool) -> bool:
+        return self._run(
+            name,
+            lambda: setattr(self._settings, name, value),
+        )
+
     def set_autostart(self, enabled: bool) -> bool:
         enabled = bool(enabled)
 
@@ -803,6 +879,8 @@ class AppController(QObject):
         try:
             operation()
             self._settings.sync()
+            if self._context_runtime is not None:
+                self._context_runtime.recompute()
         except Exception as exc:
             self._fail(code, exc)
             # Republish even when persistence is unchanged so controls that
@@ -879,90 +957,10 @@ class AppController(QObject):
         }
 
     def _build_state(self) -> AppState:
-        reminder = self._break_reminder
-        scheduler = self._scheduler
-        until = self._settings.global_pause_until
-        until_datetime = (
-            datetime.fromtimestamp(until).astimezone() if until is not None else None
-        )
-        return AppState(
-            display=DisplayState(
-                filter_enabled=self._settings.filter_enabled,
-                color_temperature=self._settings.color_temperature,
-                dimmer_enabled=self._settings.dimmer_enabled,
-                dim_level=self._settings.dim_level,
-                preset=self._settings.current_preset,
-            ),
-            breaks=BreakState(
-                enabled=self._settings.break_enabled,
-                phase=getattr(reminder, "phase", "stopped"),
-                mode=self._settings.break_mode,
-                work_duration=self._settings.work_duration,
-                break_duration=self._settings.break_duration,
-                remaining=getattr(reminder, "remaining", 0),
-                total=getattr(reminder, "total", 0),
-                paused=getattr(reminder, "paused", False),
-                force_break=self._settings.force_break,
-                countdown_display=self._settings.break_countdown_display,
-            ),
-            focus=FocusState(
-                enabled=self._settings.focus_enabled,
-                dim_level=self._settings.focus_dim_level,
-                session_ends_at=self._focus_session_ends_at,
-            ),
-            automation=AutomationState(
-                enabled=self._settings.filter_schedule_enabled,
-                mode=self._settings.schedule_mode,
-                next_event=getattr(scheduler, "next_event", None),
-                next_event_at=getattr(scheduler, "next_event_at", None),
-                manual_override=getattr(scheduler, "manual_override", False),
-                on_time=self._settings.schedule_on_time,
-                off_time=self._settings.schedule_off_time,
-                days=self._settings.schedule_days,
-            ),
-            global_pause=GlobalPauseState(
-                active=self._is_globally_paused(),
-                mode=(
-                    self._settings.global_pause_mode
-                    if self._is_globally_paused()
-                    else "none"
-                ),
-                until=until_datetime if self._is_globally_paused() else None,
-            ),
-            capabilities=CapabilitiesState(
-                filter_available=self._blue_filter is not None,
-                dimmer_available=self._dimmer is not None,
-                breaks_available=self._break_reminder is not None,
-                focus_available=self._focus_mode is not None,
-                automation_available=self._scheduler is not None,
-                hotkeys_available=(
-                    self._hotkeys is not None
-                    and bool(getattr(self._hotkeys, "available", False))
-                ),
-            ),
-            general=GeneralState(
-                theme=self._settings.theme,
-                autostart=self._settings.autostart,
-                onboarding_completed=self._settings.onboarding_completed,
-                location_configured=self._settings.location_configured,
-                city=self._settings.city,
-                latitude=(
-                    self._settings.latitude
-                    if self._settings.location_configured
-                    else None
-                ),
-                longitude=(
-                    self._settings.longitude
-                    if self._settings.location_configured
-                    else None
-                ),
-                hotkeys=HotkeyState(
-                    filter=self._settings.hotkey_filter,
-                    breaks=self._settings.hotkey_break,
-                    dimmer=self._settings.hotkey_dimmer,
-                    focus=self._settings.hotkey_focus,
-                ),
-            ),
+        return self._state_projector.build(
+            focus_session_ends_at=self._focus_session_ends_at,
+            context=self._context_state,
+            effective_policy=self._effective_policy,
         )
 
     @staticmethod

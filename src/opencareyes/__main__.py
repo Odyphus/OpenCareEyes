@@ -8,7 +8,9 @@ import sys
 from PySide6.QtCore import QTimer
 
 from opencareyes.app import OpenCareEyesApp
-from opencareyes.config.settings import Settings
+from opencareyes.application.context_coordinator import ContextCoordinator
+from opencareyes.application.effect_coordinator import EffectCoordinator
+from opencareyes.config.settings import PreferencesRepository
 from opencareyes.controller import AppController
 from opencareyes.core.blue_light_filter import BlueLightFilter
 from opencareyes.core.break_reminder import BreakReminder
@@ -17,6 +19,10 @@ from opencareyes.core.scheduler import Scheduler
 from opencareyes.core.screen_dimmer import ScreenDimmer
 from opencareyes.diagnostics import configure_logging
 from opencareyes.platform.hotkeys import HotkeyManager
+from opencareyes.platform.context_sensor import (
+    ContextSensor,
+    WindowsSessionEventFilter,
+)
 from opencareyes.ui.break_overlay import BreakOverlay
 from opencareyes.ui.main_panel import MainPanel
 from opencareyes.ui.mini_countdown import MiniCountdownWidget
@@ -41,13 +47,26 @@ def main() -> None:
     # process cannot append to the file while the primary process owns it.
     configure_logging()
 
-    settings = Settings()
+    settings = PreferencesRepository()
     blue_filter = BlueLightFilter()
     dimmer = ScreenDimmer()
     break_reminder = BreakReminder()
     focus_mode = FocusMode()
     scheduler = Scheduler(settings=settings)
     hotkeys = HotkeyManager()
+    context_sensor = ContextSensor()
+    effect_coordinator = EffectCoordinator(
+        settings,
+        blue_filter=blue_filter,
+        dimmer=dimmer,
+        break_reminder=break_reminder,
+        focus_mode=focus_mode,
+    )
+    context_runtime = ContextCoordinator(
+        settings,
+        context_sensor,
+        effect_coordinator,
+    )
 
     controller = AppController(
         settings=settings,
@@ -60,6 +79,9 @@ def main() -> None:
     )
 
     panel = MainPanel(controller)
+    session_events = WindowsSessionEventFilter(context_sensor)
+    app.installNativeEventFilter(session_events)
+    session_events.register(int(panel.winId()))
     mini_countdown = MiniCountdownWidget(controller)
     # Keep the top-level overlay alive for the whole application lifetime.
     _break_overlay = BreakOverlay(controller)
@@ -73,6 +95,8 @@ def main() -> None:
     tray.show()
     app.apply_theme(controller.state.general.theme)
     controller.restore()
+    controller.attach_context_runtime(context_runtime)
+    context_runtime.start()
 
     def present_first_run() -> None:
         if controller.state.general.onboarding_completed:
@@ -91,6 +115,9 @@ def main() -> None:
     def on_exit() -> None:
         # Runtime effects must be removed without overwriting the user's saved
         # preferences, so shutdown calls services directly by design.
+        context_runtime.stop()
+        session_events.unregister()
+        app.removeNativeEventFilter(session_events)
         break_reminder.stop()
         scheduler.stop()
         hotkeys.unregister_all()

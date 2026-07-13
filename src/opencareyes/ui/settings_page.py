@@ -54,6 +54,12 @@ class SettingsPage(ScrollPage):
         self._theme_combo.addItem("暗色", "dark")
         set_accessible(self._theme_combo, "应用主题")
         general_form.addRow("主题", self._theme_combo)
+        self._motion_combo = QComboBox()
+        self._motion_combo.addItem("跟随系统", "system")
+        self._motion_combo.addItem("标准动画", "standard")
+        self._motion_combo.addItem("减少动画", "reduced")
+        set_accessible(self._motion_combo, "动画效果")
+        general_form.addRow("动画效果", self._motion_combo)
         self._autostart_toggle = QCheckBox("登录 Windows 后自动启动")
         set_accessible(self._autostart_toggle, "开机自动启动")
         general_form.addRow("开机启动", self._autostart_toggle)
@@ -119,6 +125,7 @@ class SettingsPage(ScrollPage):
 
     def _connect_signals(self) -> None:
         self._theme_combo.currentIndexChanged.connect(self._theme_changed)
+        self._motion_combo.currentIndexChanged.connect(self._motion_changed)
         self._autostart_toggle.toggled.connect(self._autostart_changed)
         self._save_hotkeys_button.clicked.connect(self._save_hotkeys)
         self._reset_hotkeys_button.clicked.connect(self._controller.reset_hotkeys)
@@ -129,6 +136,10 @@ class SettingsPage(ScrollPage):
     def _theme_changed(self, index: int) -> None:
         if not self._rendering:
             self._controller.set_theme(self._theme_combo.itemData(index))
+
+    def _motion_changed(self, index: int) -> None:
+        if not self._rendering:
+            self._controller.set_motion_mode(self._motion_combo.itemData(index))
 
     def _autostart_changed(self, enabled: bool) -> None:
         if not self._rendering:
@@ -182,6 +193,13 @@ class SettingsPage(ScrollPage):
             if index >= 0:
                 with QSignalBlocker(self._theme_combo):
                     self._theme_combo.setCurrentIndex(index)
+            motion_mode = str(first_state_value(
+                state, "general.motion_mode", default="system"
+            ))
+            motion_index = self._motion_combo.findData(motion_mode)
+            if motion_index >= 0:
+                with QSignalBlocker(self._motion_combo):
+                    self._motion_combo.setCurrentIndex(motion_index)
             with QSignalBlocker(self._autostart_toggle):
                 self._autostart_toggle.setChecked(autostart)
             for action, edit in self._hotkey_edits.items():

@@ -5,6 +5,7 @@ from dataclasses import dataclass
 
 import opencareyes.diagnostics as diagnostics
 from opencareyes.diagnostics import export_diagnostics
+from opencareyes.state import AppState, ContextState
 
 
 @dataclass(frozen=True)
@@ -43,3 +44,20 @@ def test_logging_failure_does_not_block_startup(monkeypatch, tmp_path):
     assert diagnostics.configure_logging().as_posix() == (
         tmp_path / "opencareyes.log"
     ).as_posix()
+
+
+def test_diagnostic_export_never_contains_window_title_or_executable_path(tmp_path):
+    target = tmp_path / "diagnostics.zip"
+    state = AppState(context=ContextState(
+        foreground_app_id=r"C:\Private\Game.exe",
+        recent_app_id=r"D:\Work\PowerPnt.exe",
+    ))
+
+    export_diagnostics(target, state)
+
+    with zipfile.ZipFile(target) as archive:
+        text = archive.read("diagnostics.json").decode("utf-8")
+    assert "C:\\Private" not in text
+    assert "D:\\Work" not in text
+    assert "game.exe" in text.lower()
+    assert "powerpnt.exe" in text.lower()

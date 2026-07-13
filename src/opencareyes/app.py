@@ -1,7 +1,7 @@
 """Application bootstrap, dynamic theme handling and single-instance IPC."""
 
-import os
 import logging
+import os
 
 from PySide6.QtGui import QFont, QFontDatabase, QIcon
 from PySide6.QtWidgets import QApplication
@@ -13,10 +13,36 @@ from opencareyes.constants import APP_NAME, ICONS_DIR, STYLES_DIR
 log = logging.getLogger(__name__)
 
 
+def client_area_animations_enabled() -> bool:
+    """Return the Windows client-area animation preference.
+
+    Non-Windows development environments and unavailable native APIs default
+    to animations enabled. A failure must never prevent application startup.
+    """
+    if os.name != "nt":
+        return True
+    try:
+        import ctypes
+
+        enabled = ctypes.c_int()
+        success = ctypes.windll.user32.SystemParametersInfoW(
+            0x1042,  # SPI_GETCLIENTAREAANIMATION
+            0,
+            ctypes.byref(enabled),
+            0,
+        )
+        return bool(enabled.value) if success else True
+    except Exception:
+        log.debug("Could not read the Windows animation preference", exc_info=True)
+        return True
+
+
 class OpenCareEyesApp(QApplication):
     """Single-instance application."""
 
     activation_requested = Signal()
+    theme_changed = Signal(str)
+    motion_changed = Signal(bool)
 
     _instance = None
 
@@ -33,12 +59,13 @@ class OpenCareEyesApp(QApplication):
         self._server: QLocalServer | None = None
         self._server_name = os.environ.get("OPENCAREYES_INSTANCE_KEY", APP_NAME)
         self._theme = "system"
-        self._resolved_theme = "dark"
-        self._theme_timer = QTimer(self)
-        self._theme_timer.setInterval(3000)
-        self._theme_timer.timeout.connect(self._poll_system_theme)
+        self._resolved_theme = ""
+        self._motion_enabled = client_area_animations_enabled()
+        self._preference_timer = QTimer(self)
+        self._preference_timer.setInterval(3000)
+        self._preference_timer.timeout.connect(self._poll_system_preferences)
         self.apply_theme("system")
-        self._theme_timer.start()
+        self._preference_timer.start()
 
     def _load_windows_fonts(self) -> None:
         """Register reliable Latin/CJK fallbacks with Qt's font engine.
@@ -92,6 +119,15 @@ class OpenCareEyesApp(QApplication):
     def theme(self) -> str:
         return self._theme
 
+    @property
+    def resolved_theme(self) -> str:
+        return self._resolved_theme
+
+    @property
+    def motion_enabled(self) -> bool:
+        """Whether decorative client-area animations should run."""
+        return self._motion_enabled
+
     def apply_theme(self, theme: str) -> str:
         """Apply ``light``, ``dark`` or the currently detected system theme.
 
@@ -112,6 +148,7 @@ class OpenCareEyesApp(QApplication):
         self._theme = requested
         self._resolved_theme = resolved
         self.setProperty("resolvedTheme", resolved)
+        self.theme_changed.emit(resolved)
         return resolved
 
     @staticmethod
@@ -125,15 +162,23 @@ class OpenCareEyesApp(QApplication):
         except Exception:
             return "dark"
 
-    def _poll_system_theme(self):
-        if self._theme != "system":
-            return
-        resolved = self._resolve_theme("system")
-        if resolved != self._resolved_theme:
-            self.apply_theme("system")
+    def _poll_system_preferences(self) -> None:
+        if self._theme == "system":
+            resolved = self._resolve_theme("system")
+            if resolved != self._resolved_theme:
+                self.apply_theme("system")
+
+        motion_enabled = client_area_animations_enabled()
+        if motion_enabled != self._motion_enabled:
+            self._motion_enabled = motion_enabled
+            self.motion_changed.emit(motion_enabled)
+
+    def _poll_system_theme(self) -> None:
+        """Compatibility wrapper for callers from v0.2."""
+        self._poll_system_preferences()
 
     def cleanup(self):
-        self._theme_timer.stop()
+        self._preference_timer.stop()
         if self._server:
             self._server.close()
             self._server.removeServer(self._server_name)
