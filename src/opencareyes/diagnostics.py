@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import ntpath
 import os
 import platform
 import sys
@@ -59,11 +60,21 @@ def _scrub(value):
     if is_dataclass(value):
         value = asdict(value)
     if isinstance(value, dict):
-        return {
-            key: _scrub(item)
-            for key, item in value.items()
-            if key.lower() not in {"latitude", "longitude", "location", "city"}
-        }
+        result = {}
+        for key, item in value.items():
+            normalized_key = key.lower()
+            if normalized_key in {
+                "latitude",
+                "longitude",
+                "location",
+                "city",
+                "window_title",
+            }:
+                continue
+            if normalized_key in {"app_id", "foreground_app_id", "recent_app_id"}:
+                item = ntpath.basename(item) if isinstance(item, str) else ""
+            result[key] = _scrub(item)
+        return result
     if isinstance(value, (list, tuple)):
         return [_scrub(item) for item in value]
     if isinstance(value, (str, int, float, bool)) or value is None:

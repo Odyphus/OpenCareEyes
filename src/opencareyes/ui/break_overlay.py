@@ -20,6 +20,7 @@ _TIPS = (
 class BreakOverlay(QWidget):
     skip_requested = Signal()
     snooze_requested = Signal(int)
+    resume_requested = Signal()
 
     def __init__(self, controller=None, parent=None):
         super().__init__(parent)
@@ -40,6 +41,9 @@ class BreakOverlay(QWidget):
             controller.state_changed.connect(self.render)
             self.skip_requested.connect(controller.skip_break)
             self.snooze_requested.connect(controller.snooze_break)
+            resume_break = getattr(controller, "resume_break", None)
+            if resume_break is not None:
+                self.resume_requested.connect(resume_break)
             self.render(controller.state)
         else:
             self.skip_requested.connect(self.end_break)
@@ -61,8 +65,9 @@ class BreakOverlay(QWidget):
         self._tip_label.setWordWrap(True)
 
         self._snooze_button = QPushButton("5 分钟后提醒")
+        self._resume_button = QPushButton("继续休息计时")
         self._skip_button = QPushButton("结束本次休息")
-        for button in (self._snooze_button, self._skip_button):
+        for button in (self._snooze_button, self._resume_button, self._skip_button):
             button.setMinimumSize(136, 42)
             button.setStyleSheet(
                 "QPushButton { color: white; background: rgba(255,255,255,28); "
@@ -71,13 +76,16 @@ class BreakOverlay(QWidget):
                 "border-color: rgba(255,255,255,150); }"
             )
         self._snooze_button.setAccessibleName("5 分钟后再次提醒")
+        self._resume_button.setAccessibleName("继续休息倒计时")
         self._skip_button.setAccessibleName("安全结束本次休息")
         self._snooze_button.clicked.connect(lambda: self.snooze_requested.emit(5))
+        self._resume_button.clicked.connect(self.resume_requested.emit)
         self._skip_button.clicked.connect(self.skip_requested.emit)
 
         actions = QHBoxLayout()
         actions.addStretch()
         actions.addWidget(self._snooze_button)
+        actions.addWidget(self._resume_button)
         actions.addWidget(self._skip_button)
         actions.addStretch()
         layout = QVBoxLayout(self)
@@ -115,6 +123,7 @@ class BreakOverlay(QWidget):
             title = "该休息一下眼睛了"
         self._title_label.setText(title)
         self._snooze_button.setVisible(not self._force)
+        self._resume_button.setVisible(paused)
         self._skip_button.setText(
             "安全结束本次休息" if self._force else "结束本次休息"
         )
@@ -135,9 +144,12 @@ class BreakOverlay(QWidget):
         paused = bool(first_state_value(state, "breaks.paused", default=False))
         self._remaining = int(first_state_value(state, "breaks.remaining", default=0))
         force = bool(first_state_value(state, "breaks.force_break", default=False))
+        suppressed = tuple(first_state_value(
+            state, "effective_policy.breaks.suppressed_by", default=()
+        ))
         # Every active rest phase gets a visible full-screen surface.  Strict
         # mode controls postponement, not whether the reminder can be seen.
-        if enabled and phase == "resting":
+        if enabled and phase == "resting" and not suppressed:
             self._show_break(force, paused)
         else:
             self.end_break()

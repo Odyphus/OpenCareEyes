@@ -21,7 +21,10 @@ from opencareyes.state import (
     AutomationState,
     BreakState,
     CapabilitiesState,
+    ContextState,
     DisplayState,
+    EffectivePolicyState,
+    FeatureRuntimeState,
     FocusState,
     GeneralState,
     GlobalPauseState,
@@ -80,6 +83,16 @@ class DemoController(QObject):
                 latitude=31.2304,
                 longitude=121.4737,
             ),
+            context=ContextState(
+                foreground_app_id="code.exe",
+                recent_app_id="code.exe",
+            ),
+            effective_policy=EffectivePolicyState(
+                filter=FeatureRuntimeState(True, True),
+                dimmer=FeatureRuntimeState(True, True),
+                breaks=FeatureRuntimeState(True, True),
+                focus=FeatureRuntimeState(False, False),
+            ),
         )
 
     def __getattr__(self, _name):
@@ -112,6 +125,10 @@ def main() -> int:
     QTest.qWait(100)
     panel.show_page(args.page)
     app.processEvents()
+    if args.page == "自动化":
+        page = panel._stack.currentWidget()
+        page.verticalScrollBar().setValue(420)
+        app.processEvents()
     # Native Windows widgets can finish their first paint asynchronously.
     # Waiting for one short paint cycle avoids partially rendered README art.
     QTest.qWait(200)

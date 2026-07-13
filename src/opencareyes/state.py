@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
+from typing import Literal
 
 
 @dataclass(frozen=True, slots=True)
@@ -37,6 +38,23 @@ class FocusState:
 
 
 @dataclass(frozen=True, slots=True)
+class AppRuleState:
+    app_id: str
+    breaks: bool = True
+    focus: bool = True
+    filter: bool = False
+    dimmer: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class SmartPausePreferencesState:
+    enabled: bool = True
+    fullscreen_enabled: bool = True
+    natural_rest_enabled: bool = True
+    app_rules: tuple[AppRuleState, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
 class AutomationState:
     enabled: bool = False
     mode: str = "sun"
@@ -46,6 +64,9 @@ class AutomationState:
     on_time: str = "19:00"
     off_time: str = "07:30"
     days: tuple[int, ...] = (0, 1, 2, 3, 4)
+    smart_pause: SmartPausePreferencesState = field(
+        default_factory=SmartPausePreferencesState
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -82,12 +103,46 @@ class GeneralState:
     city: str = ""
     latitude: float | None = None
     longitude: float | None = None
+    motion_mode: Literal["system", "standard", "reduced"] = "system"
     hotkeys: HotkeyState = field(default_factory=HotkeyState)
 
     @property
     def first_run_complete(self) -> bool:
         """Compatibility spelling used by early v0.2 UI prototypes."""
         return self.onboarding_completed
+
+
+@dataclass(frozen=True, slots=True)
+class ContextState:
+    session: Literal["active", "locked", "suspended"] = "active"
+    foreground_app_id: str = ""
+    fullscreen: bool = False
+    notification_mode: Literal[
+        "normal",
+        "busy",
+        "presentation",
+        "d3d_fullscreen",
+        "unavailable",
+    ] = "normal"
+    idle_seconds: int = 0
+    captured_at: datetime | None = None
+    recent_app_id: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class FeatureRuntimeState:
+    desired_enabled: bool = False
+    effective_enabled: bool = False
+    suppressed_by: tuple[str, ...] = ()
+    resume_condition: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class EffectivePolicyState:
+    filter: FeatureRuntimeState = field(default_factory=FeatureRuntimeState)
+    dimmer: FeatureRuntimeState = field(default_factory=FeatureRuntimeState)
+    breaks: FeatureRuntimeState = field(default_factory=FeatureRuntimeState)
+    focus: FeatureRuntimeState = field(default_factory=FeatureRuntimeState)
 
 
 @dataclass(frozen=True, slots=True)
@@ -99,3 +154,5 @@ class AppState:
     global_pause: GlobalPauseState = field(default_factory=GlobalPauseState)
     capabilities: CapabilitiesState = field(default_factory=CapabilitiesState)
     general: GeneralState = field(default_factory=GeneralState)
+    context: ContextState = field(default_factory=ContextState)
+    effective_policy: EffectivePolicyState = field(default_factory=EffectivePolicyState)

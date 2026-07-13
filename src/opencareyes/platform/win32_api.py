@@ -8,6 +8,10 @@ import ctypes.wintypes as wintypes
 # ---------------------------------------------------------------------------
 gdi32 = ctypes.windll.gdi32
 user32 = ctypes.windll.user32
+kernel32 = ctypes.windll.kernel32
+dwmapi = ctypes.windll.dwmapi
+shell32 = ctypes.windll.shell32
+wtsapi32 = ctypes.windll.wtsapi32
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -37,6 +41,32 @@ WS_EX_TOOLWINDOW = 0x00000080
 
 # Monitor info flags
 MONITORINFOF_PRIMARY = 0x00000001
+MONITOR_DEFAULTTONEAREST = 0x00000002
+
+# Foreground process and physical frame queries
+PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+DWMWA_EXTENDED_FRAME_BOUNDS = 9
+
+# QUERY_USER_NOTIFICATION_STATE values.  QUNS_QUIET_TIME deliberately maps to
+# normal in the context sensor; it is not the Windows 11 Do Not Disturb state.
+QUNS_NOT_PRESENT = 1
+QUNS_BUSY = 2
+QUNS_RUNNING_D3D_FULL_SCREEN = 3
+QUNS_PRESENTATION_MODE = 4
+QUNS_ACCEPTS_NOTIFICATIONS = 5
+QUNS_QUIET_TIME = 6
+QUNS_APP = 7
+
+# Session and power messages
+WM_POWERBROADCAST = 0x0218
+WM_WTSSESSION_CHANGE = 0x02B1
+WTS_SESSION_LOCK = 0x7
+WTS_SESSION_UNLOCK = 0x8
+NOTIFY_FOR_THIS_SESSION = 0
+PBT_APMSUSPEND = 0x0004
+PBT_APMRESUMECRITICAL = 0x0006
+PBT_APMRESUMESUSPEND = 0x0007
+PBT_APMRESUMEAUTOMATIC = 0x0012
 
 
 # ---------------------------------------------------------------------------
@@ -58,6 +88,25 @@ class MONITORINFOEXW(ctypes.Structure):
         ("rcWork", RECT),
         ("dwFlags", wintypes.DWORD),
         ("szDevice", wintypes.WCHAR * 32),
+    ]
+
+
+class LASTINPUTINFO(ctypes.Structure):
+    _fields_ = [
+        ("cbSize", wintypes.UINT),
+        ("dwTime", wintypes.DWORD),
+    ]
+
+
+class MSG(ctypes.Structure):
+    _fields_ = [
+        ("hwnd", wintypes.HWND),
+        ("message", wintypes.UINT),
+        ("wParam", wintypes.WPARAM),
+        ("lParam", wintypes.LPARAM),
+        ("time", wintypes.DWORD),
+        ("pt", wintypes.POINT),
+        ("lPrivate", wintypes.DWORD),
     ]
 
 
@@ -147,6 +196,73 @@ UnhookWinEvent.restype = wintypes.BOOL
 GetForegroundWindow = user32.GetForegroundWindow
 GetForegroundWindow.argtypes = []
 GetForegroundWindow.restype = wintypes.HWND
+
+GetWindowThreadProcessId = user32.GetWindowThreadProcessId
+GetWindowThreadProcessId.argtypes = [
+    wintypes.HWND,
+    ctypes.POINTER(wintypes.DWORD),
+]
+GetWindowThreadProcessId.restype = wintypes.DWORD
+
+IsIconic = user32.IsIconic
+IsIconic.argtypes = [wintypes.HWND]
+IsIconic.restype = wintypes.BOOL
+
+GetClassNameW = user32.GetClassNameW
+GetClassNameW.argtypes = [wintypes.HWND, wintypes.LPWSTR, ctypes.c_int]
+GetClassNameW.restype = ctypes.c_int
+
+MonitorFromWindow = user32.MonitorFromWindow
+MonitorFromWindow.argtypes = [wintypes.HWND, wintypes.DWORD]
+MonitorFromWindow.restype = wintypes.HMONITOR
+
+GetLastInputInfo = user32.GetLastInputInfo
+GetLastInputInfo.argtypes = [ctypes.POINTER(LASTINPUTINFO)]
+GetLastInputInfo.restype = wintypes.BOOL
+
+# GetTickCount is intentionally used instead of GetTickCount64 because
+# LASTINPUTINFO.dwTime is a 32-bit tick count.  Subtraction is wrap-safe.
+GetTickCount = kernel32.GetTickCount
+GetTickCount.argtypes = []
+GetTickCount.restype = wintypes.DWORD
+
+OpenProcess = kernel32.OpenProcess
+OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+OpenProcess.restype = wintypes.HANDLE
+
+QueryFullProcessImageNameW = kernel32.QueryFullProcessImageNameW
+QueryFullProcessImageNameW.argtypes = [
+    wintypes.HANDLE,
+    wintypes.DWORD,
+    wintypes.LPWSTR,
+    ctypes.POINTER(wintypes.DWORD),
+]
+QueryFullProcessImageNameW.restype = wintypes.BOOL
+
+CloseHandle = kernel32.CloseHandle
+CloseHandle.argtypes = [wintypes.HANDLE]
+CloseHandle.restype = wintypes.BOOL
+
+DwmGetWindowAttribute = dwmapi.DwmGetWindowAttribute
+DwmGetWindowAttribute.argtypes = [
+    wintypes.HWND,
+    wintypes.DWORD,
+    ctypes.c_void_p,
+    wintypes.DWORD,
+]
+DwmGetWindowAttribute.restype = ctypes.c_long
+
+SHQueryUserNotificationState = shell32.SHQueryUserNotificationState
+SHQueryUserNotificationState.argtypes = [ctypes.POINTER(ctypes.c_int)]
+SHQueryUserNotificationState.restype = ctypes.c_long
+
+WTSRegisterSessionNotification = wtsapi32.WTSRegisterSessionNotification
+WTSRegisterSessionNotification.argtypes = [wintypes.HWND, wintypes.DWORD]
+WTSRegisterSessionNotification.restype = wintypes.BOOL
+
+WTSUnRegisterSessionNotification = wtsapi32.WTSUnRegisterSessionNotification
+WTSUnRegisterSessionNotification.argtypes = [wintypes.HWND]
+WTSUnRegisterSessionNotification.restype = wintypes.BOOL
 
 # ---------------------------------------------------------------------------
 # Function declarations — Window attributes

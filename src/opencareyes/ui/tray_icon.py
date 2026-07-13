@@ -66,6 +66,16 @@ class TrayIcon(QSystemTrayIcon):
             self._snooze_menu.addAction(f"{minutes} 分钟").triggered.connect(
                 lambda checked=False, delay=minutes: self._controller.snooze_break(delay)
             )
+        self._context_status_action = self._break_control_menu.addAction(
+            "智能免打扰：未触发"
+        )
+        self._context_status_action.setEnabled(False)
+        self._resume_context_action = self._break_control_menu.addAction(
+            "本次场景继续提醒"
+        )
+        self._resume_context_action.triggered.connect(
+            self._controller.resume_breaks_for_current_context
+        )
 
         profile_menu = self._menu.addMenu("显示方案")
         self._profile_group = QActionGroup(self)
@@ -146,6 +156,13 @@ class TrayIcon(QSystemTrayIcon):
         self._controller.apply_display_profile(name)
 
     def _toggle_break_pause(self) -> None:
+        suppressed = tuple(first_state_value(
+            self._controller.state,
+            "effective_policy.breaks.suppressed_by",
+            default=(),
+        ))
+        if suppressed:
+            return
         paused = bool(first_state_value(self._controller.state, "breaks.paused", default=False))
         if paused:
             self._controller.resume_break()
@@ -180,6 +197,12 @@ class TrayIcon(QSystemTrayIcon):
         break_paused = bool(first_state_value(state, "breaks.paused", default=False))
         force_break = bool(first_state_value(state, "breaks.force_break", default=False))
         break_phase = str(first_state_value(state, "breaks.phase", default="stopped"))
+        break_suppressed = tuple(first_state_value(
+            state, "effective_policy.breaks.suppressed_by", default=()
+        ))
+        break_resume = str(first_state_value(
+            state, "effective_policy.breaks.resume_condition", default=""
+        ))
         countdown_display = str(first_state_value(
             state, "breaks.countdown_display", default="tray"
         ))
@@ -205,7 +228,9 @@ class TrayIcon(QSystemTrayIcon):
             f"屏幕调暗 · {round(dim_level * 100 / 200)}%"
             if dimmer_enabled else "屏幕调暗"
         )
-        if break_enabled and countdown_display == "hidden":
+        if break_enabled and break_suppressed:
+            break_text = "休息提醒 · 智能暂停"
+        elif break_enabled and countdown_display == "hidden":
             break_text = "休息提醒 · 运行中"
         elif break_enabled and break_phase == "resting":
             break_text = f"休息中 · {format_duration(remaining)}"
@@ -215,8 +240,32 @@ class TrayIcon(QSystemTrayIcon):
             break_text = "休息提醒"
         self._break_action.setText(break_text)
         self._pause_break_action.setText("继续计时" if break_paused else "暂停计时")
+        self._pause_break_action.setEnabled(break_enabled and not break_suppressed)
         self._break_control_menu.setEnabled(break_enabled)
-        self._snooze_menu.setEnabled(break_enabled and not force_break)
+        self._snooze_menu.setEnabled(
+            break_enabled and not force_break and not break_suppressed
+        )
+        reason_names = {
+            "fullscreen": "全屏应用",
+            "presentation": "演示模式",
+            "d3d_fullscreen": "全屏游戏",
+            "app_rule": "应用规则",
+            "idle": "离开电脑",
+            "locked": "锁屏",
+            "suspended": "系统睡眠",
+        }
+        if break_suppressed:
+            reason = "、".join(
+                reason_names.get(item, item) for item in break_suppressed
+            )
+            detail = f" · {break_resume}" if break_resume else ""
+            self._context_status_action.setText(f"智能免打扰：{reason}{detail}")
+        else:
+            self._context_status_action.setText("智能免打扰：未触发")
+        self._resume_context_action.setVisible(
+            bool(break_suppressed)
+            and not {"locked", "suspended"}.intersection(break_suppressed)
+        )
         for name, action in self._profile_actions.items():
             with QSignalBlocker(action):
                 action.setChecked(name == preset)
@@ -228,6 +277,12 @@ class TrayIcon(QSystemTrayIcon):
 
         if globally_paused:
             tooltip = "OpenCareEyes · 全部效果已暂停"
+        elif break_enabled and break_suppressed:
+            reason = "、".join(
+                reason_names.get(item, item) for item in break_suppressed
+            )
+            detail = f" · {break_resume}" if break_resume else ""
+            tooltip = f"OpenCareEyes · 因{reason}暂停{detail}"
         elif break_enabled and countdown_display == "hidden":
             tooltip = "OpenCareEyes · 休息提醒运行中"
         elif break_enabled and break_phase == "resting":

@@ -21,14 +21,15 @@ python -m PyInstaller --noconfirm --clean opencareyes.spec
 - `CHANGELOG.md` 已记录用户可见变更。
 - 未提交日志、诊断包、构建目录或私人位置数据。
 
-## 发布 v0.2.0
+## 发布版本标签
 
 ```powershell
 git switch main
 git pull --ff-only
-git tag -a v0.2.0 -m "OpenCareEyes v0.2.0"
+$Version = "v0.3.0" # 必须与 pyproject.toml 一致
+git tag -a $Version -m "OpenCareEyes $Version"
 git push origin main
-git push origin v0.2.0
+git push origin $Version
 ```
 
 `v*` 标签会触发 Windows CI，构建便携 EXE、Inno Setup 安装包和

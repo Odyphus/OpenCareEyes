@@ -90,6 +90,13 @@ class OverviewPage(ScrollPage):
         grid.setVerticalSpacing(16)
         self._display_card = StatusCard("屏幕舒适度")
         self._break_card = StatusCard("休息节奏")
+        self._resume_context_button = QPushButton("本次场景继续提醒")
+        self._resume_context_button.setObjectName("secondaryButton")
+        self._resume_context_button.clicked.connect(
+            self._controller.resume_breaks_for_current_context
+        )
+        set_accessible(self._resume_context_button, "本次场景继续休息提醒")
+        self._break_card.body.addWidget(self._resume_context_button)
         self._focus_card = StatusCard("专注模式")
         self._automation_card = StatusCard("自动化")
         grid.addWidget(self._display_card, 0, 0)
@@ -147,6 +154,12 @@ class OverviewPage(ScrollPage):
 
         filter_enabled = bool(first_state_value(state, "display.filter_enabled", default=False))
         dimmer_enabled = bool(first_state_value(state, "display.dimmer_enabled", default=False))
+        filter_suppressed = tuple(first_state_value(
+            state, "effective_policy.filter.suppressed_by", default=()
+        ))
+        dimmer_suppressed = tuple(first_state_value(
+            state, "effective_policy.dimmer.suppressed_by", default=()
+        ))
         temp = int(first_state_value(state, "display.color_temperature", default=6500))
         dim_level = int(first_state_value(state, "display.dim_level", default=0))
         profile = str(first_state_value(state, "display.preset", default="custom"))
@@ -154,15 +167,42 @@ class OverviewPage(ScrollPage):
         dim_percent = round(dim_level * 100 / 200)
         self._display_card.set_status(
             display_enabled,
-            _PROFILE_NAMES.get(profile, "自定义方案"),
+            (
+                "当前因应用规则暂停"
+                if filter_suppressed or dimmer_suppressed
+                else _PROFILE_NAMES.get(profile, "自定义方案")
+            ),
             f"{temperature_description(temp)} {temp}K · 调暗 {dim_percent}%",
+            active_text=(
+                "自动暂停" if filter_suppressed or dimmer_suppressed else "运行中"
+            ),
         )
 
         break_enabled = bool(first_state_value(state, "breaks.enabled", default=False))
         break_phase = str(first_state_value(state, "breaks.phase", default="stopped"))
         break_paused = bool(first_state_value(state, "breaks.paused", default=False))
+        break_suppressed = tuple(first_state_value(
+            state, "effective_policy.breaks.suppressed_by", default=()
+        ))
+        break_resume = str(first_state_value(
+            state, "effective_policy.breaks.resume_condition", default=""
+        ))
         remaining = first_state_value(state, "breaks.remaining", default=0)
-        if break_phase == "resting":
+        if break_suppressed:
+            reason_names = {
+                "fullscreen": "全屏应用",
+                "presentation": "演示模式",
+                "d3d_fullscreen": "全屏游戏",
+                "app_rule": "应用规则",
+                "idle": "离开电脑",
+                "locked": "锁屏",
+                "suspended": "系统睡眠",
+            }
+            reason = "、".join(
+                reason_names.get(item, item) for item in break_suppressed
+            )
+            break_value = f"因{reason}暂停"
+        elif break_phase == "resting":
             break_value = "正在休息"
         elif break_paused:
             break_value = "计时已暂停"
@@ -170,16 +210,30 @@ class OverviewPage(ScrollPage):
             break_value = f"{format_duration(remaining)} 后休息"
         else:
             break_value = "未启用"
+        break_detail = {"20-20-20": "20-20-20", "pomodoro": "番茄钟", "custom": "自定义"}.get(
+            str(first_state_value(state, "breaks.mode", default="custom")), "自定义"
+        )
+        if break_suppressed:
+            break_detail = break_resume or "当前情境结束后恢复"
         self._break_card.set_status(
             break_enabled,
             break_value,
-            {"20-20-20": "20-20-20", "pomodoro": "番茄钟", "custom": "自定义"}.get(
-                str(first_state_value(state, "breaks.mode", default="custom")), "自定义"
+            break_detail,
+            active_text=(
+                "自动暂停" if break_suppressed
+                else "已暂停" if break_paused
+                else "运行中"
             ),
-            active_text="已暂停" if break_paused else "运行中",
+        )
+        self._resume_context_button.setVisible(
+            bool(break_suppressed)
+            and not {"locked", "suspended"}.intersection(break_suppressed)
         )
 
         focus_enabled = bool(first_state_value(state, "focus.enabled", default=False))
+        focus_suppressed = tuple(first_state_value(
+            state, "effective_policy.focus.suppressed_by", default=()
+        ))
         focus_level = int(first_state_value(state, "focus.dim_level", default=0))
         focus_ends = first_state_value(state, "focus.session_ends_at", default=None)
         focus_detail = f"背景暗化 {round(focus_level * 100 / 255)}%"
@@ -187,16 +241,41 @@ class OverviewPage(ScrollPage):
             focus_detail += f" · {focus_ends.astimezone().strftime('%H:%M')} 结束"
         self._focus_card.set_status(
             focus_enabled,
-            "保持专注" if focus_enabled else "未启用",
+            "情境中暂时隐藏" if focus_suppressed else "保持专注" if focus_enabled else "未启用",
             focus_detail,
         )
 
         automation_enabled = bool(first_state_value(state, "automation.enabled", default=False))
+        smart_enabled = bool(first_state_value(
+            state, "automation.smart_pause.enabled", default=True
+        ))
         event = str(first_state_value(state, "automation.next_event", default=""))
         event_at = first_state_value(state, "automation.next_event_at", default=None)
         override = bool(first_state_value(state, "automation.manual_override", default=False))
+        context_app = str(first_state_value(state, "context.foreground_app_id", default=""))
+        context_fullscreen = bool(first_state_value(state, "context.fullscreen", default=False))
+        context_detail = (
+            f"当前全屏：{context_app or '未知应用'}"
+            if context_fullscreen
+            else "显示方案自动切换"
+        )
         self._automation_card.set_status(
-            automation_enabled,
-            self._format_event(event, event_at) if automation_enabled else "未启用",
-            "手动调整将在此时恢复自动化" if override else "显示方案自动切换",
+            automation_enabled or smart_enabled,
+            (
+                break_value
+                if break_suppressed
+                else self._format_event(event, event_at)
+                if automation_enabled
+                else "智能免打扰已启用"
+                if smart_enabled
+                else "未启用"
+            ),
+            (
+                break_resume
+                if break_suppressed
+                else "手动调整将在此时恢复自动化"
+                if override
+                else context_detail
+            ),
+            active_text="运行中" if automation_enabled else "情境感知",
         )

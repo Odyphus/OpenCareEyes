@@ -2,7 +2,7 @@
 
 ## 开发环境
 
-OpenCareEyes v0.2 仅支持 Windows 10/11 和 Python 3.10+。完整源码位于规范分支 `main`。
+OpenCareEyes 仅支持 Windows 10/11 和 Python 3.10+。完整源码位于规范分支 `main`。
 
 ```powershell
 git clone --branch main https://github.com/Odyphus/OpenCareEyes.git
