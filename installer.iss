@@ -7,7 +7,7 @@
 #endif
 
 #define MyAppName "OpenCareEyes"
-#define MyAppPublisher "OpenCareEyes"
+#define MyAppPublisher "Odyphus"
 #define MyAppURL "https://github.com/Odyphus/OpenCareEyes"
 #define MyAppExeName "OpenCareEyes.exe"
 
@@ -50,6 +50,8 @@ Name: "autostart"; Description: "开机自动启动"; GroupDescription: "其他�
 [Files]
 Source: "dist\OpenCareEyes.exe"; DestDir: "{app}"; DestName: "{#MyAppExeName}"; Flags: ignoreversion
 Source: "LICENSE"; DestDir: "{app}"; Flags: ignoreversion
+Source: "THIRD_PARTY_NOTICES.md"; DestDir: "{app}"; Flags: ignoreversion
+Source: "licenses\*"; DestDir: "{app}\licenses"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "README.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "使用说明.md"; DestDir: "{app}"; Flags: ignoreversion
 

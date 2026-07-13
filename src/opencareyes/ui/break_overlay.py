@@ -31,6 +31,7 @@ class BreakOverlay(QWidget):
         self.setAccessibleName("全屏休息提醒")
         self._remaining = 0
         self._force = False
+        self._kind = "short"
         self._tip_index = 0
         self._fallback_timer = QTimer(self)
         self._fallback_timer.setInterval(1000)
@@ -39,6 +40,9 @@ class BreakOverlay(QWidget):
 
         if controller is not None:
             controller.state_changed.connect(self.render)
+            break_tick = getattr(controller, "break_tick", None)
+            if break_tick is not None:
+                break_tick.connect(self._on_break_tick)
             self.skip_requested.connect(controller.skip_break)
             self.snooze_requested.connect(controller.snooze_break)
             resume_break = getattr(controller, "resume_break", None)
@@ -113,12 +117,15 @@ class BreakOverlay(QWidget):
         self._force = False
         self.hide()
 
-    def _show_break(self, force: bool, paused: bool) -> None:
+    def _show_break(self, force: bool, paused: bool, kind: str = "short") -> None:
         self._force = bool(force)
+        self._kind = "long" if kind == "long" else "short"
         if paused:
             title = "休息计时已暂停"
         elif self._force:
             title = "现在是严格休息时间"
+        elif self._kind == "long":
+            title = "现在进行一次长休息"
         else:
             title = "该休息一下眼睛了"
         self._title_label.setText(title)
@@ -144,15 +151,39 @@ class BreakOverlay(QWidget):
         paused = bool(first_state_value(state, "breaks.paused", default=False))
         self._remaining = int(first_state_value(state, "breaks.remaining", default=0))
         force = bool(first_state_value(state, "breaks.force_break", default=False))
+        kind = str(first_state_value(
+            state,
+            "break_prompt.kind",
+            "breaks.current_break_kind",
+            "breaks.cadence.current_break_kind",
+            default="short",
+        ))
         suppressed = tuple(first_state_value(
             state, "effective_policy.breaks.suppressed_by", default=()
         ))
         # Every active rest phase gets a visible full-screen surface.  Strict
         # mode controls postponement, not whether the reminder can be seen.
         if enabled and phase == "resting" and not suppressed:
-            self._show_break(force, paused)
+            self._show_break(force, paused, kind)
         else:
             self.end_break()
+
+    def _on_break_tick(self, *values) -> None:
+        """Consume either ``(remaining, total)`` or a tick-state object."""
+
+        if not values:
+            return
+        if len(values) >= 2:
+            remaining = values[0]
+        else:
+            tick = values[0]
+            if isinstance(tick, dict):
+                remaining = tick.get("remaining", self._remaining)
+            else:
+                remaining = getattr(tick, "remaining", self._remaining)
+        self._remaining = max(0, int(remaining))
+        if self.isVisible():
+            self._update_display()
 
     def _fallback_tick(self) -> None:
         self._remaining -= 1

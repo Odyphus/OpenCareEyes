@@ -2,19 +2,21 @@
 
 from __future__ import annotations
 
-import os
 import json
-from collections.abc import Iterable, Mapping
+import os
+from collections.abc import Iterable, Iterator, Mapping
+from contextlib import contextmanager
 from enum import Enum
 from typing import Any, TypedDict
 
 from PySide6.QtCore import QSettings
 
 from opencareyes.config.defaults import DEFAULT_PREFERENCES, LEGACY_V2_PREFERENCES
+from opencareyes.config.presets import PRESETS
 from opencareyes.constants import APP_NAME, ORG_NAME
 
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 
 class SettingsReadOnlyError(RuntimeError):
@@ -23,6 +25,10 @@ class SettingsReadOnlyError(RuntimeError):
 
 class SettingsMigrationError(RuntimeError):
     """Raised after a failed migration has been rolled back."""
+
+
+class SettingsTransactionError(RuntimeError):
+    """Raised when a preference transaction cannot be rolled back cleanly."""
 
 
 class AppRule(TypedDict):
@@ -67,6 +73,48 @@ def _schema_version(raw_version: object) -> int:
         return 1
 
 
+def _snapshot_store(store: Any) -> dict[str, object]:
+    try:
+        keys = tuple(store.allKeys() or ())
+    except (AttributeError, TypeError):
+        keys = ()
+    return {str(key): store.value(key, None) for key in keys}
+
+
+def _sync_store_checked(store: Any) -> None:
+    sync = getattr(store, "sync", None)
+    if callable(sync):
+        sync()
+    status_method = getattr(store, "status", None)
+    if not callable(status_method):
+        return
+    status = status_method()
+    if (type(status) is int and status != 0) or (
+        isinstance(status, Enum) and status.name != "NoError"
+    ):
+        raise OSError(f"Settings backend sync failed: {status}")
+
+
+def _restore_store(store: Any, snapshot: Mapping[str, object]) -> None:
+    store.clear()
+    for key, value in snapshot.items():
+        store.setValue(key, value)
+
+
+def _validated_profile(value: object) -> str:
+    profile = str(value).strip().lower()
+    if profile not in PRESETS:
+        raise ValueError(f"Unknown display profile: {value}")
+    return profile
+
+
+def _validated_offset(value: object) -> int:
+    offset = int(value)
+    if not -120 <= offset <= 120:
+        raise ValueError("Sunrise and sunset offsets must be between -120 and 120")
+    return offset
+
+
 class SettingsMigrator:
     """Apply ordered settings migrations with snapshot-based rollback."""
 
@@ -92,6 +140,9 @@ class SettingsMigrator:
             if version < 3:
                 self._migrate_v2_to_v3(existing_profile)
                 version = 3
+            if version < 4:
+                self._migrate_v3_to_v4(existing_profile)
+                version = 4
             self._sync_checked()
         except Exception as exc:
             self._restore(snapshot)
@@ -102,11 +153,7 @@ class SettingsMigrator:
         return version, False
 
     def _snapshot(self) -> dict[str, object]:
-        try:
-            keys = tuple(self._store.allKeys() or ())
-        except (AttributeError, TypeError):
-            keys = ()
-        return {str(key): self._store.value(key, None) for key in keys}
+        return _snapshot_store(self._store)
 
     def _migrate_v1_to_v2(self, existing_profile: bool) -> None:
         latitude = self._store.value("location/latitude", None)
@@ -137,23 +184,53 @@ class SettingsMigrator:
                     self._store.setValue(key, value)
         self._store.setValue("meta/schema_version", 3)
 
+    def _migrate_v3_to_v4(self, existing_profile: bool) -> None:
+        if existing_profile:
+            legacy_values = {
+                "break/reminder_style": "fullscreen",
+                "break/cadence_mode": self._store.value(
+                    "break/mode", DEFAULT_PREFERENCES.break_mode
+                ),
+                "break/cadence_short_interval": self._store.value(
+                    "break/work_duration", DEFAULT_PREFERENCES.work_duration
+                ),
+                "break/cadence_short_duration": self._store.value(
+                    "break/break_duration", DEFAULT_PREFERENCES.break_duration
+                ),
+                "break/cadence_long_enabled": False,
+                "break/cadence_long_interval": (
+                    DEFAULT_PREFERENCES.cadence_long_interval
+                ),
+                "break/cadence_long_duration": (
+                    DEFAULT_PREFERENCES.cadence_long_duration
+                ),
+                "automation/day_profile": (
+                    DEFAULT_PREFERENCES.schedule_day_profile
+                ),
+                "automation/night_profile": (
+                    DEFAULT_PREFERENCES.schedule_night_profile
+                ),
+                "automation/sunrise_offset": DEFAULT_PREFERENCES.sunrise_offset,
+                "automation/sunset_offset": DEFAULT_PREFERENCES.sunset_offset,
+            }
+            for key, value in legacy_values.items():
+                if self._store.value(key, None) is None:
+                    self._store.setValue(key, value)
+
+            mode = self._store.value(
+                "automation/mode", DEFAULT_PREFERENCES.schedule_mode
+            )
+            if mode in {"sun", "sunrise_sunset", "astral"}:
+                # v3 did not apply weekday filtering in sun mode.  Materialise
+                # all days so an upgrade keeps the same effective schedule.
+                self._store.setValue("automation/days", list(range(7)))
+        self._store.setValue("meta/schema_version", 4)
+
     def _sync_checked(self) -> None:
-        sync = getattr(self._store, "sync", None)
-        if callable(sync):
-            sync()
-        status_method = getattr(self._store, "status", None)
-        if not callable(status_method):
-            return
-        status = status_method()
-        if (type(status) is int and status != 0) or (
-            isinstance(status, Enum) and status.name != "NoError"
-        ):
-            raise OSError(f"Settings backend sync failed: {status}")
+        _sync_store_checked(self._store)
 
     def _restore(self, snapshot: Mapping[str, object]) -> None:
-        self._store.clear()
-        for key, value in snapshot.items():
-            self._store.setValue(key, value)
+        _restore_store(self._store, snapshot)
         sync = getattr(self._store, "sync", None)
         if callable(sync):
             try:
@@ -290,6 +367,70 @@ class Settings:
         days = sorted({int(day) for day in value if 0 <= int(day) <= 6})
         self._set_value("automation/days", days)
 
+    @property
+    def schedule_day_profile(self) -> str:
+        value = self._s.value(
+            "automation/day_profile",
+            DEFAULT_PREFERENCES.schedule_day_profile,
+            type=str,
+        )
+        try:
+            return _validated_profile(value)
+        except ValueError:
+            return DEFAULT_PREFERENCES.schedule_day_profile
+
+    @schedule_day_profile.setter
+    def schedule_day_profile(self, value: str) -> None:
+        self._set_value("automation/day_profile", _validated_profile(value))
+
+    @property
+    def schedule_night_profile(self) -> str:
+        value = self._s.value(
+            "automation/night_profile",
+            DEFAULT_PREFERENCES.schedule_night_profile,
+            type=str,
+        )
+        try:
+            return _validated_profile(value)
+        except ValueError:
+            return DEFAULT_PREFERENCES.schedule_night_profile
+
+    @schedule_night_profile.setter
+    def schedule_night_profile(self, value: str) -> None:
+        self._set_value("automation/night_profile", _validated_profile(value))
+
+    @property
+    def sunrise_offset(self) -> int:
+        value = self._s.value(
+            "automation/sunrise_offset",
+            DEFAULT_PREFERENCES.sunrise_offset,
+            type=int,
+        )
+        try:
+            return _validated_offset(value)
+        except (TypeError, ValueError):
+            return DEFAULT_PREFERENCES.sunrise_offset
+
+    @sunrise_offset.setter
+    def sunrise_offset(self, value: int) -> None:
+        self._set_value("automation/sunrise_offset", _validated_offset(value))
+
+    @property
+    def sunset_offset(self) -> int:
+        value = self._s.value(
+            "automation/sunset_offset",
+            DEFAULT_PREFERENCES.sunset_offset,
+            type=int,
+        )
+        try:
+            return _validated_offset(value)
+        except (TypeError, ValueError):
+            return DEFAULT_PREFERENCES.sunset_offset
+
+    @sunset_offset.setter
+    def sunset_offset(self, value: int) -> None:
+        self._set_value("automation/sunset_offset", _validated_offset(value))
+
     # ---- Screen dimmer ----
     @property
     def dimmer_enabled(self) -> bool:
@@ -324,33 +465,131 @@ class Settings:
 
     @property
     def work_duration(self) -> int:
-        return self._s.value(
+        legacy = self._s.value(
             "break/work_duration", DEFAULT_PREFERENCES.work_duration, type=int
+        )
+        return self._s.value(
+            "break/cadence_short_interval", legacy, type=int
         )
 
     @work_duration.setter
     def work_duration(self, value: int) -> None:
-        self._set_value("break/work_duration", int(value))
+        duration = int(value)
+        self._set_value("break/work_duration", duration)
+        self._set_value("break/cadence_short_interval", duration)
 
     @property
     def break_duration(self) -> int:
-        return self._s.value(
+        legacy = self._s.value(
             "break/break_duration", DEFAULT_PREFERENCES.break_duration, type=int
+        )
+        return self._s.value(
+            "break/cadence_short_duration", legacy, type=int
         )
 
     @break_duration.setter
     def break_duration(self, value: int) -> None:
-        self._set_value("break/break_duration", int(value))
+        duration = int(value)
+        self._set_value("break/break_duration", duration)
+        self._set_value("break/cadence_short_duration", duration)
 
     @property
     def break_mode(self) -> str:
-        return self._s.value(
+        legacy = self._s.value(
             "break/mode", DEFAULT_PREFERENCES.break_mode, type=str
+        )
+        return self._s.value(
+            "break/cadence_mode", legacy, type=str
         )
 
     @break_mode.setter
     def break_mode(self, value: str) -> None:
-        self._set_value("break/mode", value)
+        mode = str(value)
+        self._set_value("break/mode", mode)
+        self._set_value("break/cadence_mode", mode)
+
+    @property
+    def break_reminder_style(self) -> str:
+        value = self._s.value(
+            "break/reminder_style",
+            DEFAULT_PREFERENCES.break_reminder_style,
+            type=str,
+        )
+        return value if value in {"progressive", "fullscreen"} else "progressive"
+
+    @break_reminder_style.setter
+    def break_reminder_style(self, value: str) -> None:
+        if value not in {"progressive", "fullscreen"}:
+            raise ValueError(f"Unknown break reminder style: {value}")
+        self._set_value("break/reminder_style", value)
+
+    @property
+    def cadence_mode(self) -> str:
+        return self.break_mode
+
+    @cadence_mode.setter
+    def cadence_mode(self, value: str) -> None:
+        self.break_mode = value
+
+    @property
+    def cadence_short_interval(self) -> int:
+        return self.work_duration
+
+    @cadence_short_interval.setter
+    def cadence_short_interval(self, value: int) -> None:
+        if int(value) <= 0:
+            raise ValueError("Short break interval must be positive")
+        self.work_duration = value
+
+    @property
+    def cadence_short_duration(self) -> int:
+        return self.break_duration
+
+    @cadence_short_duration.setter
+    def cadence_short_duration(self, value: int) -> None:
+        if int(value) <= 0:
+            raise ValueError("Short break duration must be positive")
+        self.break_duration = value
+
+    @property
+    def cadence_long_enabled(self) -> bool:
+        return self._s.value(
+            "break/cadence_long_enabled",
+            DEFAULT_PREFERENCES.cadence_long_enabled,
+            type=bool,
+        )
+
+    @cadence_long_enabled.setter
+    def cadence_long_enabled(self, value: bool) -> None:
+        self._set_value("break/cadence_long_enabled", bool(value))
+
+    @property
+    def cadence_long_interval(self) -> int:
+        return self._s.value(
+            "break/cadence_long_interval",
+            DEFAULT_PREFERENCES.cadence_long_interval,
+            type=int,
+        )
+
+    @cadence_long_interval.setter
+    def cadence_long_interval(self, value: int) -> None:
+        if int(value) <= 0:
+            raise ValueError("Long break interval must be positive")
+        self._set_value("break/cadence_long_interval", int(value))
+
+    @property
+    def cadence_long_duration(self) -> int:
+        return self._s.value(
+            "break/cadence_long_duration",
+            DEFAULT_PREFERENCES.cadence_long_duration,
+            type=int,
+        )
+
+    @cadence_long_duration.setter
+    def cadence_long_duration(self, value: int) -> None:
+        if int(value) <= 0:
+            raise ValueError("Long break duration must be positive")
+        self._set_value("break/cadence_long_duration", int(value))
 
     @property
     def micro_break_interval(self) -> int:
@@ -624,6 +863,34 @@ class Settings:
     def city(self, value: str) -> None:
         self._set_value("location/city", value)
 
+    @property
+    def pet_x(self) -> int | None:
+        value = self._s.value("ui/pet_x", None)
+        if value in (None, ""):
+            return None
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return None
+
+    @pet_x.setter
+    def pet_x(self, value: int | None) -> None:
+        self._set_value("ui/pet_x", "" if value is None else int(value))
+
+    @property
+    def pet_y(self) -> int | None:
+        value = self._s.value("ui/pet_y", None)
+        if value in (None, ""):
+            return None
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return None
+
+    @pet_y.setter
+    def pet_y(self, value: int | None) -> None:
+        self._set_value("ui/pet_y", "" if value is None else int(value))
+
     # ---- Hotkeys ----
     @property
     def hotkey_filter(self) -> str:
@@ -701,22 +968,64 @@ class Settings:
     def global_pause_until(self, value: float | None) -> None:
         self._set_value("pause/until", "" if value is None else float(value))
 
+    def snapshot(self) -> dict[str, object]:
+        """Return a complete in-process snapshot for command rollback."""
+        return _snapshot_store(self._s)
+
+    def restore_snapshot(self, snapshot: Mapping[str, object]) -> None:
+        """Restore and persist a snapshot, checking the backend result."""
+        if self._read_only:
+            raise SettingsReadOnlyError(
+                f"Cannot restore newer settings schema v{self._stored_schema_version}"
+            )
+        _restore_store(self._s, snapshot)
+        _sync_store_checked(self._s)
+
+    def sync_checked(self) -> None:
+        """Persist pending writes and raise when QSettings reports an error."""
+        if self._read_only:
+            raise SettingsReadOnlyError(
+                f"Cannot sync newer settings schema v{self._stored_schema_version}"
+            )
+        _sync_store_checked(self._s)
+
     def sync(self) -> None:
-        self._s.sync()
+        """Compatibility spelling for checked persistence."""
+        self.sync_checked()
+
+    @contextmanager
+    def transaction(self) -> Iterator[Settings]:
+        """Commit preference writes atomically or restore the prior snapshot."""
+        if self._read_only:
+            raise SettingsReadOnlyError(
+                f"Cannot update newer settings schema v{self._stored_schema_version}"
+            )
+        snapshot = self.snapshot()
+        try:
+            yield self
+            self.sync_checked()
+        except Exception:
+            try:
+                self.restore_snapshot(snapshot)
+            except Exception as rollback_error:
+                raise SettingsTransactionError(
+                    "Settings transaction failed and rollback could not be persisted"
+                ) from rollback_error
+            raise
 
     def reset(self) -> None:
-        """Clear user settings and recreate a fresh schema-v3 marker."""
+        """Clear user settings and recreate a fresh schema-v4 marker."""
         if self._read_only:
             raise SettingsReadOnlyError(
                 f"Cannot reset newer settings schema v{self._stored_schema_version}"
             )
-        self._s.clear()
-        self._set_value("meta/schema_version", SCHEMA_VERSION)
-        self._s.sync()
+        with self.transaction():
+            self._s.clear()
+            self._set_value("meta/schema_version", SCHEMA_VERSION)
 
 
 class PreferencesRepository(Settings):
-    """Named configuration boundary used by the v0.3 application layer.
+    """Named configuration boundary used by the application layer.
 
     ``Settings`` remains as a compatibility name for v0.1-v0.2 integrations.
     """

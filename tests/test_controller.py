@@ -40,6 +40,30 @@ class MemoryStore:
         self.values.clear()
 
 
+class FailingSyncStore(MemoryStore):
+    def __init__(self):
+        super().__init__()
+        self.fail_next_sync = False
+
+    def sync(self):
+        if self.fail_next_sync:
+            self.fail_next_sync = False
+            raise OSError("设置保存失败")
+
+
+class FakeHotkeys(QObject):
+    registration_failed = Signal(str, str)
+    callback_failed = Signal(str, str)
+
+    def __init__(self):
+        super().__init__()
+        self.mappings = []
+
+    def replace_all(self, mapping):
+        self.mappings.append(tuple(sorted(mapping)))
+        return True
+
+
 class FakeDisplayEffect:
     def __init__(self):
         self.enabled = False
@@ -150,8 +174,41 @@ def test_failed_service_write_is_visible_and_not_persisted(controller):
     assert instance.state.display.filter_enabled is False
     assert spy.count() == 1
     assert spy.at(0)[0] == "filter_toggle"
+    assert spy.at(0)[1] == "显示效果未能应用，请重试。"
+    assert "device rejected operation" not in spy.at(0)[1]
     assert state_spy.count() == 1
     assert state_spy.at(0)[0].display.filter_enabled is False
+
+
+def test_hotkey_sync_failure_restores_settings_and_native_mapping(qapp):
+    store = FailingSyncStore()
+    settings = Settings(store)
+    hotkeys = FakeHotkeys()
+    controller = AppController(settings, hotkeys=hotkeys)
+    old_filter = settings.hotkey_filter
+    old_mapping = tuple(
+        sorted(
+            (
+                settings.hotkey_filter,
+                settings.hotkey_break,
+                settings.hotkey_dimmer,
+                settings.hotkey_focus,
+            )
+        )
+    )
+    failures = QSignalSpy(controller.operation_failed)
+    store.fail_next_sync = True
+
+    assert controller.set_hotkeys({"filter": "ctrl+alt+9"}) is False
+
+    assert settings.hotkey_filter == old_filter
+    assert hotkeys.mappings[-2] != old_mapping
+    assert hotkeys.mappings[-1] == old_mapping
+    assert failures.count() == 1
+    assert failures.at(0)[0] == "hotkey"
+    assert failures.at(0)[1] == (
+        "快捷键设置未能保存，请检查组合键是否被占用。"
+    )
 
 
 def test_restore_failure_rolls_back_persisted_enabled_state(qapp):
@@ -255,6 +312,176 @@ def test_invalid_break_countdown_display_is_rejected(controller):
 
     assert settings.break_countdown_display == "tray"
     assert spy.count() == 1
+
+
+def test_invalid_commands_expose_fixed_chinese_messages(controller):
+    instance, *_ = controller
+    failures = QSignalSpy(instance.operation_failed)
+    cases = (
+        (
+            lambda: instance.set_feature_enabled("private-feature", True),
+            "不支持该功能设置。",
+        ),
+        (
+            lambda: instance.set_break_reminder_style("private-style"),
+            "不支持该休息提醒方式。",
+        ),
+        (
+            lambda: instance.set_break_countdown_display("private-mode"),
+            "不支持该倒计时显示方式。",
+        ),
+        (
+            lambda: instance.set_schedule(False, mode="private-mode"),
+            "请选择固定时间或日出日落自动化。",
+        ),
+        (
+            lambda: instance.set_schedule(False, mode="fixed", latitude=31.2),
+            "纬度和经度必须同时填写。",
+        ),
+        (
+            lambda: instance.set_schedule(
+                False,
+                mode="fixed",
+                latitude=91,
+                longitude=0,
+            ),
+            "纬度必须在 -90 到 90 之间。",
+        ),
+        (
+            lambda: instance.set_schedule(
+                False,
+                mode="fixed",
+                latitude=0,
+                longitude=181,
+            ),
+            "经度必须在 -180 到 180 之间。",
+        ),
+        (
+            lambda: instance.set_schedule(False, mode="fixed", on_time="25:00"),
+            "开启时间格式无效，请使用 HH:MM。",
+        ),
+        (
+            lambda: instance.set_schedule(False, mode="fixed", off_time="25:00"),
+            "关闭时间格式无效，请使用 HH:MM。",
+        ),
+        (
+            lambda: instance.set_schedule(False, mode="fixed", days=()),
+            "请至少选择一个有效执行日。",
+        ),
+        (
+            lambda: instance.set_schedule(True, mode="sun"),
+            "请先设置自动化位置。",
+        ),
+        (
+            lambda: instance.set_schedule(
+                False,
+                mode="fixed",
+                day_profile="private-profile",
+            ),
+            "请选择有效的日间和夜间显示方案。",
+        ),
+        (
+            lambda: instance.set_schedule(
+                False,
+                mode="fixed",
+                sunrise_offset=121,
+            ),
+            "日出和日落偏移必须在 -120 到 120 分钟之间。",
+        ),
+        (
+            lambda: instance.pause_all(minutes=5, until_next_schedule=True),
+            "暂停方式只能选择时长或直到下次自动切换。",
+        ),
+        (
+            lambda: instance.pause_all(minutes=0),
+            "暂停时长必须大于 0 分钟。",
+        ),
+        (
+            lambda: instance.pause_all(until_next_schedule=True),
+            "自动化未运行，无法暂停到下次自动切换。",
+        ),
+        (
+            lambda: instance.start_focus_session(0),
+            "专注时长必须大于 0 分钟。",
+        ),
+        (
+            lambda: instance.set_theme("private-theme"),
+            "请选择跟随系统、亮色或暗色主题。",
+        ),
+        (
+            lambda: instance.set_motion_mode("private-motion"),
+            "请选择跟随系统、标准或减少动画。",
+        ),
+        (
+            instance.resume_breaks_for_current_context,
+            "智能免打扰当前不可用。",
+        ),
+        (
+            lambda: instance.set_location(91, 0),
+            "纬度或经度超出有效范围。",
+        ),
+        (
+            lambda: instance.set_hotkeys(
+                {"private-action": "ctrl+alt+n"}
+            ),
+            "不支持该快捷键功能。",
+        ),
+    )
+
+    for action, expected in cases:
+        previous_count = failures.count()
+        assert action() is False
+        assert failures.count() == previous_count + 1
+        assert failures.at(previous_count)[1] == expected
+
+
+def test_fail_hides_unknown_backend_detail_and_absolute_path(controller):
+    instance, *_ = controller
+    failures = QSignalSpy(instance.operation_failed)
+    private_path = r"C:\Users\Alice\Private\native-state.bin"
+
+    instance._fail(
+        "future_native_failure",
+        PermissionError(13, "private backend detail", private_path),
+    )
+    instance._fail(
+        "filter_toggle_rollback",
+        RuntimeError(f"rollback failed at {private_path}"),
+    )
+
+    assert failures.at(0) == [
+        "future_native_failure",
+        "当前操作未能完成，请重试。",
+    ]
+    assert failures.at(1) == [
+        "filter_toggle_rollback",
+        "操作回滚不完整，请重启 OpenCareEyes 后检查设置。",
+    ]
+    assert all(private_path not in failures.at(index)[1] for index in range(2))
+    assert all("private backend detail" not in failures.at(index)[1] for index in range(2))
+
+
+def test_diagnostics_export_failure_hides_target_path(
+    controller,
+    monkeypatch,
+):
+    instance, *_ = controller
+    failures = QSignalSpy(instance.operation_failed)
+    private_path = r"C:\Users\Alice\Private\diagnostics.zip"
+
+    def fail_export(destination, _state):
+        raise PermissionError(13, "private export detail", str(destination))
+
+    monkeypatch.setattr("opencareyes.controller.write_diagnostics", fail_export)
+
+    assert instance.export_diagnostics(private_path) is False
+    assert failures.count() == 1
+    assert failures.at(0) == [
+        "diagnostics_export",
+        "诊断信息未能导出，请检查目标文件夹权限后重试。",
+    ]
+    assert private_path not in failures.at(0)[1]
+    assert "private export detail" not in failures.at(0)[1]
 
 
 def test_strict_break_rejects_snooze_from_every_entry_point(controller):

@@ -71,7 +71,6 @@ def gui_app():
         ("break_mode", False),
         ("break_enable", False),
         ("autostart", False),
-        ("location", True),
         ("schedule", True),
         ("complete", False),
     ),
@@ -111,3 +110,17 @@ def test_successful_setup_completes_before_closing(gui_app):
     ]
     assert controller.completed is True
     assert dialog.result() == QDialog.DialogCode.Accepted
+
+
+def test_automation_setup_uses_one_schedule_command(gui_app):
+    controller = FakeController()
+    dialog = OnboardingDialog(controller)
+    dialog._stack.setCurrentIndex(dialog._stack.count() - 1)
+    dialog._automation_toggle.setChecked(True)
+    dialog._city_combo.setCurrentIndex(1)
+
+    dialog._advance()
+
+    assert "location" not in controller.calls
+    assert controller.calls.count("schedule") == 1
+    assert controller.completed is True

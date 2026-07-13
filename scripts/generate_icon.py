@@ -51,11 +51,13 @@ def main():
     images = [draw_eye_icon(s) for s in sizes]
 
     ico_path = os.path.join(ICONS_DIR, "opencareyes.ico")
-    images[0].save(
+    # Pillow derives ICO frames from the base image. Using the 16 px frame as
+    # the base silently produced a 16 px-only icon, so save from the largest
+    # source and let Pillow downsample each requested Windows size.
+    images[-1].save(
         ico_path,
         format="ICO",
         sizes=[(s, s) for s in sizes],
-        append_images=images[1:],
     )
     print(f"Created {ico_path}")
 

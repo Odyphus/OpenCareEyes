@@ -143,6 +143,7 @@ def test_short_probe_failure_keeps_last_snapshot_then_fails_open(qtbot):
     assert sensor.current_snapshot.foreground_app_id == ""
     assert not sensor.current_snapshot.fullscreen
     assert sensor.current_snapshot.notification_mode == "unavailable"
+    assert sensor.current_snapshot.idle_seconds == 0
     assert availability.at(availability.count() - 1) == [
         False,
         "context_probe_failed",

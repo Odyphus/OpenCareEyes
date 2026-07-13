@@ -8,10 +8,13 @@ from opencareyes.state import (
     AppRuleState,
     AppState,
     AutomationState,
+    BreakCadenceState,
+    BreakPromptState,
     BreakState,
     CapabilitiesState,
     ContextState,
     DisplayState,
+    DisplayHealthState,
     EffectivePolicyState,
     FeatureRuntimeState,
     FocusState,
@@ -19,6 +22,7 @@ from opencareyes.state import (
     GlobalPauseState,
     HotkeyState,
     SmartPausePreferencesState,
+    UpdateState,
 )
 
 
@@ -56,11 +60,18 @@ class StateProjector:
         focus_session_ends_at: datetime | None = None,
         context: ContextState | None = None,
         effective_policy: EffectivePolicyState | None = None,
+        update: UpdateState | None = None,
+        display_override: DisplayState | None = None,
+        global_pause_override: GlobalPauseState | None = None,
     ) -> AppState:
         settings = self._settings
         reminder = self._break_reminder
         scheduler = self._scheduler
-        pause_active = self._is_globally_paused()
+        pause_active = (
+            global_pause_override.active
+            if global_pause_override is not None
+            else self._is_globally_paused()
+        )
         until = settings.global_pause_until
         until_datetime = (
             datetime.fromtimestamp(until).astimezone() if until is not None else None
@@ -80,12 +91,16 @@ class StateProjector:
             effective_policy = self._default_effective_policy()
 
         return AppState(
-            display=DisplayState(
-                filter_enabled=settings.filter_enabled,
-                color_temperature=settings.color_temperature,
-                dimmer_enabled=settings.dimmer_enabled,
-                dim_level=settings.dim_level,
-                preset=settings.current_preset,
+            display=(
+                display_override
+                if display_override is not None
+                else DisplayState(
+                    filter_enabled=settings.filter_enabled,
+                    color_temperature=settings.color_temperature,
+                    dimmer_enabled=settings.dimmer_enabled,
+                    dim_level=settings.dim_level,
+                    preset=settings.current_preset,
+                )
             ),
             breaks=BreakState(
                 enabled=settings.break_enabled,
@@ -98,6 +113,9 @@ class StateProjector:
                 paused=getattr(reminder, "paused", False),
                 force_break=settings.force_break,
                 countdown_display=settings.break_countdown_display,
+                reminder_style=str(
+                    getattr(settings, "break_reminder_style", "progressive")
+                ),
             ),
             focus=FocusState(
                 enabled=settings.focus_enabled,
@@ -113,6 +131,14 @@ class StateProjector:
                 on_time=settings.schedule_on_time,
                 off_time=settings.schedule_off_time,
                 days=settings.schedule_days,
+                day_profile=str(
+                    getattr(settings, "schedule_day_profile", "office")
+                ),
+                night_profile=str(
+                    getattr(settings, "schedule_night_profile", "night")
+                ),
+                sunrise_offset=int(getattr(settings, "sunrise_offset", 0)),
+                sunset_offset=int(getattr(settings, "sunset_offset", 0)),
                 smart_pause=SmartPausePreferencesState(
                     enabled=bool(getattr(settings, "smart_pause_enabled", True)),
                     fullscreen_enabled=bool(
@@ -124,10 +150,18 @@ class StateProjector:
                     app_rules=rules,
                 ),
             ),
-            global_pause=GlobalPauseState(
-                active=pause_active,
-                mode=settings.global_pause_mode if pause_active else "none",
-                until=until_datetime if pause_active else None,
+            global_pause=(
+                global_pause_override
+                if global_pause_override is not None
+                else GlobalPauseState(
+                    active=pause_active,
+                    mode=(
+                        settings.global_pause_mode
+                        if pause_active
+                        else "none"
+                    ),
+                    until=until_datetime if pause_active else None,
+                )
             ),
             capabilities=CapabilitiesState(
                 filter_available=self._blue_filter is not None,
@@ -151,6 +185,11 @@ class StateProjector:
                     settings.longitude if settings.location_configured else None
                 ),
                 motion_mode=str(getattr(settings, "motion_mode", "system")),
+                settings_read_only=bool(
+                    getattr(settings, "read_only", False)
+                ),
+                pet_x=getattr(settings, "pet_x", None),
+                pet_y=getattr(settings, "pet_y", None),
                 hotkeys=HotkeyState(
                     filter=settings.hotkey_filter,
                     breaks=settings.hotkey_break,
@@ -160,6 +199,93 @@ class StateProjector:
             ),
             context=context or ContextState(),
             effective_policy=effective_policy,
+            display_health=self._display_health(),
+            break_cadence=BreakCadenceState(
+                mode=str(getattr(settings, "cadence_mode", settings.break_mode)),
+                short_interval=int(
+                    getattr(settings, "cadence_short_interval", settings.work_duration)
+                ),
+                short_duration=int(
+                    getattr(settings, "cadence_short_duration", settings.break_duration)
+                ),
+                long_enabled=bool(
+                    getattr(settings, "cadence_long_enabled", False)
+                ),
+                long_interval=int(
+                    getattr(settings, "cadence_long_interval", 60 * 60)
+                ),
+                long_duration=int(
+                    getattr(settings, "cadence_long_duration", 5 * 60)
+                ),
+                short_remaining=int(
+                    getattr(reminder, "short_remaining", getattr(reminder, "remaining", 0))
+                ),
+                long_remaining=int(getattr(reminder, "long_remaining", 0)),
+            ),
+            break_prompt=BreakPromptState(
+                kind=str(
+                    getattr(
+                        reminder,
+                        "current_break_kind",
+                        getattr(reminder, "due_kind", "none"),
+                    )
+                    or "none"
+                ),
+                stage=str(getattr(reminder, "prompt_stage", "none") or "none"),
+                snoozed_until=(
+                    getattr(reminder, "snoozed_until", None)
+                    if isinstance(getattr(reminder, "snoozed_until", None), datetime)
+                    else None
+                ),
+            ),
+            update=update or UpdateState(),
+        )
+
+    def _display_health(self) -> DisplayHealthState:
+        service = self._blue_filter
+        if service is None:
+            return DisplayHealthState(
+                status="unavailable",
+                reason_code="service_unavailable",
+                message="色温服务不可用",
+            )
+        hdr_active = bool(getattr(service, "hdr_active", False))
+        pending = bool(
+            getattr(
+                service,
+                "commit_pending",
+                getattr(service, "pending", False),
+            )
+        )
+        verified = bool(getattr(service, "capability_verified", False))
+        error_code = str(getattr(service, "last_error_code", "") or "")
+        if hdr_active:
+            return DisplayHealthState(
+                status="suppressed",
+                hdr_active=True,
+                pending=pending,
+                reason_code="hdr_active",
+                message="HDR 已开启，色温效果已安全暂停",
+            )
+        if error_code and error_code != "hdr_active":
+            return DisplayHealthState(
+                status="error",
+                pending=pending,
+                reason_code=error_code,
+                message="色温效果未能安全应用，请重试或恢复原始显示。",
+            )
+        if not verified:
+            return DisplayHealthState(
+                status="degraded",
+                pending=pending,
+                reason_code="capability_probe_unavailable",
+                message="显示能力未完全验证，正在使用兼容模式",
+            )
+        return DisplayHealthState(
+            status="ok",
+            pending=pending,
+            reason_code="sdr_ready",
+            message="显示效果可用",
         )
 
     def _default_effective_policy(self) -> EffectivePolicyState:

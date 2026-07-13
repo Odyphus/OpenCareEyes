@@ -23,6 +23,7 @@ from PySide6.QtCore import (
 )
 
 from opencareyes.domain.context import ContextSnapshot, SessionState
+from opencareyes.platform.windows_event_hub import WindowsEventHub
 
 log = logging.getLogger(__name__)
 
@@ -225,6 +226,7 @@ class ContextSensor(QObject):
         poll_interval_ms: int = 1000,
         stale_after_seconds: float = 5.0,
         monotonic: Callable[[], float] = time.monotonic,
+        event_hub: WindowsEventHub | None = None,
     ) -> None:
         super().__init__(parent)
         self._backend: ContextBackend = backend or self._default_backend()
@@ -238,6 +240,11 @@ class ContextSensor(QObject):
         self._system_suspended = False
         self._last_success_at: float | None = None
         self._failure_started_at: float | None = None
+        self._event_hub = (
+            event_hub
+            if event_hub is not None
+            else (WindowsEventHub.shared() if backend is None and api is not None else None)
+        )
 
         self._timer = QTimer(self)
         self._timer.setInterval(max(100, int(poll_interval_ms)))
@@ -251,6 +258,27 @@ class ContextSensor(QObject):
             self._apply_system_suspended,
             Qt.QueuedConnection,
         )
+        if self._event_hub is not None:
+            self._event_hub.foreground_changed.connect(
+                self._request_sample,
+                Qt.QueuedConnection,
+            )
+            self._event_hub.display_changed.connect(
+                self._request_sample,
+                Qt.QueuedConnection,
+            )
+            self._event_hub.clock_changed.connect(
+                self._request_sample,
+                Qt.QueuedConnection,
+            )
+            self._event_hub.session_locked.connect(
+                self.set_session_locked,
+                Qt.QueuedConnection,
+            )
+            self._event_hub.system_suspended.connect(
+                self.set_system_suspended,
+                Qt.QueuedConnection,
+            )
 
     @staticmethod
     def _default_backend() -> ContextBackend:
@@ -270,12 +298,16 @@ class ContextSensor(QObject):
         if self._started:
             return
         self._started = True
-        try:
-            hook_started = self._backend.start_foreground_hook(
-                self._sample_requested.emit
-            )
-        except Exception:
-            hook_started = False
+        if self._event_hub is not None:
+            self._event_hub.install()
+            hook_started = self._event_hub.foreground_hook_available
+        else:
+            try:
+                hook_started = self._backend.start_foreground_hook(
+                    self._sample_requested.emit
+                )
+            except Exception:
+                hook_started = False
         if not hook_started:
             log.warning("Foreground event hook unavailable; using periodic sampling")
         self._timer.start()
@@ -286,10 +318,11 @@ class ContextSensor(QObject):
             return
         self._started = False
         self._timer.stop()
-        try:
-            self._backend.stop_foreground_hook()
-        except Exception:
-            log.warning("Foreground event hook could not be stopped cleanly")
+        if self._event_hub is None:
+            try:
+                self._backend.stop_foreground_hook()
+            except Exception:
+                log.warning("Foreground event hook could not be stopped cleanly")
 
     def set_session_locked(self, locked: bool) -> None:
         """Inject WTS lock/unlock state; handling is always queued to Qt."""
@@ -298,6 +331,11 @@ class ContextSensor(QObject):
     def set_system_suspended(self, suspended: bool) -> None:
         """Inject power suspend/resume state; handling is always queued to Qt."""
         self._system_suspend_requested.emit(bool(suspended))
+
+    @Slot()
+    @Slot(object)
+    def _request_sample(self, *_args) -> None:
+        self._sample_requested.emit()
 
     def _session(self) -> SessionState:
         if self._system_suspended:
@@ -355,6 +393,7 @@ class ContextSensor(QObject):
             foreground_app_id="",
             fullscreen=False,
             notification_mode="unavailable",
+            idle_seconds=0,
             captured_at=datetime.now().astimezone(),
         )
         self._publish(unavailable)

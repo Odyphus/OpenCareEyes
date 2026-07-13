@@ -1,8 +1,8 @@
-# OpenCareEyes GitHub 发布指南
+# OpenCareEyes v0.4 GitHub 发布指南
 
 `main` 是唯一规范源码分支。旧 `master` 分支只保留迁移说明，不再接收功能更新。
 
-## 提交前
+## 1. 提交前
 
 ```powershell
 py -3.12 -m venv .venv
@@ -14,32 +14,82 @@ python -m pytest -q
 python -m PyInstaller --noconfirm --clean opencareyes.spec
 ```
 
-同时检查：
+逐项完成 [UPLOAD_CHECKLIST.md](UPLOAD_CHECKLIST.md)，尤其确认：
 
-- `pyproject.toml` 是版本号的唯一来源。
-- README 截图与真实界面一致。
-- `CHANGELOG.md` 已记录用户可见变更。
-- 未提交日志、诊断包、构建目录或私人位置数据。
+- `pyproject.toml` 是版本号唯一来源，版本为 `0.4.0`。
+- 统一效果入口、失败回滚、HDR 安全、短/长休息、渐进提示、桌宠位置、原子热键、自动化偏移和手动更新检查均有测试。
+- 未点击“检查更新”时零更新网络请求。
+- README 的截图/GIF 来自真实 v0.4 构建，不把 v0.3 历史演示标为当前版本。
+- 未提交日志、诊断包、构建目录、窗口标题、完整 EXE 路径、位置或使用历史。
+- `CHANGELOG.md`、`使用说明.md`、`SECURITY.md` 已记录用户可见变更、隐私边界和医疗边界。
 
-## 发布版本标签
+## 2. 发布版本标签
+
+确认分支保护和 CI 通过后：
 
 ```powershell
 git switch main
 git pull --ff-only
-$Version = "v0.3.0" # 必须与 pyproject.toml 一致
+$Version = "v0.4.0" # 必须与 pyproject.toml 一致
 git tag -a $Version -m "OpenCareEyes $Version"
 git push origin main
 git push origin $Version
 ```
 
-`v*` 标签会触发 Windows CI，构建便携 EXE、Inno Setup 安装包和
-`SHA256SUMS.txt`，并根据提交记录生成 Release Notes。
+`v*` 标签会触发 Windows CI，构建：
 
-## 分支迁移
+- `OpenCareEyes.exe`
+- `OpenCareEyes_Setup_0.4.0.exe`
+- `SHA256SUMS.txt`
+- `OpenCareEyes_WinGet_0.4.0.zip` 候选清单
+- `THIRD_PARTY_NOTICES.md`（安装包和便携版内同时包含完整 `licenses/` 文本）
+
+工作流随后创建 GitHub Release。不要在 Release 工作流成功前创建同名正式 Release，也不要修改已经用于 WinGet 的版本固定资产。
+
+## 3. 验证 GitHub Release
+
+在匿名/无登录浏览器中逐项验证：
+
+1. Tag、Release 标题和 `pyproject.toml` 都是 `0.4.0`。
+2. 五个发布资产可下载，文件名无误。
+3. `SHA256SUMS.txt` 与实际便携版、安装版、WinGet ZIP 和第三方 notice 完全匹配。
+4. 在干净 Windows 环境完成便携启动、单实例唤起、安装、从上一稳定版升级和卸载。
+5. Release Notes 与 `CHANGELOG.md` 及真实提交一致，不宣称未实现的功能。
+6. 明确说明 OpenCareEyes 不是医疗器械，不承诺减少蓝光伤害或保护视网膜。
+7. 明确说明 SHA-256 与 WinGet 不等同于代码签名，也不能保证消除 SmartScreen。
+
+若 Release 资产发生任何变化，必须重新生成 SHA-256 和 WinGet 清单，再重新执行全部验证；不能只替换文件而沿用旧哈希。
+
+## 4. WinGet 候选清单
+
+仓库和 GitHub Release 中的 `Odyphus.OpenCareEyes` 清单只是候选文件，不能声称已经被 WinGet 官方源收录。正式提交必须在 GitHub Release 资产固定后进行。
+
+使用与 Release 完全相同的最终安装包生成清单：
+
+```powershell
+python scripts\generate_winget_manifest.py `
+  .\installer_output\OpenCareEyes_Setup_0.4.0.exe `
+  --version 0.4.0
+
+winget validate .\winget_output\manifests\o\Odyphus\OpenCareEyes\0.4.0
+```
+
+然后按 [Microsoft WinGet 提交流程](https://learn.microsoft.com/windows/package-manager/package/repository) 完成：
+
+1. 检查 `InstallerUrl` 指向版本固定的 `v0.4.0` GitHub Release 资产，不使用 `/latest/`。
+2. 检查 `InstallerSha256` 与在线下载的安装包一致。
+3. `winget validate` 无错误；不要用忽略警告掩盖需要修复的问题。
+4. 在全新 Windows Sandbox 中验证静默安装、正常启动、从上一版本升级和卸载。
+5. 确认安装范围、快捷方式、自启动项和用户数据保留/清理行为符合清单与使用说明。
+6. 测试通过后再向 `microsoft/winget-pkgs` 提交 Pull Request，并等待自动验证/人工审核完成。
+
+只有社区仓库 PR 合并且客户端源已同步后，才能说明该版本已被 WinGet 收录。WinGet 收录与 SHA-256 都不能替代受信任代码签名，也不能承诺消除 SmartScreen。
+
+## 5. 分支维护
 
 确认 `main` 已包含完整历史与源码后：
 
 1. 在 GitHub 设置中将默认分支设为 `main`。
 2. 为 `main` 启用 Pull Request 和 CI 保护规则。
-3. 在 `master` 的 README 中保留一个版本的迁移提示。
-4. 所有链接与自动化均转向 `main` 后，再删除旧分支。
+3. 在 `master` 的 README 中保留迁移提示。
+4. 所有链接与自动化均转向 `main` 后，再按维护计划删除旧分支。

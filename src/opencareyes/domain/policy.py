@@ -78,15 +78,18 @@ class AutoPausePolicy:
                     ):
                         suppress(feature, app_reason, "leave_application")
 
-            if snapshot.idle_seconds >= cls.IDLE_PAUSE_SECONDS:
-                if not manual_break_override:
-                    suppress("breaks", "idle", "user_returns")
-                if (
-                    preferences.natural_rest_enabled
-                    and snapshot.idle_seconds >= cls.NATURAL_REST_SECONDS
-                ):
-                    natural_rest = not manual_break_override
-                    suppress("focus", "natural_rest", "user_returns")
+        if (
+            snapshot.session == "active"
+            and snapshot.idle_seconds >= cls.IDLE_PAUSE_SECONDS
+        ):
+            if not manual_break_override:
+                suppress("breaks", "idle", "user_returns")
+            if (
+                preferences.natural_rest_enabled
+                and snapshot.idle_seconds >= cls.NATURAL_REST_SECONDS
+            ):
+                natural_rest = not manual_break_override
+                suppress("focus", "natural_rest", "user_returns")
 
         return SuppressionDecision(
             filter=cls._result(reasons["filter"], conditions["filter"]),

@@ -82,7 +82,52 @@ def schedule_event_description(event: str) -> str:
         "off": "切换到日间方案",
         "enable": "切换到夜间方案",
         "disable": "切换到日间方案",
-    }.get(event, event)
+    }.get(event, "执行自动化切换")
+
+
+def display_backend_description(backend: str) -> str:
+    """Return a readable label without exposing an internal backend code."""
+
+    return {
+        "gamma_ramp": "Windows 显示色彩调节",
+        "gdi_gamma": "Windows 显示色彩调节",
+        "overlay": "屏幕覆盖层",
+        "GDI Gamma + 覆盖层": "Windows 显示色彩调节与屏幕覆盖层",
+    }.get(str(backend), "系统显示接口")
+
+
+def suppression_reason_description(reason: str) -> str:
+    """Translate a runtime suppression reason for every user-facing surface."""
+
+    value = str(reason)
+    if value.startswith("app:"):
+        app_id = value.removeprefix("app:")
+        return f"应用 {app_id}" if app_id else "应用规则"
+    return {
+        "global_pause": "全局暂停",
+        "fullscreen": "全屏应用",
+        "presentation": "演示模式",
+        "d3d_fullscreen": "全屏游戏",
+        "app_rule": "应用规则",
+        "idle": "离开电脑",
+        "natural_rest": "自然休息",
+        "locked": "锁屏",
+        "session_locked": "锁屏",
+        "suspended": "系统睡眠",
+        "system_suspended": "系统睡眠",
+        "hdr_active": "HDR 已开启",
+    }.get(value, "未知情境")
+
+
+def feature_description(feature: str) -> str:
+    """Translate a feature identifier for status and accessibility text."""
+
+    return {
+        "breaks": "暂停休息",
+        "focus": "隐藏专注",
+        "filter": "暂停色温",
+        "dimmer": "暂停调暗",
+    }.get(str(feature), "未知功能")
 
 
 def set_accessible(widget: QWidget, name: str, description: str = "") -> QWidget:

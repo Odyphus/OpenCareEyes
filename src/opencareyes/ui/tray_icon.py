@@ -9,7 +9,12 @@ from PySide6.QtGui import QAction, QActionGroup, QColor, QIcon, QPainter, QPixma
 from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 
 from opencareyes.constants import ICONS_DIR
-from opencareyes.ui.widgets import first_state_value, format_duration, temperature_description
+from opencareyes.ui.widgets import (
+    first_state_value,
+    format_duration,
+    suppression_reason_description,
+    temperature_description,
+)
 
 
 class TrayIcon(QSystemTrayIcon):
@@ -27,6 +32,9 @@ class TrayIcon(QSystemTrayIcon):
         notification = getattr(self._controller, "notification_requested", None)
         if notification is not None:
             notification.connect(self._show_notification)
+        failed = getattr(self._controller, "operation_failed", None)
+        if failed is not None:
+            failed.connect(self._show_error)
         self.render(controller.state)
 
     def _create_icon(self) -> None:
@@ -56,6 +64,11 @@ class TrayIcon(QSystemTrayIcon):
         self._filter_action = self._check_action("色温调节", self.toggle_filter)
         self._dimmer_action = self._check_action("屏幕调暗", self.toggle_dimmer)
         self._break_action = self._check_action("休息提醒", self.toggle_break)
+        self._pet_action = self._check_action("显示倒计时桌宠", self._toggle_pet)
+        self._preview_pet_action = self._menu.addAction("预览倒计时桌宠")
+        self._preview_pet_action.triggered.connect(self._preview_pet)
+        self._reset_pet_action = self._menu.addAction("重置桌宠位置")
+        self._reset_pet_action.triggered.connect(self._reset_pet_position)
         self._focus_action = self._check_action("专注模式", self.toggle_focus)
 
         self._break_control_menu = self._menu.addMenu("休息计时")
@@ -155,6 +168,25 @@ class TrayIcon(QSystemTrayIcon):
     def apply_preset(self, name: str) -> None:
         self._controller.apply_display_profile(name)
 
+    def _toggle_pet(self, visible: bool) -> None:
+        setter = getattr(self._controller, "set_break_countdown_display", None)
+        if callable(setter):
+            setter("floating" if visible else "tray")
+
+    def _preview_pet(self) -> None:
+        preview = getattr(self._mini_countdown, "preview", None)
+        if callable(preview):
+            preview()
+
+    def _reset_pet_position(self) -> None:
+        reset = getattr(self._mini_countdown, "reset_position", None)
+        if callable(reset):
+            reset()
+            return
+        command = getattr(self._controller, "reset_pet_position", None)
+        if callable(command):
+            command()
+
     def _toggle_break_pause(self) -> None:
         suppressed = tuple(first_state_value(
             self._controller.state,
@@ -189,6 +221,9 @@ class TrayIcon(QSystemTrayIcon):
     def _show_notification(self, title: str, message: str) -> None:
         self.showMessage(title, message, QSystemTrayIcon.Information, 5000)
 
+    def _show_error(self, _code: str, message: str) -> None:
+        self.showMessage("OpenCareEyes 操作未完成", message, QSystemTrayIcon.Warning, 7000)
+
     def render(self, state) -> None:
         filter_enabled = bool(first_state_value(state, "display.filter_enabled", default=False))
         dimmer_enabled = bool(first_state_value(state, "display.dimmer_enabled", default=False))
@@ -220,6 +255,17 @@ class TrayIcon(QSystemTrayIcon):
         ):
             with QSignalBlocker(action):
                 action.setChecked(checked)
+        with QSignalBlocker(self._pet_action):
+            self._pet_action.setChecked(countdown_display == "floating")
+        self._pet_action.setEnabled(break_enabled)
+        self._pet_action.setToolTip(
+            "在屏幕上显示可拖动的倒计时伙伴"
+            if break_enabled
+            else "请先启用休息提醒"
+        )
+        pet_available = self._mini_countdown is not None
+        self._preview_pet_action.setEnabled(pet_available)
+        self._reset_pet_action.setEnabled(pet_available)
         self._filter_action.setText(
             f"色温调节 · {temperature_description(temp)} {temp}K"
             if filter_enabled else "色温调节"
@@ -245,18 +291,10 @@ class TrayIcon(QSystemTrayIcon):
         self._snooze_menu.setEnabled(
             break_enabled and not force_break and not break_suppressed
         )
-        reason_names = {
-            "fullscreen": "全屏应用",
-            "presentation": "演示模式",
-            "d3d_fullscreen": "全屏游戏",
-            "app_rule": "应用规则",
-            "idle": "离开电脑",
-            "locked": "锁屏",
-            "suspended": "系统睡眠",
-        }
         if break_suppressed:
             reason = "、".join(
-                reason_names.get(item, item) for item in break_suppressed
+                suppression_reason_description(item)
+                for item in break_suppressed
             )
             detail = f" · {break_resume}" if break_resume else ""
             self._context_status_action.setText(f"智能免打扰：{reason}{detail}")
@@ -264,7 +302,12 @@ class TrayIcon(QSystemTrayIcon):
             self._context_status_action.setText("智能免打扰：未触发")
         self._resume_context_action.setVisible(
             bool(break_suppressed)
-            and not {"locked", "suspended"}.intersection(break_suppressed)
+            and not {
+                "locked",
+                "session_locked",
+                "suspended",
+                "system_suspended",
+            }.intersection(break_suppressed)
         )
         for name, action in self._profile_actions.items():
             with QSignalBlocker(action):
@@ -279,7 +322,8 @@ class TrayIcon(QSystemTrayIcon):
             tooltip = "OpenCareEyes · 全部效果已暂停"
         elif break_enabled and break_suppressed:
             reason = "、".join(
-                reason_names.get(item, item) for item in break_suppressed
+                suppression_reason_description(item)
+                for item in break_suppressed
             )
             detail = f" · {break_resume}" if break_resume else ""
             tooltip = f"OpenCareEyes · 因{reason}暂停{detail}"

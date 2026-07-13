@@ -62,9 +62,9 @@ QCheckBox::indicator:hover { border-color: #87ACF3; }
 QCheckBox::indicator:checked { background: #5B8DEF; border-color: #7EA7F5; }
 QCheckBox:focus { color: #CFE0FF; }
 
-QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox, QTimeEdit { background: #141922; color: #F1F4F8; border: 1px solid #384354; border-radius: 8px; padding: 7px 10px; min-height: 22px; selection-background-color: #426EBB; }
-QLineEdit:hover, QComboBox:hover, QSpinBox:hover, QDoubleSpinBox:hover, QTimeEdit:hover { border-color: #526177; }
-QLineEdit:focus, QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus, QTimeEdit:focus { border: 2px solid #77A3F2; padding: 6px 9px; }
+QLineEdit, QKeySequenceEdit, QComboBox, QSpinBox, QDoubleSpinBox, QTimeEdit { background: #141922; color: #F1F4F8; border: 1px solid #384354; border-radius: 8px; padding: 7px 10px; min-height: 22px; selection-background-color: #426EBB; }
+QLineEdit:hover, QKeySequenceEdit:hover, QComboBox:hover, QSpinBox:hover, QDoubleSpinBox:hover, QTimeEdit:hover { border-color: #526177; }
+QLineEdit:focus, QKeySequenceEdit:focus, QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus, QTimeEdit:focus { border: 2px solid #77A3F2; padding: 6px 9px; }
 QComboBox::drop-down { border: none; width: 28px; }
 QComboBox QAbstractItemView { background: #1B222D; color: #F1F4F8; border: 1px solid #3A4658; outline: none; selection-background-color: #2F4E7E; padding: 4px; }
 

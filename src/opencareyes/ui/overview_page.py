@@ -12,10 +12,12 @@ from opencareyes.ui.widgets import (
     PageHeader,
     ScrollPage,
     StatusCard,
+    display_backend_description,
     first_state_value,
     format_duration,
     schedule_event_description,
     set_accessible,
+    suppression_reason_description,
     temperature_description,
 )
 
@@ -36,7 +38,13 @@ class OverviewPage(ScrollPage):
         self._controller = controller
         self._build_ui()
         self._controller.state_changed.connect(self.render)
+        break_tick = getattr(self._controller, "break_tick", None)
+        if break_tick is not None:
+            break_tick.connect(self._render_break_tick)
         self.render(controller.state)
+
+    def _render_break_tick(self, *_args) -> None:
+        self.render(self._controller.state)
 
     def _build_ui(self) -> None:
         header_row = QHBoxLayout()
@@ -84,6 +92,31 @@ class OverviewPage(ScrollPage):
         banner_row.addWidget(self._pause_banner_detail)
         self._pause_banner.body.addLayout(banner_row)
         self.layout.addWidget(self._pause_banner)
+
+        self._runtime_card = Card("当前实际效果", "显示的是实际运行状态，不只是保存的开关。")
+        runtime_row = QHBoxLayout()
+        runtime_text = QHBoxLayout()
+        self._runtime_status = QLabel("正在检查显示效果…")
+        self._runtime_status.setObjectName("sectionLead")
+        self._activity_status = QLabel("")
+        self._activity_status.setObjectName("cardDescription")
+        runtime_text.addWidget(self._runtime_status)
+        runtime_text.addWidget(self._activity_status)
+        runtime_text.addStretch()
+        self._restore_display_button = QPushButton("恢复原始显示")
+        self._restore_display_button.setObjectName("quietButton")
+        restorer = getattr(self._controller, "restore_display_effects", None)
+        self._restore_display_button.setEnabled(callable(restorer))
+        if callable(restorer):
+            self._restore_display_button.clicked.connect(restorer)
+        set_accessible(
+            self._restore_display_button,
+            "恢复原始显示并关闭屏幕效果",
+        )
+        runtime_row.addLayout(runtime_text, 1)
+        runtime_row.addWidget(self._restore_display_button)
+        self._runtime_card.body.addLayout(runtime_row)
+        self.layout.addWidget(self._runtime_card)
 
         grid = QGridLayout()
         grid.setHorizontalSpacing(16)
@@ -160,21 +193,80 @@ class OverviewPage(ScrollPage):
         dimmer_suppressed = tuple(first_state_value(
             state, "effective_policy.dimmer.suppressed_by", default=()
         ))
+        filter_effective = bool(first_state_value(
+            state,
+            "effective_policy.filter.effective_enabled",
+            default=filter_enabled,
+        ))
+        dimmer_effective = bool(first_state_value(
+            state,
+            "effective_policy.dimmer.effective_enabled",
+            default=dimmer_enabled,
+        ))
         temp = int(first_state_value(state, "display.color_temperature", default=6500))
         dim_level = int(first_state_value(state, "display.dim_level", default=0))
         profile = str(first_state_value(state, "display.preset", default="custom"))
-        display_enabled = filter_enabled or dimmer_enabled
+        display_desired = filter_enabled or dimmer_enabled
+        display_enabled = filter_effective or dimmer_effective
+        display_suppressed = tuple(dict.fromkeys(
+            (*filter_suppressed, *dimmer_suppressed)
+        ))
         dim_percent = round(dim_level * 100 / 200)
+        display_health = str(first_state_value(
+            state,
+            "display_health.status",
+            default="active" if display_enabled else "ready",
+        ))
+        display_backend = display_backend_description(first_state_value(
+            state,
+            "display_health.backend",
+            default="gamma_ramp",
+        ))
+        health_message = str(first_state_value(
+            state,
+            "display_health.message",
+            default="",
+        ))
+        hdr_active = bool(first_state_value(
+            state,
+            "display_health.hdr_active",
+            default=False,
+        ))
+        pending = bool(first_state_value(
+            state,
+            "display_health.pending",
+            default=False,
+        ))
+        if hdr_active:
+            self._runtime_status.setText("HDR 已开启 · 色温安全暂停")
+        elif pending:
+            self._runtime_status.setText("正在应用显示效果…")
+        elif display_health in {"error", "failed", "degraded", "unavailable"}:
+            self._runtime_status.setText(health_message or "显示效果需要检查")
+        elif display_suppressed:
+            reasons = "、".join(
+                suppression_reason_description(reason)
+                for reason in display_suppressed
+            )
+            self._runtime_status.setText(f"显示效果因{reasons}暂停")
+        elif display_enabled:
+            self._runtime_status.setText(f"显示效果已验证 · {display_backend}")
+        else:
+            self._runtime_status.setText("显示效果未启用")
         self._display_card.set_status(
             display_enabled,
             (
-                "当前因应用规则暂停"
-                if filter_suppressed or dimmer_suppressed
+                "当前因 HDR 暂停"
+                if hdr_active
+                else "当前受运行策略暂停"
+                if display_suppressed
                 else _PROFILE_NAMES.get(profile, "自定义方案")
             ),
             f"{temperature_description(temp)} {temp}K · 调暗 {dim_percent}%",
             active_text=(
-                "自动暂停" if filter_suppressed or dimmer_suppressed else "运行中"
+                "自动暂停"
+                if display_desired and (display_suppressed or hdr_active)
+                else "运行中"
             ),
         )
 
@@ -188,29 +280,54 @@ class OverviewPage(ScrollPage):
             state, "effective_policy.breaks.resume_condition", default=""
         ))
         remaining = first_state_value(state, "breaks.remaining", default=0)
+        short_remaining = first_state_value(
+            state,
+            "break_cadence.short_remaining",
+            "breaks.cadence.short_remaining",
+            "breaks.short_remaining",
+            default=remaining,
+        )
+        long_remaining = first_state_value(
+            state,
+            "break_cadence.long_remaining",
+            "breaks.cadence.long_remaining",
+            "breaks.long_remaining",
+            default=None,
+        )
+        self._activity_status.setText(
+            (
+                f"短休息 {format_duration(short_remaining)}"
+                + (
+                    f" · 长休息 {format_duration(long_remaining)}"
+                    if long_remaining is not None
+                    else ""
+                )
+            )
+            if break_enabled
+            else "休息计时未启用"
+        )
         if break_suppressed:
-            reason_names = {
-                "fullscreen": "全屏应用",
-                "presentation": "演示模式",
-                "d3d_fullscreen": "全屏游戏",
-                "app_rule": "应用规则",
-                "idle": "离开电脑",
-                "locked": "锁屏",
-                "suspended": "系统睡眠",
-            }
             reason = "、".join(
-                reason_names.get(item, item) for item in break_suppressed
+                suppression_reason_description(item)
+                for item in break_suppressed
             )
             break_value = f"因{reason}暂停"
         elif break_phase == "resting":
             break_value = "正在休息"
+        elif break_phase == "prompting":
+            break_value = "该休息一下了"
         elif break_paused:
             break_value = "计时已暂停"
         elif break_enabled:
             break_value = f"{format_duration(remaining)} 后休息"
         else:
             break_value = "未启用"
-        break_detail = {"20-20-20": "20-20-20", "pomodoro": "番茄钟", "custom": "自定义"}.get(
+        break_detail = {
+            "20-20-20": "20-20-20",
+            "pomodoro": "番茄钟",
+            "balanced": "平衡节奏",
+            "custom": "自定义",
+        }.get(
             str(first_state_value(state, "breaks.mode", default="custom")), "自定义"
         )
         if break_suppressed:
@@ -227,7 +344,12 @@ class OverviewPage(ScrollPage):
         )
         self._resume_context_button.setVisible(
             bool(break_suppressed)
-            and not {"locked", "suspended"}.intersection(break_suppressed)
+            and not {
+                "locked",
+                "session_locked",
+                "suspended",
+                "system_suspended",
+            }.intersection(break_suppressed)
         )
 
         focus_enabled = bool(first_state_value(state, "focus.enabled", default=False))

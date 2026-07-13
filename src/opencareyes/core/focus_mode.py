@@ -2,12 +2,11 @@
 
 import logging
 
-from PySide6.QtCore import QObject, Qt
+from PySide6.QtCore import QObject, Qt, Signal, Slot
 from PySide6.QtGui import QColor, QPainter, QScreen
 from PySide6.QtWidgets import QApplication, QWidget
 
 from opencareyes.platform.win32_api import (
-    EVENT_SYSTEM_FOREGROUND,
     GWL_EXSTYLE,
     HWND_NOTOPMOST,
     SWP_NOMOVE,
@@ -16,15 +15,12 @@ from opencareyes.platform.win32_api import (
     WS_EX_LAYERED,
     WS_EX_TRANSPARENT,
     WS_EX_TOOLWINDOW,
-    WINEVENT_OUTOFCONTEXT,
-    WINEVENTPROC,
     GetForegroundWindow,
     GetWindowLongW,
-    SetWinEventHook,
     SetWindowLongW,
     SetWindowPos,
-    UnhookWinEvent,
 )
+from opencareyes.platform.windows_event_hub import WindowsEventHub
 
 log = logging.getLogger(__name__)
 
@@ -76,16 +72,24 @@ class _FocusOverlay(QWidget):
 class FocusMode(QObject):
     """Dims background windows to help focus on the active window."""
 
-    def __init__(self, parent=None):
+    operation_failed = Signal(str, str)
+
+    def __init__(self, parent=None, *, watch_screen_events: bool = True):
         super().__init__(parent)
         self._enabled = False
         self._dim_level = 150
         self._overlays: list[_FocusOverlay] = []
         self._watched_screens: set[int] = set()
-        self._hook = None
-        self._callback = WINEVENTPROC(self._win_event_callback)
+        self._last_error_code = ""
+        self._last_error_message = ""
+        self._event_hub = WindowsEventHub.shared()
+        self._event_hub.install()
+        self._event_hub.foreground_changed.connect(
+            self._on_foreground_changed,
+            Qt.QueuedConnection,
+        )
         app = QApplication.instance()
-        if app is not None:
+        if app is not None and watch_screen_events:
             for screen in app.screens():
                 self._watch_screen(screen)
             app.screenAdded.connect(self._on_screens_changed)
@@ -99,44 +103,61 @@ class FocusMode(QObject):
     def dim_level(self) -> int:
         return self._dim_level
 
-    def enable(self):
+    @property
+    def last_error_code(self) -> str:
+        return self._last_error_code
+
+    @property
+    def last_error_message(self) -> str:
+        return self._last_error_message
+
+    def enable(self) -> bool:
         """Activate focus mode: hook foreground changes and create overlay."""
         if self._enabled:
-            return
-        self._create_overlays()
-        for overlay in self._overlays:
-            overlay.show()
-
-        # Do NOT use WINEVENT_SKIPOWNPROCESS — we need to handle ALL
-        # foreground changes, including our own settings panel.
-        self._hook = SetWinEventHook(
-            EVENT_SYSTEM_FOREGROUND,
-            EVENT_SYSTEM_FOREGROUND,
-            None,
-            self._callback,
-            0,
-            0,
-            WINEVENT_OUTOFCONTEXT,
-        )
-        if not self._hook:
-            log.error("Failed to set WinEvent hook for focus mode")
+            return True
+        if not self._create_overlays():
+            self._report_failure(
+                "focus_overlay_failed",
+                "无法为当前屏幕创建专注遮罩。",
+            )
+            return False
+        try:
+            for overlay in self._overlays:
+                overlay.show()
+                if not overlay.isVisible():
+                    raise RuntimeError("focus overlay did not become visible")
+        except Exception:
+            log.exception("Failed to show all focus overlays")
             self._destroy_overlays()
-            return
+            self._report_failure(
+                "focus_overlay_failed",
+                "专注遮罩未能在所有屏幕上显示。",
+            )
+            return False
 
         self._enabled = True
+        self._last_error_code = ""
+        self._last_error_message = ""
         self._on_foreground_changed(GetForegroundWindow())
         log.info("Focus mode enabled")
+        return True
 
-    def disable(self):
+    def disable(self) -> bool:
         """Deactivate focus mode: unhook and remove overlay."""
         if not self._enabled:
-            return
-        if self._hook:
-            UnhookWinEvent(self._hook)
-            self._hook = None
-        self._destroy_overlays()
+            return True
+        removed = self._destroy_overlays()
         self._enabled = False
+        if not removed:
+            self._report_failure(
+                "focus_restore_failed",
+                "部分专注遮罩未能正常移除。",
+            )
+            return False
+        self._last_error_code = ""
+        self._last_error_message = ""
         log.info("Focus mode disabled")
+        return True
 
     def set_dim_level(self, level: int):
         """Configure background dim level (0-255)."""
@@ -144,6 +165,18 @@ class FocusMode(QObject):
         for overlay in self._overlays:
             overlay.set_dim_level(self._dim_level)
 
+    def refresh_screens(self) -> bool:
+        """Rebuild focus overlays after a native display change."""
+
+        if not self._enabled:
+            return True
+        saved_level = self._dim_level
+        if not self.disable():
+            return False
+        self._dim_level = saved_level
+        return self.enable()
+
+    @Slot(object)
     def _on_foreground_changed(self, hwnd):
         """Place overlay just below the foreground window in Z-order."""
         if not self._enabled or not self._overlays or not hwnd:
@@ -171,29 +204,38 @@ class FocusMode(QObject):
             except Exception:
                 log.debug("SetWindowPos failed for focus overlay", exc_info=True)
 
-    def _win_event_callback(self, hWinEventHook, event, hwnd, idObject,
-                            idChild, dwEventThread, dwmsEventTime):
-        """Raw WinEvent callback — dispatches to _on_foreground_changed."""
-        if event == EVENT_SYSTEM_FOREGROUND and hwnd:
-            self._on_foreground_changed(hwnd)
-
-    def _create_overlays(self):
+    def _create_overlays(self) -> bool:
         """Create one lightweight overlay per physical screen."""
         app = QApplication.instance()
         if app is None:
-            return
-        for screen in app.screens():
-            overlay = _FocusOverlay()
-            overlay.setGeometry(screen.geometry())
-            overlay.set_dim_level(self._dim_level)
-            self._overlays.append(overlay)
+            return False
+        screens = app.screens()
+        if not screens:
+            return False
+        try:
+            for screen in screens:
+                overlay = _FocusOverlay()
+                overlay.setGeometry(screen.geometry())
+                overlay.set_dim_level(self._dim_level)
+                self._overlays.append(overlay)
+        except Exception:
+            log.exception("Failed to create focus overlays")
+            self._destroy_overlays()
+            return False
+        return len(self._overlays) == len(screens)
 
-    def _destroy_overlays(self):
+    def _destroy_overlays(self) -> bool:
+        success = True
         for overlay in self._overlays:
-            overlay.hide()
-            overlay.close()
-            overlay.deleteLater()
+            try:
+                overlay.hide()
+                overlay.close()
+                overlay.deleteLater()
+            except Exception:
+                success = False
+                log.exception("Failed to remove a focus overlay")
         self._overlays.clear()
+        return success
 
     def _on_screens_changed(self, *_):
         app = QApplication.instance()
@@ -202,11 +244,12 @@ class FocusMode(QObject):
                 self._watch_screen(screen)
         if not self._enabled:
             return
-        self._destroy_overlays()
-        self._create_overlays()
-        for overlay in self._overlays:
-            overlay.show()
-        self._on_foreground_changed(GetForegroundWindow())
+        self.refresh_screens()
+
+    def _report_failure(self, code: str, message: str) -> None:
+        self._last_error_code = code
+        self._last_error_message = message
+        self.operation_failed.emit(code, message)
 
     def _watch_screen(self, screen: QScreen):
         identity = id(screen)

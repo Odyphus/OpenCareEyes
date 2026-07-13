@@ -9,10 +9,18 @@ from opencareyes.config.settings import SettingsMigrationError, SettingsReadOnly
 
 
 class MemoryStore:
-    def __init__(self, values=None, *, fail_sync_count=0, fail_set_key=None):
+    def __init__(
+        self,
+        values=None,
+        *,
+        fail_sync_count=0,
+        fail_set_key=None,
+        status_value=0,
+    ):
         self.values = dict(values or {})
         self.fail_sync_count = fail_sync_count
         self.fail_set_key = fail_set_key
+        self.status_value = status_value
         self.writes = []
 
     def value(self, key, default=None, type=None):
@@ -38,6 +46,9 @@ class MemoryStore:
 
     def clear(self):
         self.values.clear()
+
+    def status(self):
+        return self.status_value
 
 
 @pytest.fixture
@@ -142,6 +153,21 @@ class TestSettingsDefaults:
         assert settings.schedule_off_time == "07:30"
         assert settings.schedule_days == (0, 1, 2, 3, 4)
 
+    def test_v4_defaults(self, settings):
+        assert settings.break_reminder_style == "progressive"
+        assert settings.cadence_mode == "20-20-20"
+        assert settings.cadence_short_interval == 20 * 60
+        assert settings.cadence_short_duration == 20
+        assert settings.cadence_long_enabled is False
+        assert settings.cadence_long_interval == 60 * 60
+        assert settings.cadence_long_duration == 5 * 60
+        assert settings.pet_x is None
+        assert settings.pet_y is None
+        assert settings.schedule_day_profile == "office"
+        assert settings.schedule_night_profile == "night"
+        assert settings.sunrise_offset == 0
+        assert settings.sunset_offset == 0
+
 
 class TestSettingsSetGet:
     def test_set_filter_enabled(self, settings, mock_qsettings):
@@ -226,16 +252,17 @@ def test_environment_can_select_isolated_ini_backend(monkeypatch, tmp_path):
     assert path.exists()
 
 
-def test_empty_store_migrates_to_v3_with_new_install_defaults():
+def test_empty_store_migrates_to_v4_with_new_install_defaults():
     from opencareyes.config.settings import Settings
 
     store = MemoryStore()
     settings = Settings(store)
 
-    assert store.values == {"meta/schema_version": 3}
-    assert settings.stored_schema_version == 3
+    assert store.values == {"meta/schema_version": 4}
+    assert settings.stored_schema_version == 4
     assert settings.read_only is False
     assert settings.break_mode == "20-20-20"
+    assert settings.break_reminder_style == "progressive"
     assert settings.schedule_off_time == "07:30"
 
 
@@ -245,7 +272,7 @@ def test_v1_migrates_in_order_and_preserves_legacy_effective_defaults():
     store = MemoryStore({"filter/enabled": True})
     settings = Settings(store)
 
-    assert settings.stored_schema_version == 3
+    assert settings.stored_schema_version == 4
     assert settings.onboarding_completed is True
     assert settings.break_mode == "pomodoro"
     assert settings.work_duration == 45 * 60
@@ -275,7 +302,7 @@ def test_v2_migration_preserves_explicit_values_and_is_idempotent():
 
     store.writes.clear()
     second = Settings(store)
-    assert second.stored_schema_version == 3
+    assert second.stored_schema_version == 4
     assert store.writes == []
     assert writes_after_first_migration
 
@@ -292,13 +319,65 @@ def test_schema_marker_only_is_treated_as_an_existing_profile():
     assert settings.schedule_days == (0, 1, 2, 3, 4, 5, 6)
 
 
+def test_v3_sun_migration_preserves_behavior_and_materializes_v4_values():
+    from opencareyes.config.settings import Settings
+
+    store = MemoryStore(
+        {
+            "meta/schema_version": 3,
+            "automation/mode": "sun",
+            "automation/days": [0, 1, 2, 3, 4],
+            "break/mode": "custom",
+            "break/work_duration": 1800,
+            "break/break_duration": 90,
+        }
+    )
+    settings = Settings(store)
+
+    assert settings.stored_schema_version == 4
+    assert settings.break_reminder_style == "fullscreen"
+    assert settings.cadence_mode == "custom"
+    assert settings.cadence_short_interval == 1800
+    assert settings.cadence_short_duration == 90
+    assert settings.cadence_long_enabled is False
+    assert settings.schedule_days == (0, 1, 2, 3, 4, 5, 6)
+    assert settings.schedule_day_profile == "office"
+    assert settings.schedule_night_profile == "night"
+
+
+def test_v3_fixed_migration_keeps_selected_days_and_explicit_style():
+    from opencareyes.config.settings import Settings
+
+    store = MemoryStore(
+        {
+            "meta/schema_version": 3,
+            "automation/mode": "fixed",
+            "automation/days": [1, 3],
+            "break/reminder_style": "progressive",
+            "ui/pet_x": -240,
+            "ui/pet_y": 96,
+        }
+    )
+    settings = Settings(store)
+    writes_after_migration = tuple(store.writes)
+
+    assert settings.schedule_days == (1, 3)
+    assert settings.break_reminder_style == "progressive"
+    assert settings.pet_x == -240
+    assert settings.pet_y == 96
+    store.writes.clear()
+    Settings(store)
+    assert store.writes == []
+    assert writes_after_migration
+
+
 def test_preferences_repository_keeps_settings_compatibility():
     from opencareyes.config.settings import PreferencesRepository, Settings
 
     repository = PreferencesRepository(MemoryStore())
 
     assert isinstance(repository, Settings)
-    assert repository.stored_schema_version == 3
+    assert repository.stored_schema_version == 4
 
 
 def test_migration_sync_failure_restores_exact_snapshot():
@@ -450,3 +529,71 @@ def test_upsert_and_remove_application_rule():
     assert settings.app_rules[0]["focus"] is True
     settings.remove_app_rule("PowerPnt.exe")
     assert settings.app_rules == ()
+
+
+def test_v4_accessors_round_trip_and_keep_legacy_break_keys_in_sync():
+    from opencareyes.config.settings import Settings
+
+    store = MemoryStore()
+    settings = Settings(store)
+    settings.break_reminder_style = "fullscreen"
+    settings.cadence_mode = "balanced"
+    settings.cadence_short_interval = 1200
+    settings.cadence_short_duration = 20
+    settings.cadence_long_enabled = True
+    settings.cadence_long_interval = 3600
+    settings.cadence_long_duration = 300
+    settings.pet_x = -320
+    settings.pet_y = 144
+    settings.schedule_day_profile = "reading"
+    settings.schedule_night_profile = "night"
+    settings.sunrise_offset = -30
+    settings.sunset_offset = 45
+
+    assert settings.work_duration == 1200
+    assert settings.break_duration == 20
+    assert store.values["break/work_duration"] == 1200
+    assert store.values["break/cadence_short_interval"] == 1200
+    assert settings.pet_x == -320
+    assert settings.pet_y == 144
+    assert settings.schedule_day_profile == "reading"
+    assert settings.sunrise_offset == -30
+    assert settings.sunset_offset == 45
+
+
+def test_v4_accessors_reject_invalid_values():
+    from opencareyes.config.settings import Settings
+
+    settings = Settings(MemoryStore())
+    with pytest.raises(ValueError, match="reminder style"):
+        settings.break_reminder_style = "surprise"
+    with pytest.raises(ValueError, match="display profile"):
+        settings.schedule_day_profile = "unknown"
+    with pytest.raises(ValueError, match="between -120 and 120"):
+        settings.sunset_offset = 121
+    with pytest.raises(ValueError, match="positive"):
+        settings.cadence_long_duration = 0
+
+
+def test_repository_transaction_rolls_back_after_checked_sync_failure():
+    from opencareyes.config.settings import PreferencesRepository
+
+    original = {"meta/schema_version": 4, "general/theme": "dark"}
+    store = MemoryStore(original, fail_sync_count=1)
+    repository = PreferencesRepository(store)
+
+    with pytest.raises(OSError, match="simulated sync failure"):
+        with repository.transaction():
+            repository.theme = "light"
+
+    assert store.values == original
+
+
+def test_sync_checks_backend_status():
+    from opencareyes.config.settings import PreferencesRepository
+
+    repository = PreferencesRepository(
+        MemoryStore({"meta/schema_version": 4}, status_value=1)
+    )
+    with pytest.raises(OSError, match="sync failed"):
+        repository.sync()

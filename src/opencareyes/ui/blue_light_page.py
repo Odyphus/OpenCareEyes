@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import QSignalBlocker, Qt, QTimer
+from PySide6.QtCore import QSignalBlocker, Qt, QTimer, QUrl
+from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QCheckBox,
     QGridLayout,
@@ -17,6 +18,7 @@ from opencareyes.ui.widgets import (
     Card,
     PageHeader,
     ScrollPage,
+    display_backend_description,
     first_state_value,
     set_accessible,
     temperature_description,
@@ -60,6 +62,36 @@ class BlueLightPage(ScrollPage):
             "调节夜间色温与屏幕明暗，改善主观观看舒适度。显示方案不会改变休息或专注设置。",
         ))
 
+        health_card = Card("效果状态", "OpenCareEyes 会区分保存的偏好和实际显示效果。")
+        health_row = QHBoxLayout()
+        self._health_label = QLabel("正在检查显示能力…")
+        self._health_label.setObjectName("sectionLead")
+        self._health_label.setWordWrap(True)
+        self._recheck_button = QPushButton("重新检测")
+        self._recheck_button.setObjectName("quietButton")
+        self._restore_button = QPushButton("恢复原始显示")
+        self._restore_button.setObjectName("quietButton")
+        self._night_light_button = QPushButton("打开 Windows 夜间模式")
+        self._night_light_button.setObjectName("secondaryButton")
+        self._night_light_button.hide()
+        recheck = getattr(self._controller, "recheck_display_capabilities", None)
+        restore = getattr(self._controller, "restore_display_effects", None)
+        self._recheck_button.setEnabled(callable(recheck))
+        self._restore_button.setEnabled(callable(restore))
+        if callable(recheck):
+            self._recheck_button.clicked.connect(recheck)
+        if callable(restore):
+            self._restore_button.clicked.connect(restore)
+        self._night_light_button.clicked.connect(
+            lambda: QDesktopServices.openUrl(QUrl("ms-settings:nightlight"))
+        )
+        health_row.addWidget(self._health_label, 1)
+        health_row.addWidget(self._night_light_button)
+        health_row.addWidget(self._recheck_button)
+        health_row.addWidget(self._restore_button)
+        health_card.body.addLayout(health_row)
+        self.layout.addWidget(health_card)
+
         profile_card = Card("显示方案", "一键应用常用组合，之后仍可微调。")
         profile_grid = QGridLayout()
         profile_grid.setHorizontalSpacing(10)
@@ -98,7 +130,7 @@ class BlueLightPage(ScrollPage):
         set_accessible(
             self._temperature_slider,
             "色温",
-            f"可调范围 {TEMP_MIN} 至 {TEMP_MAX} Kelvin",
+            f"可调范围 {TEMP_MIN} 至 {TEMP_MAX} 开尔文",
         )
         temperature_card.body.addWidget(self._temperature_slider)
         temperature_range = QHBoxLayout()
@@ -186,7 +218,7 @@ class BlueLightPage(ScrollPage):
     def _update_temperature_label(self, value: int) -> None:
         self._temperature_value.setText(f"{temperature_description(value)} · {value}K")
         self._temperature_slider.setAccessibleDescription(
-            f"当前为{temperature_description(value)}，{value} Kelvin"
+            f"当前为{temperature_description(value)}，{value} 开尔文"
         )
 
     def render(self, state) -> None:
@@ -207,6 +239,31 @@ class BlueLightPage(ScrollPage):
         capabilities_dimmer = bool(first_state_value(
             state, "capabilities.dimmer_available", default=True
         ))
+        health_status = str(first_state_value(
+            state,
+            "display_health.status",
+            default="ready",
+        ))
+        health_message = str(first_state_value(
+            state,
+            "display_health.message",
+            default="",
+        ))
+        health_backend = display_backend_description(first_state_value(
+            state,
+            "display_health.backend",
+            default="gamma_ramp",
+        ))
+        hdr_active = bool(first_state_value(
+            state,
+            "display_health.hdr_active",
+            default=False,
+        ))
+        health_pending = bool(first_state_value(
+            state,
+            "display_health.pending",
+            default=False,
+        ))
 
         with QSignalBlocker(self._filter_toggle):
             self._filter_toggle.setChecked(filter_enabled)
@@ -224,10 +281,22 @@ class BlueLightPage(ScrollPage):
             self._preview_dim = dim_level
             self._dim_value.setText(f"{percent}%")
 
+        if hdr_active:
+            self._health_label.setText("HDR 已开启，色温调节已安全暂停；屏幕调暗仍可使用。")
+        elif health_pending:
+            self._health_label.setText("正在应用并验证显示效果…")
+        elif health_status in {"degraded", "error", "failed", "unavailable"}:
+            self._health_label.setText(health_message or "显示效果未能完全验证。")
+        else:
+            self._health_label.setText(f"显示效果可用 · {health_backend}")
+        self._night_light_button.setVisible(hdr_active)
+
         self._filter_toggle.setEnabled(capabilities_filter)
-        self._temperature_slider.setEnabled(capabilities_filter)
+        self._temperature_slider.setEnabled(
+            capabilities_filter and not hdr_active and not health_pending
+        )
         self._dimmer_toggle.setEnabled(capabilities_dimmer)
-        self._dim_slider.setEnabled(capabilities_dimmer)
+        self._dim_slider.setEnabled(capabilities_dimmer and not health_pending)
         for name, button in self._profile_buttons.items():
             with QSignalBlocker(button):
                 button.setChecked(name == preset)

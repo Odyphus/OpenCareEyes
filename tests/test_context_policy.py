@@ -167,7 +167,7 @@ def test_multiple_reasons_are_deduplicated_and_require_all_to_clear():
     assert decision.breaks.resume_condition == "all_suppressions_clear"
 
 
-def test_smart_pause_master_switch_leaves_active_context_unsuppressed():
+def test_smart_pause_switch_keeps_activity_weighted_idle_freeze():
     decision = evaluate(
         ContextSnapshot(
             foreground_app_id="game.exe",
@@ -179,8 +179,22 @@ def test_smart_pause_master_switch_leaves_active_context_unsuppressed():
         rules=(AppRule("game.exe", filter=True, dimmer=True),),
     )
 
-    assert not decision.breaks.suppressed
-    assert not decision.focus.suppressed
+    assert decision.breaks.suppressed_by == ("idle",)
+    assert decision.focus.suppressed_by == ("natural_rest",)
     assert not decision.filter.suppressed
     assert not decision.dimmer.suppressed
+    assert decision.natural_rest
+
+
+def test_idle_over_five_minutes_still_freezes_when_natural_rest_is_off():
+    decision = evaluate(
+        ContextSnapshot(idle_seconds=1000, notification_mode="normal"),
+        preferences=AutoPausePreferences(
+            smart_pause_enabled=False,
+            natural_rest_enabled=False,
+        ),
+    )
+
+    assert decision.breaks.suppressed_by == ("idle",)
+    assert not decision.focus.suppressed
     assert not decision.natural_rest

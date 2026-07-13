@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 
 from PySide6.QtCore import QSize, Qt, QTimer
-from PySide6.QtGui import QIcon, QKeySequence, QPalette, QShortcut
+from PySide6.QtGui import QIcon, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
     QFrame,
@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from opencareyes.constants import ICONS_DIR, STYLES_DIR
+from opencareyes.constants import ICONS_DIR
 from opencareyes.ui.automation_page import AutomationPage
 from opencareyes.ui.blue_light_page import BlueLightPage
 from opencareyes.ui.break_page import BreakPage
@@ -49,7 +49,9 @@ class MainPanel(QWidget):
         self.setObjectName("mainPanel")
         self.setWindowTitle("OpenCareEyes")
         self.resize(920, 640)
-        self.setMinimumSize(820, 580)
+        # Pages scroll independently, so a compact top-level minimum is safer
+        # on 200% DPI laptops than forcing the window below the work area.
+        self.setMinimumSize(480, 320)
         self.setWindowFlags(self.windowFlags() | Qt.Window)
         self.setAttribute(Qt.WA_DeleteOnClose, False)
         self._build_ui()
@@ -61,21 +63,21 @@ class MainPanel(QWidget):
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
 
-        sidebar = QFrame()
-        sidebar.setObjectName("sidebar")
-        sidebar.setAttribute(Qt.WA_StyledBackground, True)
-        sidebar.setFixedWidth(218)
-        sidebar_layout = QVBoxLayout(sidebar)
+        self._sidebar = QFrame()
+        self._sidebar.setObjectName("sidebar")
+        self._sidebar.setAttribute(Qt.WA_StyledBackground, True)
+        self._sidebar.setFixedWidth(218)
+        sidebar_layout = QVBoxLayout(self._sidebar)
         sidebar_layout.setContentsMargins(18, 22, 18, 18)
         sidebar_layout.setSpacing(14)
 
-        brand = QLabel("OpenCareEyes")
-        brand.setObjectName("brandTitle")
-        brand.setAccessibleName("OpenCareEyes 主导航")
-        subtitle = QLabel("让屏幕更舒适")
-        subtitle.setObjectName("brandSubtitle")
-        sidebar_layout.addWidget(brand)
-        sidebar_layout.addWidget(subtitle)
+        self._brand = QLabel("OpenCareEyes")
+        self._brand.setObjectName("brandTitle")
+        self._brand.setAccessibleName("OpenCareEyes 主导航")
+        self._subtitle = QLabel("让屏幕更舒适")
+        self._subtitle.setObjectName("brandSubtitle")
+        sidebar_layout.addWidget(self._brand)
+        sidebar_layout.addWidget(self._subtitle)
 
         self._navigation = QListWidget()
         self._navigation.setObjectName("navigation")
@@ -83,6 +85,7 @@ class MainPanel(QWidget):
         self._navigation.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self._navigation.setAccessibleName("页面导航")
         self._navigation.setIconSize(QSize(20, 20))
+        self._nav_labels = []
         for index, (label, _, icon_name) in enumerate(_PAGES):
             item = QListWidgetItem(label)
             item.setIcon(QIcon(os.path.join(ICONS_DIR, icon_name)))
@@ -90,14 +93,16 @@ class MainPanel(QWidget):
             item.setToolTip(f"Ctrl+{index + 1}")
             item.setTextAlignment(Qt.AlignVCenter | Qt.AlignLeft)
             item.setSizeHint(QSize(0, 44))
+            item.setData(Qt.AccessibleTextRole, label)
             self._navigation.addItem(item)
+            self._nav_labels.append(label)
         sidebar_layout.addWidget(self._navigation, 1)
 
-        privacy = QLabel("本地运行 · 无账号 · 无遥测")
-        privacy.setObjectName("sidebarFooter")
-        privacy.setWordWrap(True)
-        sidebar_layout.addWidget(privacy)
-        root.addWidget(sidebar)
+        self._privacy = QLabel("本地运行 · 无账号 · 无遥测")
+        self._privacy.setObjectName("sidebarFooter")
+        self._privacy.setWordWrap(True)
+        sidebar_layout.addWidget(self._privacy)
+        root.addWidget(self._sidebar)
 
         content = QFrame()
         content.setObjectName("contentArea")
@@ -119,21 +124,40 @@ class MainPanel(QWidget):
 
         self._stack = QStackedWidget()
         self._stack.setObjectName("pageStack")
-        self._pages = []
-        for _, page_class, _ in _PAGES:
-            page = page_class(self._controller)
-            self._pages.append(page)
-            self._stack.addWidget(page)
+        self._pages = [None] * len(_PAGES)
+        for _ in _PAGES:
+            self._stack.addWidget(QWidget())
+        self._ensure_page(0)
         content_layout.addWidget(self._stack, 1)
         root.addWidget(content, 1)
 
-        self._navigation.currentRowChanged.connect(self._stack.setCurrentIndex)
+        self._navigation.currentRowChanged.connect(self._select_page)
         self._navigation.setCurrentRow(0)
         self._shortcuts = []
         for index in range(len(_PAGES)):
             shortcut = QShortcut(QKeySequence(f"Ctrl+{index + 1}"), self)
             shortcut.activated.connect(lambda page=index: self._navigation.setCurrentRow(page))
             self._shortcuts.append(shortcut)
+        self._update_responsive_layout()
+
+    def _ensure_page(self, index: int) -> QWidget:
+        page = self._pages[index]
+        if page is not None:
+            return page
+
+        placeholder = self._stack.widget(index)
+        _, page_class, _ = _PAGES[index]
+        page = page_class(self._controller)
+        self._stack.removeWidget(placeholder)
+        placeholder.deleteLater()
+        self._stack.insertWidget(index, page)
+        self._pages[index] = page
+        return page
+
+    def _select_page(self, index: int) -> None:
+        if not 0 <= index < len(_PAGES):
+            return
+        self._stack.setCurrentWidget(self._ensure_page(index))
 
     def _connect_signals(self) -> None:
         self._controller.state_changed.connect(self._render)
@@ -149,26 +173,48 @@ class MainPanel(QWidget):
         self.apply_theme(theme)
 
     def apply_theme(self, theme: str) -> None:
-        resolved = theme
-        if theme == "system":
-            app = QApplication.instance()
-            if app is not None:
-                window = app.palette().color(QPalette.Window)
-                resolved = "dark" if window.lightness() < 128 else "light"
-            else:
-                resolved = "light"
-        if resolved == self._applied_theme:
+        app = QApplication.instance()
+        if app is None:
             return
-        path = os.path.join(STYLES_DIR, f"{resolved}.qss")
-        try:
-            with open(path, "r", encoding="utf-8") as stylesheet:
-                app = QApplication.instance()
-                if app is not None:
-                    app.setStyleSheet(stylesheet.read())
-                    self._applied_theme = resolved
-        except OSError:
-            # A missing optional theme must not prevent the settings window opening.
+        applier = getattr(app, "apply_theme", None)
+        resolved = applier(theme) if callable(applier) else theme
+        self._applied_theme = str(resolved)
+
+    def _update_responsive_layout(self) -> None:
+        compact = self.width() < 880
+        self._sidebar.setFixedWidth(82 if compact else 218)
+        self._brand.setVisible(not compact)
+        self._subtitle.setVisible(not compact)
+        self._privacy.setVisible(not compact)
+        for index, label in enumerate(self._nav_labels):
+            item = self._navigation.item(index)
+            item.setText("" if compact else label)
+            item.setToolTip(
+                f"{label} · Ctrl+{index + 1}" if compact else f"Ctrl+{index + 1}"
+            )
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self._update_responsive_layout()
+
+    def showEvent(self, event) -> None:
+        super().showEvent(event)
+        self._fit_available_geometry()
+
+    def _fit_available_geometry(self) -> None:
+        screen = self.screen() or QApplication.primaryScreen()
+        if screen is None:
             return
+        area = screen.availableGeometry().adjusted(8, 8, -8, -8)
+        width = min(self.width(), max(self.minimumWidth(), area.width()))
+        height = min(self.height(), max(self.minimumHeight(), area.height()))
+        if self.size() != QSize(width, height):
+            self.resize(width, height)
+        geometry = self.frameGeometry()
+        x = min(max(geometry.x(), area.left()), area.right() - geometry.width() + 1)
+        y = min(max(geometry.y(), area.top()), area.bottom() - geometry.height() + 1)
+        if geometry.x() != x or geometry.y() != y:
+            self.move(x, y)
 
     def _show_error(self, code: str, message: str) -> None:
         self._message.setProperty("kind", "error")
@@ -212,3 +258,33 @@ class MainPanel(QWidget):
 
         event.ignore()
         self.hide()
+
+
+class DeferredMainPanel:
+    """Create the settings window only when the user asks to see it."""
+
+    def __init__(self, controller):
+        self._controller = controller
+        self._panel: MainPanel | None = None
+
+    @property
+    def widget(self) -> MainPanel:
+        if self._panel is None:
+            self._panel = MainPanel(self._controller)
+        return self._panel
+
+    @property
+    def is_created(self) -> bool:
+        return self._panel is not None
+
+    def show_and_activate(self) -> None:
+        self.widget.show_and_activate()
+
+    def toggle_visible(self) -> None:
+        if self._panel is None:
+            self.show_and_activate()
+            return
+        self._panel.toggle_visible()
+
+    def show_page(self, name: str) -> None:
+        self.widget.show_page(name)

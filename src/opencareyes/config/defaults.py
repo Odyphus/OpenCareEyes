@@ -34,6 +34,10 @@ class DefaultPreferences:
     break_mode: str = "20-20-20"
     work_duration: int = 20 * 60
     break_duration: int = 20
+    break_reminder_style: str = "progressive"
+    cadence_long_enabled: bool = False
+    cadence_long_interval: int = 60 * 60
+    cadence_long_duration: int = 5 * 60
     micro_break_interval: int = MICRO_BREAK_INTERVAL_DEFAULT
     micro_break_duration: int = MICRO_BREAK_DURATION_DEFAULT
     force_break: bool = False
@@ -50,6 +54,12 @@ class DefaultPreferences:
     longitude: float = 116.4
     location_configured: bool = False
     city: str = ""
+    pet_x: int | None = None
+    pet_y: int | None = None
+    schedule_day_profile: str = "office"
+    schedule_night_profile: str = "night"
+    sunrise_offset: int = 0
+    sunset_offset: int = 0
     hotkey_filter: str = HOTKEY_TOGGLE_FILTER
     hotkey_break: str = HOTKEY_TOGGLE_BREAK
     hotkey_dimmer: str = HOTKEY_TOGGLE_DIMMER
@@ -71,4 +81,3 @@ LEGACY_V2_PREFERENCES = DefaultPreferences(
     work_duration=45 * 60,
     break_duration=3 * 60,
 )
-

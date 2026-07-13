@@ -3,7 +3,7 @@
 import logging
 import os
 
-from PySide6.QtGui import QFont, QFontDatabase, QIcon
+from PySide6.QtGui import QFont, QIcon
 from PySide6.QtWidgets import QApplication
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtCore import QTimer, Signal
@@ -37,12 +37,43 @@ def client_area_animations_enabled() -> bool:
         return True
 
 
+def high_contrast_enabled() -> bool:
+    """Return the Windows high-contrast preference without changing it."""
+
+    if os.name != "nt":
+        return False
+    try:
+        import ctypes
+        import ctypes.wintypes as wintypes
+
+        class HighContrast(ctypes.Structure):
+            _fields_ = [
+                ("cbSize", wintypes.UINT),
+                ("dwFlags", wintypes.DWORD),
+                ("lpszDefaultScheme", wintypes.LPWSTR),
+            ]
+
+        value = HighContrast()
+        value.cbSize = ctypes.sizeof(value)
+        success = ctypes.windll.user32.SystemParametersInfoW(
+            0x0042,  # SPI_GETHIGHCONTRAST
+            value.cbSize,
+            ctypes.byref(value),
+            0,
+        )
+        return bool(success and value.dwFlags & 0x00000001)
+    except Exception:
+        log.debug("Could not read the Windows high-contrast preference", exc_info=True)
+        return False
+
+
 class OpenCareEyesApp(QApplication):
     """Single-instance application."""
 
     activation_requested = Signal()
     theme_changed = Signal(str)
     motion_changed = Signal(bool)
+    high_contrast_changed = Signal(bool)
 
     _instance = None
 
@@ -61,6 +92,8 @@ class OpenCareEyesApp(QApplication):
         self._theme = "system"
         self._resolved_theme = ""
         self._motion_enabled = client_area_animations_enabled()
+        self._high_contrast_enabled = high_contrast_enabled()
+        self._applied_high_contrast = None
         self._preference_timer = QTimer(self)
         self._preference_timer.setInterval(3000)
         self._preference_timer.timeout.connect(self._poll_system_preferences)
@@ -68,17 +101,16 @@ class OpenCareEyesApp(QApplication):
         self._preference_timer.start()
 
     def _load_windows_fonts(self) -> None:
-        """Register reliable Latin/CJK fallbacks with Qt's font engine.
+        """Set Windows UI font fallbacks without loading font files eagerly.
 
-        Some portable Qt runtimes can enumerate Windows fonts but fail to
-        obtain their outlines until the files are explicitly registered.
+        Explicitly enumerating or registering the large CJK collection adds a
+        substantial working-set cost to a tray-only session. Qt and DirectWrite
+        resolve this ordered list when text is actually painted.
         """
-        fonts_dir = os.path.join(os.environ.get("WINDIR", r"C:\Windows"), "Fonts")
-        for filename in ("segoeui.ttf", "msyh.ttc"):
-            path = os.path.join(fonts_dir, filename)
-            if os.path.isfile(path):
-                QFontDatabase.addApplicationFont(path)
-        self.setFont(QFont("Microsoft YaHei UI", 10))
+        font = QFont()
+        font.setFamilies(["Microsoft YaHei UI", "Segoe UI", "Arial"])
+        font.setPointSize(10)
+        self.setFont(font)
 
     @classmethod
     def instance(cls) -> "OpenCareEyesApp":
@@ -128,6 +160,10 @@ class OpenCareEyesApp(QApplication):
         """Whether decorative client-area animations should run."""
         return self._motion_enabled
 
+    @property
+    def high_contrast_enabled(self) -> bool:
+        return self._high_contrast_enabled
+
     def apply_theme(self, theme: str) -> str:
         """Apply ``light``, ``dark`` or the currently detected system theme.
 
@@ -135,19 +171,35 @@ class OpenCareEyesApp(QApplication):
         """
         requested = theme if theme in {"light", "dark", "system"} else "system"
         resolved = self._resolve_theme(requested)
-        if requested == self._theme and resolved == self._resolved_theme and self.styleSheet():
+        high_contrast = self._high_contrast_enabled
+        if (
+            requested == self._theme
+            and resolved == self._resolved_theme
+            and high_contrast == self._applied_high_contrast
+        ):
             return resolved
 
-        qss_path = os.path.join(STYLES_DIR, f"{resolved}.qss")
-        if os.path.isfile(qss_path):
-            with open(qss_path, "r", encoding="utf-8") as f:
-                self.setStyleSheet(f.read())
-        else:
-            log.warning("Theme stylesheet not found: %s", qss_path)
+        if high_contrast:
+            # Fixed brand colours can make native high-contrast palettes
+            # unreadable, so let Qt/Windows provide all control colours.
             self.setStyleSheet("")
+        else:
+            qss_path = os.path.join(STYLES_DIR, f"{resolved}.qss")
+            if os.path.isfile(qss_path):
+                with open(qss_path, "r", encoding="utf-8") as f:
+                    self.setStyleSheet(f.read())
+            else:
+                log.warning(
+                    "Theme stylesheet not found: %s (theme=%s)",
+                    os.path.basename(qss_path),
+                    resolved,
+                )
+                self.setStyleSheet("")
         self._theme = requested
         self._resolved_theme = resolved
+        self._applied_high_contrast = high_contrast
         self.setProperty("resolvedTheme", resolved)
+        self.setProperty("highContrast", high_contrast)
         self.theme_changed.emit(resolved)
         return resolved
 
@@ -163,6 +215,15 @@ class OpenCareEyesApp(QApplication):
             return "dark"
 
     def _poll_system_preferences(self) -> None:
+        high_contrast = high_contrast_enabled()
+        # Keep the v0.3 duck-typed test/application adapters compatible: an
+        # adapter without the new high-contrast fields simply starts tracking
+        # on its next full application construction.
+        if high_contrast != getattr(self, "_high_contrast_enabled", high_contrast):
+            self._high_contrast_enabled = high_contrast
+            self.apply_theme(self._theme)
+            self.high_contrast_changed.emit(high_contrast)
+
         if self._theme == "system":
             resolved = self._resolve_theme("system")
             if resolved != self._resolved_theme:

@@ -42,6 +42,8 @@ WS_EX_TOOLWINDOW = 0x00000080
 # Monitor info flags
 MONITORINFOF_PRIMARY = 0x00000001
 MONITOR_DEFAULTTONEAREST = 0x00000002
+DISPLAY_DEVICE_ACTIVE = 0x00000001
+EDD_GET_DEVICE_INTERFACE_NAME = 0x00000001
 
 # Foreground process and physical frame queries
 PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
@@ -58,6 +60,10 @@ QUNS_QUIET_TIME = 6
 QUNS_APP = 7
 
 # Session and power messages
+WM_TIMECHANGE = 0x001E
+WM_SETTINGCHANGE = 0x001A
+WM_DISPLAYCHANGE = 0x007E
+WM_HOTKEY = 0x0312
 WM_POWERBROADCAST = 0x0218
 WM_WTSSESSION_CHANGE = 0x02B1
 WTS_SESSION_LOCK = 0x7
@@ -67,6 +73,14 @@ PBT_APMSUSPEND = 0x0004
 PBT_APMRESUMECRITICAL = 0x0006
 PBT_APMRESUMESUSPEND = 0x0007
 PBT_APMRESUMEAUTOMATIC = 0x0012
+TIME_ZONE_ID_INVALID = 0xFFFFFFFF
+
+# RegisterHotKey modifiers
+MOD_ALT = 0x0001
+MOD_CONTROL = 0x0002
+MOD_SHIFT = 0x0004
+MOD_WIN = 0x0008
+MOD_NOREPEAT = 0x4000
 
 
 # ---------------------------------------------------------------------------
@@ -91,10 +105,48 @@ class MONITORINFOEXW(ctypes.Structure):
     ]
 
 
+class DISPLAY_DEVICEW(ctypes.Structure):
+    _fields_ = [
+        ("cb", wintypes.DWORD),
+        ("DeviceName", wintypes.WCHAR * 32),
+        ("DeviceString", wintypes.WCHAR * 128),
+        ("StateFlags", wintypes.DWORD),
+        ("DeviceID", wintypes.WCHAR * 128),
+        ("DeviceKey", wintypes.WCHAR * 128),
+    ]
+
+
 class LASTINPUTINFO(ctypes.Structure):
     _fields_ = [
         ("cbSize", wintypes.UINT),
         ("dwTime", wintypes.DWORD),
+    ]
+
+
+class SYSTEMTIME(ctypes.Structure):
+    _fields_ = [
+        ("wYear", wintypes.WORD),
+        ("wMonth", wintypes.WORD),
+        ("wDayOfWeek", wintypes.WORD),
+        ("wDay", wintypes.WORD),
+        ("wHour", wintypes.WORD),
+        ("wMinute", wintypes.WORD),
+        ("wSecond", wintypes.WORD),
+        ("wMilliseconds", wintypes.WORD),
+    ]
+
+
+class DYNAMIC_TIME_ZONE_INFORMATION(ctypes.Structure):
+    _fields_ = [
+        ("Bias", wintypes.LONG),
+        ("StandardName", wintypes.WCHAR * 32),
+        ("StandardDate", SYSTEMTIME),
+        ("StandardBias", wintypes.LONG),
+        ("DaylightName", wintypes.WCHAR * 32),
+        ("DaylightDate", SYSTEMTIME),
+        ("DaylightBias", wintypes.LONG),
+        ("TimeZoneKeyName", wintypes.WCHAR * 128),
+        ("DynamicDaylightTimeDisabled", wintypes.BOOLEAN),
     ]
 
 
@@ -174,6 +226,49 @@ GetMonitorInfoW = user32.GetMonitorInfoW
 GetMonitorInfoW.argtypes = [wintypes.HMONITOR, ctypes.POINTER(MONITORINFOEXW)]
 GetMonitorInfoW.restype = wintypes.BOOL
 
+EnumDisplayDevicesW = user32.EnumDisplayDevicesW
+EnumDisplayDevicesW.argtypes = [
+    wintypes.LPCWSTR,
+    wintypes.DWORD,
+    ctypes.POINTER(DISPLAY_DEVICEW),
+    wintypes.DWORD,
+]
+EnumDisplayDevicesW.restype = wintypes.BOOL
+
+
+def get_display_source_identity(source_name: str) -> tuple[str, ...]:
+    """Return stable interface identities for one active GDI display source."""
+
+    source = str(source_name).strip()
+    if not source:
+        raise OSError("display source name is empty")
+
+    identities: list[str] = []
+    index = 0
+    while True:
+        device = DISPLAY_DEVICEW()
+        device.cb = ctypes.sizeof(DISPLAY_DEVICEW)
+        if not EnumDisplayDevicesW(
+            source,
+            index,
+            ctypes.byref(device),
+            EDD_GET_DEVICE_INTERFACE_NAME,
+        ):
+            break
+        index += 1
+        if not bool(device.StateFlags & DISPLAY_DEVICE_ACTIVE):
+            continue
+        identity = str(device.DeviceID).strip().casefold()
+        if not identity:
+            raise OSError("active display target has no interface identity")
+        identities.append(identity)
+
+    if not identities:
+        raise OSError("display source has no active target identity")
+    if len(set(identities)) != len(identities):
+        raise OSError("display source returned duplicate target identities")
+    return tuple(sorted(identities))
+
 # ---------------------------------------------------------------------------
 # Function declarations — Window event hooks
 # ---------------------------------------------------------------------------
@@ -226,6 +321,12 @@ GetTickCount = kernel32.GetTickCount
 GetTickCount.argtypes = []
 GetTickCount.restype = wintypes.DWORD
 
+GetDynamicTimeZoneInformation = kernel32.GetDynamicTimeZoneInformation
+GetDynamicTimeZoneInformation.argtypes = [
+    ctypes.POINTER(DYNAMIC_TIME_ZONE_INFORMATION)
+]
+GetDynamicTimeZoneInformation.restype = wintypes.DWORD
+
 OpenProcess = kernel32.OpenProcess
 OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
 OpenProcess.restype = wintypes.HANDLE
@@ -242,6 +343,37 @@ QueryFullProcessImageNameW.restype = wintypes.BOOL
 CloseHandle = kernel32.CloseHandle
 CloseHandle.argtypes = [wintypes.HANDLE]
 CloseHandle.restype = wintypes.BOOL
+
+
+def get_dynamic_time_zone_fingerprint() -> tuple[object, ...]:
+    """Return only the Windows fields that affect local-time scheduling."""
+
+    info = DYNAMIC_TIME_ZONE_INFORMATION()
+    result = int(GetDynamicTimeZoneInformation(ctypes.byref(info)))
+    if result == TIME_ZONE_ID_INVALID:
+        raise OSError("GetDynamicTimeZoneInformation failed")
+
+    def system_time(value: SYSTEMTIME) -> tuple[int, ...]:
+        return (
+            int(value.wYear),
+            int(value.wMonth),
+            int(value.wDayOfWeek),
+            int(value.wDay),
+            int(value.wHour),
+            int(value.wMinute),
+            int(value.wSecond),
+            int(value.wMilliseconds),
+        )
+
+    return (
+        str(info.TimeZoneKeyName),
+        int(info.Bias),
+        int(info.StandardBias),
+        int(info.DaylightBias),
+        bool(info.DynamicDaylightTimeDisabled),
+        system_time(info.StandardDate),
+        system_time(info.DaylightDate),
+    )
 
 DwmGetWindowAttribute = dwmapi.DwmGetWindowAttribute
 DwmGetWindowAttribute.argtypes = [
@@ -263,6 +395,19 @@ WTSRegisterSessionNotification.restype = wintypes.BOOL
 WTSUnRegisterSessionNotification = wtsapi32.WTSUnRegisterSessionNotification
 WTSUnRegisterSessionNotification.argtypes = [wintypes.HWND]
 WTSUnRegisterSessionNotification.restype = wintypes.BOOL
+
+RegisterHotKey = user32.RegisterHotKey
+RegisterHotKey.argtypes = [
+    wintypes.HWND,
+    ctypes.c_int,
+    wintypes.UINT,
+    wintypes.UINT,
+]
+RegisterHotKey.restype = wintypes.BOOL
+
+UnregisterHotKey = user32.UnregisterHotKey
+UnregisterHotKey.argtypes = [wintypes.HWND, ctypes.c_int]
+UnregisterHotKey.restype = wintypes.BOOL
 
 # ---------------------------------------------------------------------------
 # Function declarations — Window attributes

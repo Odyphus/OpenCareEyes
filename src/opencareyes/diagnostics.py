@@ -7,6 +7,7 @@ import logging
 import ntpath
 import os
 import platform
+import re
 import sys
 import zipfile
 from dataclasses import asdict, is_dataclass
@@ -14,6 +15,34 @@ from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
 from opencareyes.constants import APP_NAME, APP_VERSION
+
+
+_QUOTED_WINDOWS_PATH = re.compile(
+    r'''(?P<quote>["'])(?:[A-Za-z]:[\\/]|\\\\)[^"'\r\n]*(?P=quote)'''
+)
+_UNQUOTED_WINDOWS_PATH = re.compile(
+    r"(?<![A-Za-z0-9_])(?:[A-Za-z]:[\\/]|\\\\)[^\r\n]*"
+)
+
+
+def _redact_local_paths(text: str) -> str:
+    """Hide quoted drive/UNC paths without removing useful basenames."""
+
+    redacted = _QUOTED_WINDOWS_PATH.sub(
+        lambda match: f"{match.group('quote')}<local-path>{match.group('quote')}",
+        text,
+    )
+    # Unquoted native error messages do not provide a reliable path boundary,
+    # especially when folder names contain spaces. Redact the remaining line
+    # after a drive or UNC prefix rather than risk leaking a complete path.
+    return _UNQUOTED_WINDOWS_PATH.sub("<local-path>", redacted)
+
+
+class _PrivacyFormatter(logging.Formatter):
+    """Redact paths after exception and traceback formatting is complete."""
+
+    def format(self, record: logging.LogRecord) -> str:
+        return _redact_local_paths(super().format(record))
 
 
 def log_directory() -> Path:
@@ -49,7 +78,7 @@ def configure_logging() -> Path:
             return path
         handler._opencareyes_file = True  # type: ignore[attr-defined]
         handler.setFormatter(
-            logging.Formatter("%(asctime)s [%(name)s] %(levelname)s: %(message)s")
+            _PrivacyFormatter("%(asctime)s [%(name)s] %(levelname)s: %(message)s")
         )
         root.addHandler(handler)
     return path
@@ -96,12 +125,17 @@ def export_diagnostics(destination: str | os.PathLike, state=None) -> Path:
         "privacy": "No window titles, application history, city or coordinates are included.",
     }
     with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        serialized_payload = json.dumps(payload, ensure_ascii=False, indent=2)
         archive.writestr(
             "diagnostics.json",
-            json.dumps(payload, ensure_ascii=False, indent=2),
+            _redact_local_paths(serialized_payload),
         )
         directory = log_directory()
         if directory.exists():
             for path in directory.glob("opencareyes.log*"):
-                archive.write(path, f"logs/{path.name}")
+                log_text = path.read_text(encoding="utf-8", errors="replace")
+                archive.writestr(
+                    f"logs/{path.name}",
+                    _redact_local_paths(log_text),
+                )
     return output

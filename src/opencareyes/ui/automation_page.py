@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import inspect
+import ntpath
 from datetime import datetime
 
 from PySide6.QtCore import QSignalBlocker, QTime
@@ -10,21 +12,30 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QDoubleSpinBox,
+    QFileDialog,
     QFormLayout,
     QHeaderView,
     QHBoxLayout,
     QLabel,
     QPushButton,
+    QSpinBox,
     QTableWidget,
     QTableWidgetItem,
     QTimeEdit,
     QWidget,
 )
 
-from opencareyes.ui.widgets import Card, PageHeader, ScrollPage, first_state_value, set_accessible
-
-
-from opencareyes.ui.widgets import schedule_event_description
+from opencareyes.config.presets import PRESETS
+from opencareyes.ui.widgets import (
+    Card,
+    PageHeader,
+    ScrollPage,
+    feature_description,
+    first_state_value,
+    schedule_event_description,
+    set_accessible,
+    suppression_reason_description,
+)
 
 
 _CITIES = (
@@ -36,6 +47,22 @@ _CITIES = (
     ("成都", (30.5728, 104.0668)),
     ("自定义坐标", "custom"),
 )
+
+_PROFILE_LABELS = {
+    "office": "办公",
+    "reading": "阅读",
+    "night": "夜间",
+    "game": "游戏",
+    "movie": "电影",
+    "custom": "自定义",
+}
+
+
+def _basename_app_id(path: object) -> str:
+    value = ntpath.basename(str(path).strip()).lower()
+    if not value.endswith(".exe") or len(value) > 128:
+        return ""
+    return value
 
 
 class AutomationPage(ScrollPage):
@@ -80,6 +107,29 @@ class AutomationPage(ScrollPage):
         self._mode_combo.addItem("固定时间", "fixed")
         set_accessible(self._mode_combo, "自动化切换规则")
         form.addRow("规则", self._mode_combo)
+        self._day_profile_combo = QComboBox()
+        self._night_profile_combo = QComboBox()
+        for profile in PRESETS:
+            label = _PROFILE_LABELS.get(profile, profile)
+            self._day_profile_combo.addItem(label, profile)
+            self._night_profile_combo.addItem(label, profile)
+        set_accessible(self._day_profile_combo, "自动化日间显示方案")
+        set_accessible(self._night_profile_combo, "自动化夜间显示方案")
+        form.addRow("日间方案", self._day_profile_combo)
+        form.addRow("夜间方案", self._night_profile_combo)
+
+        weekday_row = QHBoxLayout()
+        self._weekday_buttons: list[QPushButton] = []
+        for label in ("一", "二", "三", "四", "五", "六", "日"):
+            button = QPushButton(label)
+            button.setObjectName("dayButton")
+            button.setCheckable(True)
+            button.setChecked(label not in ("六", "日"))
+            button.setFixedWidth(38)
+            set_accessible(button, f"星期{label}")
+            weekday_row.addWidget(button)
+            self._weekday_buttons.append(button)
+        form.addRow("生效日期", weekday_row)
         rule_card.body.addLayout(form)
 
         self._fixed_widget = QWidget()
@@ -93,18 +143,6 @@ class AutomationPage(ScrollPage):
         set_accessible(self._off_time, "夜间方案结束时间")
         fixed_form.addRow("切换到夜间", self._on_time)
         fixed_form.addRow("恢复日间", self._off_time)
-        weekday_row = QHBoxLayout()
-        self._weekday_buttons: list[QPushButton] = []
-        for label in ("一", "二", "三", "四", "五", "六", "日"):
-            button = QPushButton(label)
-            button.setObjectName("dayButton")
-            button.setCheckable(True)
-            button.setChecked(label not in ("六", "日"))
-            button.setFixedWidth(38)
-            set_accessible(button, f"星期{label}")
-            weekday_row.addWidget(button)
-            self._weekday_buttons.append(button)
-        fixed_form.addRow("生效日期", weekday_row)
         rule_card.body.addWidget(self._fixed_widget)
 
         self._location_widget = QWidget()
@@ -125,6 +163,16 @@ class AutomationPage(ScrollPage):
         set_accessible(self._longitude, "经度")
         location_form.addRow("纬度", self._latitude)
         location_form.addRow("经度", self._longitude)
+        self._sunrise_offset = QSpinBox()
+        self._sunrise_offset.setRange(-120, 120)
+        self._sunrise_offset.setSuffix(" 分钟")
+        self._sunset_offset = QSpinBox()
+        self._sunset_offset.setRange(-120, 120)
+        self._sunset_offset.setSuffix(" 分钟")
+        set_accessible(self._sunrise_offset, "日出切换时间偏移")
+        set_accessible(self._sunset_offset, "日落切换时间偏移")
+        location_form.addRow("日出偏移", self._sunrise_offset)
+        location_form.addRow("日落偏移", self._sunset_offset)
         self._location_hint = QLabel("请选择城市或填写坐标；不会静默使用默认位置。")
         self._location_hint.setObjectName("cardDescription")
         self._location_hint.setWordWrap(True)
@@ -184,14 +232,25 @@ class AutomationPage(ScrollPage):
         self._current_app_label.setObjectName("cardDescription")
         self._add_current_app_button = QPushButton("添加当前应用")
         self._add_current_app_button.setObjectName("secondaryButton")
+        self._choose_app_button = QPushButton("选择可执行程序…")
+        self._choose_app_button.setObjectName("secondaryButton")
         set_accessible(self._add_current_app_button, "添加当前前台应用")
+        set_accessible(self._choose_app_button, "选择要添加例外规则的程序")
         app_actions.addWidget(self._current_app_label, 1)
         app_actions.addWidget(self._add_current_app_button)
+        app_actions.addWidget(self._choose_app_button)
         apps_card.body.addLayout(app_actions)
 
         self._rules_table = QTableWidget(0, 6)
         self._rules_table.setHorizontalHeaderLabels(
-            ("应用", "休息", "专注", "色温", "调暗", "")
+            (
+                "应用",
+                "暂停休息",
+                "隐藏专注",
+                "暂停色温",
+                "暂停调暗",
+                "",
+            )
         )
         self._rules_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self._rules_table.setSelectionMode(QAbstractItemView.NoSelection)
@@ -215,7 +274,7 @@ class AutomationPage(ScrollPage):
         self._schedule_toggle.toggled.connect(self._toggle_schedule)
         self._mode_combo.currentIndexChanged.connect(self._update_mode_visibility)
         self._city_combo.currentIndexChanged.connect(self._city_changed)
-        self._save_button.clicked.connect(self._save_schedule)
+        self._save_button.clicked.connect(lambda: self._save_schedule())
         self._smart_pause_toggle.toggled.connect(
             self._controller.set_smart_pause_enabled
         )
@@ -226,6 +285,7 @@ class AutomationPage(ScrollPage):
             self._controller.set_natural_rest_enabled
         )
         self._add_current_app_button.clicked.connect(self._add_current_app)
+        self._choose_app_button.clicked.connect(self._choose_app)
         self._resume_context_button.clicked.connect(
             self._controller.resume_breaks_for_current_context
         )
@@ -262,35 +322,78 @@ class AutomationPage(ScrollPage):
         if enabled is None:
             enabled = self._schedule_toggle.isChecked()
         mode = self._mode_combo.currentData()
+        days = [
+            index
+            for index, button in enumerate(self._weekday_buttons)
+            if button.isChecked()
+        ]
+        common = {
+            "days": days,
+            "day_profile": self._day_profile_combo.currentData(),
+            "night_profile": self._night_profile_combo.currentData(),
+            "sunrise_offset": self._sunrise_offset.value(),
+            "sunset_offset": self._sunset_offset.value(),
+        }
         if mode == "fixed":
-            days = [index for index, button in enumerate(self._weekday_buttons) if button.isChecked()]
-            self._controller.set_schedule(
+            self._call_set_schedule(
                 enabled,
                 mode="fixed",
                 on_time=self._on_time.time().toString("HH:mm"),
                 off_time=self._off_time.time().toString("HH:mm"),
-                days=days,
+                **common,
             )
         else:
+            if self._city_combo.currentData() is None:
+                self._call_set_schedule(enabled, mode="sun", **common)
+                return
             latitude = self._latitude.value()
             longitude = self._longitude.value()
             selected_city = self._city_combo.currentText()
             if self._city_combo.currentData() == "custom":
                 selected_city = ""
-            self._controller.set_location(latitude, longitude, selected_city)
-            self._controller.set_schedule(
+            self._call_set_schedule(
                 enabled,
                 mode="sun",
                 latitude=latitude,
                 longitude=longitude,
+                city=selected_city,
+                **common,
             )
 
+    def _call_set_schedule(self, enabled: bool, **kwargs):
+        """Use v4 arguments when the controller supports them."""
+        method = self._controller.set_schedule
+        extended_names = {
+            "city",
+            "day_profile",
+            "night_profile",
+            "sunrise_offset",
+            "sunset_offset",
+        }
+        try:
+            parameters = inspect.signature(method).parameters.values()
+            supports_extended = any(
+                parameter.kind is inspect.Parameter.VAR_KEYWORD
+                for parameter in parameters
+            ) or extended_names.issubset(
+                {parameter.name for parameter in parameters}
+            )
+        except (TypeError, ValueError):
+            supports_extended = False
+        if not supports_extended:
+            kwargs = {
+                key: value
+                for key, value in kwargs.items()
+                if key not in extended_names
+            }
+        return method(enabled, **kwargs)
+
     def _add_current_app(self) -> None:
-        app_id = str(first_state_value(
+        app_id = _basename_app_id(first_state_value(
             self._last_state, "context.foreground_app_id", default=""
         ) or first_state_value(
             self._last_state, "context.recent_app_id", default=""
-        )).strip()
+        ))
         if not app_id:
             self._context_status.setText(
                 "尚未识别到外部前台应用，请先切换到目标应用后再返回。"
@@ -303,6 +406,29 @@ class AutomationPage(ScrollPage):
             "filter": False,
             "dimmer": False,
         })
+
+    def _choose_app(self) -> None:
+        path, _selected_filter = QFileDialog.getOpenFileName(
+            self,
+            "选择应用程序",
+            "",
+            "Windows 应用程序 (*.exe)",
+        )
+        if not path:
+            return
+        app_id = _basename_app_id(path)
+        if not app_id:
+            self._context_status.setText("请选择有效的 Windows 可执行程序（.exe）。")
+            return
+        self._controller.upsert_app_rule(
+            {
+                "app_id": app_id,
+                "breaks": True,
+                "focus": True,
+                "filter": False,
+                "dimmer": False,
+            }
+        )
 
     def _update_app_rule(self, app_id: str, feature: str, checked: bool) -> None:
         current = dict(self._rules_by_app.get(app_id, {}))
@@ -322,7 +448,7 @@ class AutomationPage(ScrollPage):
             getter = rule.get if isinstance(rule, dict) else lambda key, default=None: getattr(
                 rule, key, default
             )
-            app_id = str(getter("app_id", ""))
+            app_id = _basename_app_id(getter("app_id", ""))
             if app_id:
                 normalized.append({
                     "app_id": app_id,
@@ -347,7 +473,9 @@ class AutomationPage(ScrollPage):
             ):
                 checkbox = QCheckBox()
                 checkbox.setChecked(rule[feature])
-                checkbox.setAccessibleName(f"{rule['app_id']} · {feature}")
+                checkbox.setAccessibleName(
+                    f"{rule['app_id']} · {feature_description(feature)}"
+                )
                 checkbox.toggled.connect(
                     lambda checked, app=rule["app_id"], key=feature: self._update_app_rule(
                         app, key, checked
@@ -369,6 +497,9 @@ class AutomationPage(ScrollPage):
             mode = str(first_state_value(state, "automation.mode", default="sun"))
             next_event = str(first_state_value(state, "automation.next_event", default=""))
             next_at = first_state_value(state, "automation.next_event_at", default=None)
+            next_profile = str(first_state_value(
+                state, "automation.next_profile", default=""
+            ))
             manual_override = bool(first_state_value(
                 state, "automation.manual_override", default=False
             ))
@@ -377,6 +508,24 @@ class AutomationPage(ScrollPage):
             days = tuple(first_state_value(
                 state, "automation.days", default=(0, 1, 2, 3, 4)
             ))
+            day_profile = str(first_state_value(
+                state, "automation.day_profile", default="office"
+            ))
+            night_profile = str(first_state_value(
+                state, "automation.night_profile", default="night"
+            ))
+            sunrise_offset = int(first_state_value(
+                state, "automation.sunrise_offset", default=0
+            ))
+            sunset_offset = int(first_state_value(
+                state, "automation.sunset_offset", default=0
+            ))
+            if not next_profile:
+                next_profile = (
+                    day_profile
+                    if next_event in {"off", "sunrise", "disable"}
+                    else night_profile
+                )
             available = bool(first_state_value(
                 state, "capabilities.automation_available", default=True
             ))
@@ -420,11 +569,28 @@ class AutomationPage(ScrollPage):
                 self._off_time.setTime(parsed_off)
             for day_index, button in enumerate(self._weekday_buttons):
                 button.setChecked(day_index in days)
+            for combo, profile in (
+                (self._day_profile_combo, day_profile),
+                (self._night_profile_combo, night_profile),
+            ):
+                profile_index = combo.findData(profile)
+                if profile_index >= 0:
+                    with QSignalBlocker(combo):
+                        combo.setCurrentIndex(profile_index)
+            with QSignalBlocker(self._sunrise_offset):
+                self._sunrise_offset.setValue(sunrise_offset)
+            with QSignalBlocker(self._sunset_offset):
+                self._sunset_offset.setValue(sunset_offset)
 
             if not enabled:
                 event_text = "尚未启用自动化"
             elif next_event and next_at:
-                action = schedule_event_description(next_event)
+                profile_label = _PROFILE_LABELS.get(next_profile, "自定义")
+                action = (
+                    f"切换到{profile_label}方案"
+                    if profile_label
+                    else schedule_event_description(next_event)
+                )
                 if isinstance(next_at, datetime):
                     when = next_at.astimezone().strftime("%m月%d日 %H:%M")
                 else:
@@ -467,7 +633,7 @@ class AutomationPage(ScrollPage):
             self._fullscreen_pause_toggle.setEnabled(smart_enabled)
             self._natural_rest_toggle.setEnabled(smart_enabled)
 
-            app_id = str(first_state_value(
+            app_id = _basename_app_id(first_state_value(
                 state, "context.foreground_app_id", default=""
             ) or first_state_value(
                 state, "context.recent_app_id", default=""
@@ -480,17 +646,10 @@ class AutomationPage(ScrollPage):
                 "effective_policy.breaks.suppressed_by",
                 default=(),
             ))
-            reason_names = {
-                "fullscreen": "全屏应用",
-                "presentation": "演示模式",
-                "d3d_fullscreen": "全屏游戏",
-                "app_rule": "应用规则",
-                "idle": "离开电脑",
-                "locked": "锁屏",
-                "suspended": "系统睡眠",
-            }
             if reasons:
-                reason_text = "、".join(reason_names.get(reason, reason) for reason in reasons)
+                reason_text = "、".join(
+                    suppression_reason_description(reason) for reason in reasons
+                )
                 resume = str(first_state_value(
                     state,
                     "effective_policy.breaks.resume_condition",
@@ -511,9 +670,14 @@ class AutomationPage(ScrollPage):
                 else:
                     self._context_status.setText("当前没有需要暂停的情境。")
             self._resume_context_button.setVisible(
-                bool(reasons) and not {"locked", "suspended"}.intersection(reasons)
+                bool(reasons)
+                and not {
+                    "locked",
+                    "session_locked",
+                    "suspended",
+                    "system_suspended",
+                }.intersection(reasons)
             )
             self._render_app_rules(app_rules)
         finally:
             self._rendering = False
-    QHeaderView,

@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import QSignalBlocker, QStandardPaths
+from PySide6.QtCore import QSignalBlocker, QStandardPaths, QUrl
+from PySide6.QtGui import QDesktopServices, QKeySequence
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -12,7 +13,7 @@ from PySide6.QtWidgets import (
     QFormLayout,
     QHBoxLayout,
     QLabel,
-    QLineEdit,
+    QKeySequenceEdit,
     QMessageBox,
     QPushButton,
 )
@@ -70,10 +71,9 @@ class SettingsPage(ScrollPage):
         hotkey_form = QFormLayout()
         hotkey_form.setHorizontalSpacing(24)
         hotkey_form.setVerticalSpacing(10)
-        self._hotkey_edits: dict[str, QLineEdit] = {}
+        self._hotkey_edits: dict[str, QKeySequenceEdit] = {}
         for key, label in _HOTKEY_FIELDS:
-            edit = QLineEdit()
-            edit.setPlaceholderText("例如 Ctrl+Alt+N")
+            edit = QKeySequenceEdit()
             edit.setClearButtonEnabled(True)
             set_accessible(edit, f"{label}快捷键")
             hotkey_form.addRow(label, edit)
@@ -94,7 +94,7 @@ class SettingsPage(ScrollPage):
 
         data_card = Card(
             "隐私与诊断",
-            "无账号、无遥测。诊断文件不包含窗口标题、位置坐标或其他个人内容。",
+            "无账号、无遥测。诊断文件不包含窗口标题、前台程序完整路径或位置坐标。",
         )
         data_actions = QHBoxLayout()
         self._export_button = QPushButton("导出诊断信息")
@@ -120,6 +120,22 @@ class SettingsPage(ScrollPage):
         description.setWordWrap(True)
         about_card.body.addWidget(app_label)
         about_card.body.addWidget(description)
+        update_row = QHBoxLayout()
+        self._update_status = QLabel("仅在你点击按钮时访问 GitHub 发布信息。")
+        self._update_status.setObjectName("cardDescription")
+        self._update_status.setWordWrap(True)
+        self._check_update_button = QPushButton("检查更新")
+        self._check_update_button.setObjectName("secondaryButton")
+        self._open_release_button = QPushButton("打开发布页")
+        self._open_release_button.setObjectName("quietButton")
+        self._open_release_button.hide()
+        self._release_url = ""
+        set_accessible(self._check_update_button, "手动检查 OpenCareEyes 更新")
+        set_accessible(self._open_release_button, "打开 OpenCareEyes 官方发布页")
+        update_row.addWidget(self._update_status, 1)
+        update_row.addWidget(self._check_update_button)
+        update_row.addWidget(self._open_release_button)
+        about_card.body.addLayout(update_row)
         self.layout.addWidget(about_card)
         self.layout.addStretch()
 
@@ -129,6 +145,8 @@ class SettingsPage(ScrollPage):
         self._autostart_toggle.toggled.connect(self._autostart_changed)
         self._save_hotkeys_button.clicked.connect(self._save_hotkeys)
         self._reset_hotkeys_button.clicked.connect(self._controller.reset_hotkeys)
+        self._check_update_button.clicked.connect(self._check_updates)
+        self._open_release_button.clicked.connect(self._open_release)
         self._export_button.clicked.connect(self._export_diagnostics)
         self._reset_button.clicked.connect(self._reset_settings)
         self._controller.state_changed.connect(self.render)
@@ -146,14 +164,36 @@ class SettingsPage(ScrollPage):
             self._controller.set_autostart(enabled)
 
     def _save_hotkeys(self) -> None:
-        values = [edit.text().strip() for edit in self._hotkey_edits.values()]
+        mapping = {
+            action: edit.keySequence().toString(QKeySequence.PortableText).strip()
+            for action, edit in self._hotkey_edits.items()
+        }
+        values = list(mapping.values())
         normalized = [value.lower() for value in values if value]
         duplicates = {value for value in normalized if normalized.count(value) > 1}
         if duplicates:
             QMessageBox.warning(self, "快捷键冲突", "同一个组合键不能分配给多个功能。")
             return
-        for action, edit in self._hotkey_edits.items():
-            self._controller.set_hotkey(action, edit.text().strip())
+        setter = getattr(self._controller, "set_hotkeys", None)
+        if callable(setter):
+            setter(mapping)
+            return
+        for action, value in mapping.items():
+            self._controller.set_hotkey(action, value)
+
+    def _check_updates(self) -> None:
+        checker = getattr(self._controller, "check_for_updates", None)
+        if not callable(checker):
+            self._update_status.setText("当前版本暂不支持检查更新。")
+            return
+        self._check_update_button.setEnabled(False)
+        self._update_status.setText("正在检查官方 GitHub 发布信息…")
+        if checker() is False:
+            self._check_update_button.setEnabled(True)
+
+    def _open_release(self) -> None:
+        if self._release_url:
+            QDesktopServices.openUrl(QUrl(self._release_url))
 
     def _export_diagnostics(self) -> None:
         exporter = getattr(self._controller, "export_diagnostics", None)
@@ -211,7 +251,7 @@ class SettingsPage(ScrollPage):
                 ))
                 if not edit.hasFocus():
                     with QSignalBlocker(edit):
-                        edit.setText(value)
+                        edit.setKeySequence(QKeySequence(value))
             hotkeys_available = bool(first_state_value(
                 state, "capabilities.hotkeys_available", default=True
             ))
@@ -224,5 +264,51 @@ class SettingsPage(ScrollPage):
                 self._export_button.setToolTip("当前运行环境不支持导出诊断信息")
             reset_available = callable(getattr(self._controller, "reset_settings", None))
             self._reset_button.setEnabled(reset_available)
+            update_status = str(first_state_value(
+                state,
+                "update.status",
+                default="idle",
+            ))
+            latest = str(first_state_value(
+                state,
+                "update.latest_version",
+                default="",
+            ))
+            self._release_url = str(first_state_value(
+                state,
+                "update.release_url",
+                default="",
+            ))
+            if update_status == "checking":
+                self._update_status.setText("正在检查官方 GitHub 发布信息…")
+            elif update_status == "available":
+                self._update_status.setText(f"发现新版本 v{latest}。")
+            elif update_status == "up_to_date":
+                self._update_status.setText("当前已经是最新稳定版本。")
+            elif update_status == "failed":
+                self._update_status.setText("检查失败，请检查网络后重试。")
+            else:
+                self._update_status.setText("仅在你点击按钮时访问 GitHub 发布信息。")
+            self._check_update_button.setEnabled(update_status != "checking")
+            self._open_release_button.setVisible(
+                update_status == "available" and bool(self._release_url)
+            )
+
+            read_only = bool(first_state_value(
+                state,
+                "general.settings_read_only",
+                default=False,
+            ))
+            if read_only:
+                for control in (
+                    self._theme_combo,
+                    self._motion_combo,
+                    self._autostart_toggle,
+                    self._save_hotkeys_button,
+                    self._reset_hotkeys_button,
+                    self._reset_button,
+                ):
+                    control.setEnabled(False)
+                    control.setToolTip("设置来自更新版本，当前以只读模式运行")
         finally:
             self._rendering = False

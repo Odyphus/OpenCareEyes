@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "opencareyes"
-version = "0.3.0"
+version = "0.4.0"
 description = "Local-first, low-interruption eye comfort assistant for Windows"
 readme = { file = "README.md", content-type = "text/markdown" }
 license = "Apache-2.0"
@@ -26,7 +26,6 @@ classifiers = [
 dependencies = [
     "PySide6>=6.6",
     "astral>=3.2",
-    "keyboard>=0.13",
     "darkdetect>=0.8",
 ]
 
@@ -34,11 +33,13 @@ dependencies = [
 build = [
     "pyinstaller>=6.3",
     "pillow>=10.0",
+    "tomli>=2.0; python_version < '3.11'",
 ]
 dev = [
     "pytest>=8.0",
     "pytest-qt>=4.4",
     "ruff>=0.6",
+    "tomli>=2.0; python_version < '3.11'",
 ]
 
 [project.scripts]

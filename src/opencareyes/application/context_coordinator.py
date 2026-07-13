@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+
 from PySide6.QtCore import QObject, QTimer, Signal
 
 from opencareyes.domain.context import (
@@ -11,13 +13,17 @@ from opencareyes.domain.context import (
     SuppressionDecision,
 )
 from opencareyes.domain.policy import AutoPausePolicy
+from opencareyes.domain.runtime import DesiredEffectState
 from opencareyes.state import ContextState
+
+log = logging.getLogger(__name__)
 
 
 class ContextCoordinator(QObject):
     """Own context debounce and manual overrides outside AppController."""
 
     runtime_changed = Signal(object, object)
+    reconcile_completed = Signal(object)
     operation_failed = Signal(str, str)
 
     ENTER_DELAY_MS = 500
@@ -40,15 +46,21 @@ class ContextCoordinator(QObject):
         self._applied_decision = SuppressionDecision()
         self._pending_decision = None
         self._pending_snapshot = None
+        self._pending_report_failure = False
         self._manual_break_override = False
         self._override_key = None
         self._availability_error_reported = False
+        self._last_published_signature = None
+        self._desired_override: DesiredEffectState | None = None
+        self._global_pause_override: bool | None = None
+        self._display_revision = 0
+        self._display_purpose = "system"
         self._timer = QTimer(self)
         self._timer.setSingleShot(True)
         self._timer.timeout.connect(self._apply_pending)
         sensor.snapshot_changed.connect(self._on_snapshot)
         sensor.availability_changed.connect(self._on_availability)
-        effects.operation_failed.connect(self.operation_failed)
+        self._last_result = getattr(effects, "last_result", None)
 
     @property
     def context_state(self) -> ContextState:
@@ -58,6 +70,16 @@ class ContextCoordinator(QObject):
     def effective_policy(self):
         return self._effects.state
 
+    @property
+    def effects(self):
+        """Expose the shared effect boundary for controller wiring."""
+
+        return self._effects
+
+    @property
+    def last_result(self):
+        return self._last_result
+
     def start(self) -> None:
         self._sensor.start()
         self.recompute()
@@ -66,25 +88,68 @@ class ContextCoordinator(QObject):
         self._timer.stop()
         self._sensor.stop()
 
-    def recompute(self) -> None:
+    def recompute(
+        self,
+        preview=None,
+        *,
+        desired: DesiredEffectState | None = None,
+        global_pause: bool | None = None,
+        display_revision: int | None = None,
+        display_purpose: str | None = None,
+        force_display_commit: bool = False,
+    ) -> None:
         """Apply preference changes immediately against the latest snapshot."""
 
-        self._evaluate(self._sensor.current_snapshot, immediate=True)
+        if desired is not None:
+            self._desired_override = desired
+        if global_pause is not None:
+            self._global_pause_override = bool(global_pause)
+        if display_revision is not None:
+            self._display_revision = max(0, int(display_revision))
+        if display_purpose is not None:
+            self._display_purpose = str(display_purpose)
+
+        self._evaluate(
+            self._sensor.current_snapshot,
+            immediate=True,
+            preview=preview,
+            report_failure=False,
+            force_display_commit=force_display_commit,
+        )
+
+    def clear_runtime_override(self) -> None:
+        self._desired_override = None
+        self._global_pause_override = None
+        self._display_revision = 0
+        self._display_purpose = "system"
+
+    def clear_display_override(self) -> None:
+        """Compatibility alias for the v0.3 display-only override."""
+
+        self.clear_runtime_override()
 
     def resume_breaks_for_current_context(self) -> bool:
         self._manual_break_override = True
         self._override_key = self._context_key(self._sensor.current_snapshot)
         self.recompute()
-        return True
+        return bool(getattr(self._last_result, "succeeded", True))
 
     def _on_snapshot(self, snapshot: ContextSnapshot) -> None:
         key = self._context_key(snapshot)
         if self._manual_break_override and key != self._override_key:
             self._manual_break_override = False
             self._override_key = None
-        self._evaluate(snapshot, immediate=False)
+        self._evaluate(snapshot, immediate=False, report_failure=True)
 
-    def _evaluate(self, snapshot: ContextSnapshot, *, immediate: bool) -> None:
+    def _evaluate(
+        self,
+        snapshot: ContextSnapshot,
+        *,
+        immediate: bool,
+        preview=None,
+        report_failure: bool = False,
+        force_display_commit: bool = False,
+    ) -> None:
         self._snapshot = snapshot
         if snapshot.foreground_app_id:
             self._recent_app_id = snapshot.foreground_app_id
@@ -104,13 +169,30 @@ class ContextCoordinator(QObject):
             self._timer.stop()
             self._pending_decision = None
             self._pending_snapshot = None
-            self._publish()
+            self._pending_report_failure = False
+            if immediate:
+                self._apply(
+                    snapshot,
+                    decision,
+                    preview=preview,
+                    report_failure=report_failure,
+                    force_display_commit=force_display_commit,
+                )
+            else:
+                self._publish()
             return
         if immediate or self._requires_immediate_apply(snapshot, decision):
             self._timer.stop()
             self._pending_decision = None
             self._pending_snapshot = None
-            self._apply(snapshot, decision)
+            self._pending_report_failure = False
+            self._apply(
+                snapshot,
+                decision,
+                preview=preview,
+                report_failure=report_failure,
+                force_display_commit=force_display_commit,
+            )
             return
 
         if decision == self._pending_decision:
@@ -120,6 +202,7 @@ class ContextCoordinator(QObject):
 
         self._pending_snapshot = snapshot
         self._pending_decision = decision
+        self._pending_report_failure = report_failure
         current_reasons = self._suppression_reasons(self._applied_decision)
         next_reasons = self._suppression_reasons(decision)
         entering = bool(next_reasons) and current_reasons.issubset(next_reasons)
@@ -131,23 +214,75 @@ class ContextCoordinator(QObject):
             return
         decision = self._pending_decision
         snapshot = self._pending_snapshot
+        report_failure = self._pending_report_failure
         self._pending_decision = None
         self._pending_snapshot = None
-        self._apply(snapshot, decision)
+        self._pending_report_failure = False
+        self._apply(snapshot, decision, report_failure=report_failure)
 
     def _apply(
         self,
         snapshot: ContextSnapshot,
         decision: SuppressionDecision,
+        *,
+        preview=None,
+        report_failure: bool = False,
+        force_display_commit: bool = False,
     ) -> None:
         self._snapshot = snapshot
-        self._effects.apply(decision)
-        if getattr(self._effects, "last_apply_succeeded", True):
+        reconcile = getattr(self._effects, "reconcile", None)
+        result = None
+        if callable(reconcile):
+            result = reconcile(
+                self._effects.intent_from_settings(
+                    desired=self._desired_override,
+                    global_pause=self._global_pause_override,
+                    suppression=decision,
+                    preview=preview,
+                ),
+                display_revision=self._display_revision,
+                display_purpose=self._display_purpose,
+                force_display_commit=force_display_commit,
+            )
+            self._last_result = result
+            succeeded = bool(getattr(result, "succeeded", True))
+        else:
+            self._effects.apply(decision)
+            succeeded = bool(
+                getattr(self._effects, "last_apply_succeeded", True)
+            )
+        if result is not None:
+            self.reconcile_completed.emit(result)
+        if succeeded:
             self._applied_decision = decision
+        elif report_failure:
+            failures = getattr(self._last_result, "failures", ())
+            detail = "; ".join(
+                f"{failure.feature}: {failure.message}"
+                for failure in failures
+            ) or "unknown context effect failure"
+            log.error("Context effect application failed: %s", detail)
+            self.operation_failed.emit(
+                "context_effect",
+                "情境切换效果未能应用，请重试。",
+            )
         self._publish()
 
     def _publish(self) -> None:
-        self.runtime_changed.emit(self.context_state, self._effects.state)
+        context = self.context_state
+        signature = (
+            context.session,
+            context.foreground_app_id,
+            context.fullscreen,
+            context.notification_mode,
+            self._idle_bucket(context.idle_seconds),
+            context.recent_app_id,
+            self._effects.state,
+        )
+        if signature == self._last_published_signature:
+            return
+        self._last_published_signature = signature
+        self.runtime_changed.emit(context, self._effects.state)
 
     def _app_rules(self) -> tuple[AppRule, ...]:
         result = []
@@ -198,6 +333,14 @@ class ContextCoordinator(QObject):
             snapshot.idle_seconds >= AutoPausePolicy.IDLE_PAUSE_SECONDS,
             snapshot.idle_seconds >= AutoPausePolicy.NATURAL_REST_SECONDS,
         )
+
+    @staticmethod
+    def _idle_bucket(seconds: int) -> int:
+        if seconds >= AutoPausePolicy.NATURAL_REST_SECONDS:
+            return 2
+        if seconds >= AutoPausePolicy.IDLE_PAUSE_SECONDS:
+            return 1
+        return 0
 
     @staticmethod
     def _suppression_reasons(decision: SuppressionDecision) -> set[str]:

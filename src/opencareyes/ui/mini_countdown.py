@@ -6,6 +6,7 @@ from PySide6.QtCore import (
     QEasingCurve,
     QPropertyAnimation,
     QRectF,
+    Signal,
     Qt,
     QTimer,
     QVariantAnimation,
@@ -15,6 +16,8 @@ from PySide6.QtWidgets import (
     QApplication,
     QHBoxLayout,
     QLabel,
+    QMenu,
+    QPushButton,
     QToolButton,
     QVBoxLayout,
     QWidget,
@@ -25,6 +28,7 @@ from opencareyes.ui.widgets import first_state_value
 
 _MOOD_COLORS = {
     "working": "#5B8DEF",
+    "due": "#F2A65A",
     "resting": "#58B891",
     "paused": "#7D8799",
 }
@@ -171,6 +175,13 @@ class _PetFace(QWidget):
 class MiniCountdownWidget(QWidget):
     """Draggable countdown pet backed by the authoritative break state."""
 
+    position_changed = Signal(int, int)
+    reset_requested = Signal()
+    start_break_requested = Signal()
+    snooze_requested = Signal(int)
+    undo_snooze_requested = Signal()
+    skip_requested = Signal()
+
     def __init__(self, controller=None, parent=None):
         super().__init__(parent)
         self._controller = controller
@@ -185,7 +196,12 @@ class MiniCountdownWidget(QWidget):
         self._dragging = False
         self._drag_pos = None
         self._positioned = False
+        self._position_settings_seen = False
+        self._last_saved_position: tuple[int, int] | None = None
         self._has_faded_in = False
+        self._prompt_expanded = False
+        self._undo_visible = False
+        self._previewing = False
 
         self.setObjectName("miniCountdown")
         self.setWindowFlags(
@@ -202,7 +218,28 @@ class MiniCountdownWidget(QWidget):
         self._connect_app_preferences()
 
         if controller is not None:
+            set_position = getattr(controller, "set_pet_position", None)
+            if set_position is not None:
+                self.position_changed.connect(set_position)
+            reset_position = getattr(controller, "reset_pet_position", None)
+            if reset_position is not None:
+                self.reset_requested.connect(reset_position)
+            start_break = getattr(controller, "start_due_break", None)
+            if start_break is not None:
+                self.start_break_requested.connect(start_break)
+            snooze = getattr(controller, "snooze_break", None)
+            if snooze is not None:
+                self.snooze_requested.connect(snooze)
+            undo_snooze = getattr(controller, "undo_break_snooze", None)
+            if undo_snooze is not None:
+                self.undo_snooze_requested.connect(undo_snooze)
+            skip = getattr(controller, "skip_break", None)
+            if skip is not None:
+                self.skip_requested.connect(skip)
             controller.state_changed.connect(self.render)
+            break_tick = getattr(controller, "break_tick", None)
+            if break_tick is not None:
+                break_tick.connect(self._on_break_tick)
             self.render(controller.state)
 
     @property
@@ -218,12 +255,14 @@ class MiniCountdownWidget(QWidget):
         return self._motion_enabled
 
     def _build_ui(self) -> None:
-        layout = QHBoxLayout(self)
+        layout = QVBoxLayout(self)
         layout.setContentsMargins(12, 10, 10, 10)
-        layout.setSpacing(8)
+        layout.setSpacing(5)
+        top_layout = QHBoxLayout()
+        top_layout.setSpacing(8)
 
         self._pet = _PetFace(self)
-        layout.addWidget(self._pet)
+        top_layout.addWidget(self._pet)
 
         text_layout = QVBoxLayout()
         text_layout.setContentsMargins(0, 15, 0, 13)
@@ -245,7 +284,7 @@ class MiniCountdownWidget(QWidget):
         self._hint_label.setFont(QFont("Microsoft YaHei UI", 9))
         self._hint_label.setAttribute(Qt.WA_TransparentForMouseEvents)
         text_layout.addWidget(self._hint_label)
-        layout.addLayout(text_layout, 1)
+        top_layout.addLayout(text_layout, 1)
 
         close_layout = QVBoxLayout()
         close_layout.setContentsMargins(0, 1, 0, 0)
@@ -255,10 +294,58 @@ class MiniCountdownWidget(QWidget):
         self._close_button.setCursor(Qt.PointingHandCursor)
         self._close_button.setAccessibleName("隐藏倒计时桌宠")
         self._close_button.setToolTip("隐藏桌宠，可在休息节奏中重新开启")
-        self._close_button.clicked.connect(self.hide_pet)
+        self._close_button.clicked.connect(self._handle_close)
         close_layout.addWidget(self._close_button)
         close_layout.addStretch()
-        layout.addLayout(close_layout)
+        top_layout.addLayout(close_layout)
+        layout.addLayout(top_layout)
+
+        self._prompt_actions = QWidget(self)
+        prompt_layout = QHBoxLayout(self._prompt_actions)
+        prompt_layout.setContentsMargins(92, 0, 4, 0)
+        prompt_layout.setSpacing(7)
+        self._start_button = QPushButton("现在休息")
+        self._start_button.setObjectName("primaryButton")
+        self._start_button.setAccessibleName("现在开始休息")
+        self._start_button.clicked.connect(self._accept_due_break)
+        self._snooze_button = QPushButton("稍后提醒")
+        self._snooze_button.setObjectName("secondaryButton")
+        self._snooze_button.setAccessibleName("选择稍后提醒时间")
+        self._snooze_menu = QMenu(self._snooze_button)
+        self._snooze_actions = {}
+        for minutes in (5, 10, 30):
+            action = self._snooze_menu.addAction(f"{minutes} 分钟")
+            action.setStatusTip(f"{minutes} 分钟后再次提醒")
+            action.triggered.connect(
+                lambda _checked=False, value=minutes: self._snooze_due_break(value)
+            )
+            self._snooze_actions[minutes] = action
+        self._snooze_button.setMenu(self._snooze_menu)
+        self._skip_button = QPushButton("本次跳过")
+        self._skip_button.setObjectName("quietButton")
+        self._skip_button.setAccessibleName("跳过本次休息")
+        self._skip_button.clicked.connect(self._skip_due_break)
+        prompt_layout.addWidget(self._start_button)
+        prompt_layout.addWidget(self._snooze_button)
+        prompt_layout.addWidget(self._skip_button)
+        prompt_layout.addStretch()
+        self._prompt_actions.hide()
+        layout.addWidget(self._prompt_actions)
+
+        self._undo_bar = QWidget(self)
+        undo_layout = QHBoxLayout(self._undo_bar)
+        undo_layout.setContentsMargins(92, 2, 4, 0)
+        undo_layout.setSpacing(8)
+        self._undo_label = QLabel("已延后 5 分钟")
+        self._undo_label.setFont(QFont("Microsoft YaHei UI", 9))
+        self._undo_button = QPushButton("撤销")
+        self._undo_button.setObjectName("quietButton")
+        self._undo_button.setAccessibleName("撤销稍后提醒")
+        self._undo_button.clicked.connect(self._undo_snooze)
+        undo_layout.addWidget(self._undo_label, 1)
+        undo_layout.addWidget(self._undo_button)
+        self._undo_bar.hide()
+        layout.addWidget(self._undo_bar)
 
     def _build_animations(self) -> None:
         self._fade_animation = QPropertyAnimation(self, b"windowOpacity", self)
@@ -281,6 +368,14 @@ class MiniCountdownWidget(QWidget):
         self._blink_close_timer.setSingleShot(True)
         self._blink_close_timer.setInterval(160)
         self._blink_close_timer.timeout.connect(self._finish_blink)
+        self._preview_timer = QTimer(self)
+        self._preview_timer.setSingleShot(True)
+        self._preview_timer.setInterval(5000)
+        self._preview_timer.timeout.connect(self._finish_preview)
+        self._undo_timer = QTimer(self)
+        self._undo_timer.setSingleShot(True)
+        self._undo_timer.setInterval(8000)
+        self._undo_timer.timeout.connect(self._hide_undo)
 
     def _connect_app_preferences(self) -> None:
         app = QApplication.instance()
@@ -317,6 +412,9 @@ class MiniCountdownWidget(QWidget):
         )
         self._hint_label.setStyleSheet(
             f"color: {palette['hint']}; background: transparent;"
+        )
+        self._undo_label.setStyleSheet(
+            f"color: {palette['label']}; background: transparent;"
         )
         self._close_button.setStyleSheet(
             f"QToolButton {{ color: {palette['label']}; "
@@ -394,6 +492,64 @@ class MiniCountdownWidget(QWidget):
         self.move(area.right() - self.width() - 18, area.bottom() - self.height() - 18)
         self._positioned = True
 
+    def restore_position(self, x: int | None, y: int | None) -> bool:
+        """Restore logical coordinates, falling back when no screen contains them."""
+
+        if x is None or y is None:
+            self.move_to_default()
+            return False
+        app = QApplication.instance()
+        screens = app.screens() if app is not None else []
+        x, y = int(x), int(y)
+        for screen in screens:
+            area = screen.availableGeometry()
+            if area.contains(x, y):
+                safe_x = min(max(x, area.left()), area.right() - self.width() + 1)
+                safe_y = min(max(y, area.top()), area.bottom() - self.height() + 1)
+                self.move(safe_x, safe_y)
+                self._positioned = True
+                return True
+        self.move_to_default()
+        return False
+
+    def reset_position(self) -> None:
+        """Return to the primary-screen corner and request persisted reset."""
+
+        self.move_to_default()
+        self.reset_requested.emit()
+
+    def preview(self) -> None:
+        """Show a five-second placement preview without changing preferences."""
+
+        self._previewing = True
+        self._hide_undo()
+        self._set_prompt_expanded(False)
+        self._set_mood("working")
+        self._label.setText("倒计时桌宠预览")
+        self._hint_label.setText("拖动可调整下次显示位置")
+        self._countdown_label.setText("20:00")
+        self._ensure_visible_position()
+        self.show()
+        self.raise_()
+        self._preview_timer.start()
+        self._sync_blink_timer()
+
+    def _finish_preview(self) -> None:
+        self._previewing = False
+        if self._controller is not None:
+            self.render(self._controller.state)
+        else:
+            self.hide()
+
+    def _ensure_visible_position(self) -> None:
+        if not self._positioned:
+            self.move_to_default()
+            return
+        app = QApplication.instance()
+        screens = app.screens() if app is not None else []
+        if not any(screen.availableGeometry().contains(self.pos()) for screen in screens):
+            self.move_to_default()
+
     def update_countdown(self, remaining_seconds: int) -> None:
         minutes, seconds = divmod(max(0, int(remaining_seconds)), 60)
         self._countdown_label.setText(f"{minutes}:{seconds:02d}")
@@ -401,12 +557,117 @@ class MiniCountdownWidget(QWidget):
             f"{self._label.text()}，剩余 {minutes} 分 {seconds} 秒"
         )
 
+    def _on_break_tick(self, *values) -> None:
+        if not values:
+            return
+        if len(values) >= 2:
+            remaining = values[0]
+        else:
+            tick = values[0]
+            if isinstance(tick, dict):
+                remaining = tick.get("remaining", 0)
+            else:
+                remaining = getattr(tick, "remaining", 0)
+        if self.isVisible() and not self._prompt_expanded:
+            self.update_countdown(int(remaining))
+
+    def _accept_due_break(self) -> None:
+        self._hide_undo()
+        self._set_prompt_expanded(False)
+        self.start_break_requested.emit()
+
+    def _snooze_due_break(self, minutes: int) -> None:
+        minutes = max(1, int(minutes))
+        self._set_prompt_expanded(False)
+        self.snooze_requested.emit(minutes)
+        self._show_undo(minutes)
+
+    def _skip_due_break(self) -> None:
+        self._hide_undo()
+        self._set_prompt_expanded(False)
+        self.skip_requested.emit()
+
+    def _show_undo(self, minutes: int) -> None:
+        self._undo_label.setText(f"已延后 {int(minutes)} 分钟")
+        self._undo_visible = True
+        self._undo_bar.show()
+        self._undo_timer.start()
+        self._resize_for_content()
+
+    def _hide_undo(self) -> None:
+        self._undo_timer.stop()
+        if not self._undo_visible:
+            self._undo_bar.hide()
+            return
+        self._undo_visible = False
+        self._undo_bar.hide()
+        self._resize_for_content()
+
+    def _undo_snooze(self) -> None:
+        self._hide_undo()
+        self.undo_snooze_requested.emit()
+
+    def _handle_close(self) -> None:
+        if self._prompt_expanded:
+            self._snooze_due_break(5)
+            return
+        self.hide_pet()
+
     def set_break_mode(self) -> None:
         self._set_mood("resting")
         self._label.setText("休息时间")
         self._hint_label.setText("看看远处，慢慢放松")
         self._countdown_label.setText("放松一下")
         self.setAccessibleDescription("当前正在休息")
+
+    def expand_prompt(self, kind: str = "short", stage: str = "gentle") -> None:
+        """Expand the pet into a functional due-break action card."""
+
+        self._hide_undo()
+        self._set_mood("due")
+        self._label.setText("长休息提醒" if kind == "long" else "该休息一下了")
+        self._hint_label.setText(
+            "现在处理这次提醒" if stage == "prominent" else "准备好后开始休息"
+        )
+        self._countdown_label.setText("到时间啦")
+        self._set_prompt_expanded(True)
+        self.setAccessibleDescription(
+            "长休息已到期" if kind == "long" else "短休息已到期"
+        )
+
+    def _set_prompt_expanded(self, expanded: bool) -> None:
+        expanded = bool(expanded)
+        if expanded == self._prompt_expanded:
+            self._prompt_actions.setVisible(expanded)
+            self._update_close_action()
+            return
+        self._prompt_expanded = expanded
+        self._prompt_actions.setVisible(expanded)
+        self._update_close_action()
+        self._resize_for_content()
+
+    def _resize_for_content(self) -> None:
+        anchor = self.geometry().bottomRight()
+        if self._prompt_expanded:
+            width, height = 430, 170
+        elif self._undo_visible:
+            width, height = 320, 146
+        else:
+            width, height = 260, 112
+        if self.width() == width and self.height() == height:
+            return
+        self.setFixedSize(width, height)
+        if self._positioned:
+            self.move(anchor.x() - self.width() + 1, anchor.y() - self.height() + 1)
+            self._ensure_visible_position()
+
+    def _update_close_action(self) -> None:
+        if self._prompt_expanded:
+            self._close_button.setAccessibleName("关闭提醒并延后 5 分钟")
+            self._close_button.setToolTip("关闭本次提示，5 分钟后再次提醒")
+        else:
+            self._close_button.setAccessibleName("隐藏倒计时桌宠")
+            self._close_button.setToolTip("隐藏桌宠，可在休息节奏中重新开启")
 
     def hide_pet(self) -> None:
         self.hide()
@@ -449,9 +710,70 @@ class MiniCountdownWidget(QWidget):
         phase = str(first_state_value(state, "breaks.phase", default="stopped"))
         paused = bool(first_state_value(state, "breaks.paused", default=False))
         remaining = int(first_state_value(state, "breaks.remaining", default=0))
+        force = bool(first_state_value(state, "breaks.force_break", default=False))
+        reminder_style = str(
+            first_state_value(
+                state,
+                "breaks.reminder_style",
+                default="fullscreen",
+            )
+        )
+        prompt_kind = str(
+            first_state_value(
+                state,
+                "break_prompt.kind",
+                "breaks.prompt.kind",
+                "breaks.due_kind",
+                "breaks.current_break_kind",
+                default="short",
+            )
+        )
+        prompt_stage = str(
+            first_state_value(
+                state,
+                "break_prompt.stage",
+                "breaks.prompt.stage",
+                "breaks.prompt_stage",
+                default="none",
+            )
+        )
         display_mode = str(
             first_state_value(state, "breaks.countdown_display", default="tray")
         )
+
+        if phase != "snoozed" and self._undo_visible:
+            self._hide_undo()
+
+        pet_x = first_state_value(
+            state,
+            "ui.pet_x",
+            "general.pet_x",
+            "breaks.pet_x",
+            default=None,
+        )
+        pet_y = first_state_value(
+            state,
+            "ui.pet_y",
+            "general.pet_y",
+            "breaks.pet_y",
+            default=None,
+        )
+        saved_position = (
+            (int(pet_x), int(pet_y))
+            if pet_x is not None and pet_y is not None
+            else None
+        )
+        if not self._position_settings_seen:
+            self._position_settings_seen = True
+            self._last_saved_position = saved_position
+            if saved_position is not None:
+                self.restore_position(*saved_position)
+        elif saved_position != self._last_saved_position:
+            self._last_saved_position = saved_position
+            if saved_position is None:
+                self.move_to_default()
+            else:
+                self.restore_position(*saved_position)
 
         if (
             not enabled
@@ -459,29 +781,49 @@ class MiniCountdownWidget(QWidget):
             or suppressed_by
             or display_mode != "floating"
         ):
+            if self._previewing:
+                return
+            self._set_prompt_expanded(False)
             self.hide()
             return
 
         if paused:
+            self._set_prompt_expanded(False)
             self._set_mood("paused")
             self._label.setText("休息已暂停" if phase == "resting" else "计时已暂停")
             self._hint_label.setText(
                 "继续后完成剩余休息" if phase == "resting" else "准备好后再继续"
             )
+        elif (
+            phase == "prompting"
+            and reminder_style == "progressive"
+            and not force
+            and prompt_stage in {"gentle", "prominent"}
+        ):
+            self.expand_prompt(prompt_kind, prompt_stage)
         elif phase == "resting":
+            self._set_prompt_expanded(False)
             self._set_mood("resting")
             self._label.setText("休息时间")
             self._hint_label.setText("看看远处，慢慢放松")
+        elif phase == "snoozed":
+            self._set_prompt_expanded(False)
+            self._set_mood("paused")
+            self._label.setText("稍后再次提醒")
+            self._hint_label.setText("这段等待不会计入活跃用眼")
         else:
+            self._set_prompt_expanded(False)
             self._set_mood("working")
             self._label.setText("距离下次休息")
             self._hint_label.setText("护眼小伙伴正在陪你")
 
-        self.update_countdown(remaining)
+        if not self._prompt_expanded:
+            self.update_countdown(remaining)
         if not self.isVisible():
             if not self._positioned:
                 self.move_to_default()
             self.show()
+        self._ensure_visible_position()
 
     def _set_mood(self, mood: str) -> None:
         selected = mood if mood in _MOOD_COLORS else "working"
@@ -525,8 +867,16 @@ class MiniCountdownWidget(QWidget):
         self._sync_blink_timer()
 
     def hideEvent(self, event) -> None:
+        self._hide_undo()
         self._stop_animations(snap_to_final=True)
         super().hideEvent(event)
+
+    def keyPressEvent(self, event) -> None:
+        if event.key() == Qt.Key_Escape and self._prompt_expanded:
+            self._snooze_due_break(5)
+            event.accept()
+            return
+        super().keyPressEvent(event)
 
     def paintEvent(self, event) -> None:
         painter = QPainter(self)
@@ -573,6 +923,8 @@ class MiniCountdownWidget(QWidget):
         if event.button() == Qt.LeftButton:
             self._dragging = False
             self._drag_pos = None
+            self._ensure_visible_position()
+            self.position_changed.emit(self.x(), self.y())
             event.accept()
         else:
             super().mouseReleaseEvent(event)

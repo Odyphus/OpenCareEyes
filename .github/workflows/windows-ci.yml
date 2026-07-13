@@ -55,6 +55,14 @@ jobs:
             throw "Tag $env:GITHUB_REF_NAME does not match pyproject.toml version $version"
           }
       - run: python -m PyInstaller --noconfirm --clean opencareyes.spec
+      - name: Verify executable metadata privacy
+        shell: pwsh
+        run: |
+          $listing = python -m PyInstaller.utils.cliutils.archive_viewer -l .\dist\OpenCareEyes.exe | Out-String
+          if ($LASTEXITCODE -ne 0) { throw "Unable to inspect the executable archive" }
+          if ($listing -match 'direct_url\.json') {
+            throw "Executable contains editable-install metadata with a local build path"
+          }
       - name: Smoke-test executable
         shell: pwsh
         run: |
@@ -63,7 +71,7 @@ jobs:
           $env:OPENCAREYES_INSTANCE_KEY = "OpenCareEyes-CI-$PID"
           $env:LOCALAPPDATA = Join-Path $env:RUNNER_TEMP "opencareeyes-localappdata"
           python -c "from opencareyes.config.settings import Settings; s=Settings(); s.onboarding_completed=True; s.autostart=False"
-          $first = Start-Process -FilePath $exe -PassThru
+          $first = Start-Process -FilePath $exe -WindowStyle Hidden -PassThru
           try {
             Start-Sleep -Seconds 15
             $owned = @(Get-Process OpenCareEyes -ErrorAction SilentlyContinue | Where-Object Path -eq $exe)
@@ -75,7 +83,7 @@ jobs:
               throw "OpenCareEyes did not reach application logging"
             }
 
-            $second = Start-Process -FilePath $exe -PassThru
+            $second = Start-Process -FilePath $exe -WindowStyle Hidden -PassThru
             if (-not $second.WaitForExit(15000)) {
               throw "Second instance did not hand off to the existing instance"
             }
@@ -124,19 +132,31 @@ jobs:
       - name: Write SHA-256 manifest
         shell: pwsh
         run: |
+          $version = python -c "import pathlib, tomllib; print(tomllib.loads(pathlib.Path('pyproject.toml').read_text(encoding='utf-8'))['project']['version'])"
+          $installer = Get-Item .\installer_output\OpenCareEyes_Setup_*.exe
+          python scripts\generate_winget_manifest.py $installer.FullName --version $version
+          if ($LASTEXITCODE -ne 0) { throw "WinGet manifest generation failed" }
+          Compress-Archive -Path ".\winget_output\manifests" -DestinationPath ".\OpenCareEyes_WinGet_$version.zip"
           $files = @(
             Get-Item .\dist\OpenCareEyes.exe
             Get-Item .\installer_output\OpenCareEyes_Setup_*.exe
+            Get-Item ".\OpenCareEyes_WinGet_$version.zip"
+            Get-Item .\THIRD_PARTY_NOTICES.md
           )
           $lines = foreach ($file in $files) {
             $hash = (Get-FileHash -Algorithm SHA256 $file.FullName).Hash.ToLowerInvariant()
             "$hash  $($file.Name)"
           }
-          $lines | Set-Content -Path SHA256SUMS.txt -Encoding utf8
+          [IO.File]::WriteAllLines(
+            (Join-Path $PWD 'SHA256SUMS.txt'),
+            $lines,
+            [Text.UTF8Encoding]::new($false)
+          )
       - name: Create GitHub Release
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           $installer = Get-Item .\installer_output\OpenCareEyes_Setup_*.exe
-          gh release create $env:GITHUB_REF_NAME --verify-tag --generate-notes --title "OpenCareEyes $env:GITHUB_REF_NAME" .\dist\OpenCareEyes.exe $installer.FullName .\SHA256SUMS.txt
+          $version = $env:GITHUB_REF_NAME.TrimStart('v')
+          gh release create $env:GITHUB_REF_NAME --verify-tag --generate-notes --title "OpenCareEyes $env:GITHUB_REF_NAME" .\dist\OpenCareEyes.exe $installer.FullName ".\OpenCareEyes_WinGet_$version.zip" .\SHA256SUMS.txt .\THIRD_PARTY_NOTICES.md

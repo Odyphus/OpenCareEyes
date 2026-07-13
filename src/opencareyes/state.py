@@ -28,6 +28,7 @@ class BreakState:
     paused: bool = False
     force_break: bool = False
     countdown_display: str = "tray"
+    reminder_style: str = "progressive"
 
 
 @dataclass(frozen=True, slots=True)
@@ -64,6 +65,10 @@ class AutomationState:
     on_time: str = "19:00"
     off_time: str = "07:30"
     days: tuple[int, ...] = (0, 1, 2, 3, 4)
+    day_profile: str = "office"
+    night_profile: str = "night"
+    sunrise_offset: int = 0
+    sunset_offset: int = 0
     smart_pause: SmartPausePreferencesState = field(
         default_factory=SmartPausePreferencesState
     )
@@ -104,6 +109,9 @@ class GeneralState:
     latitude: float | None = None
     longitude: float | None = None
     motion_mode: Literal["system", "standard", "reduced"] = "system"
+    settings_read_only: bool = False
+    pet_x: int | None = None
+    pet_y: int | None = None
     hotkeys: HotkeyState = field(default_factory=HotkeyState)
 
     @property
@@ -146,6 +154,56 @@ class EffectivePolicyState:
 
 
 @dataclass(frozen=True, slots=True)
+class DisplayHealthState:
+    backend: str = "gamma_ramp"
+    status: Literal[
+        "ok", "degraded", "suppressed", "error", "unavailable"
+    ] = "unavailable"
+    hdr_active: bool = False
+    pending: bool = False
+    reason_code: str = ""
+    message: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class BreakCadenceState:
+    mode: str = "20-20-20"
+    short_interval: int = 20 * 60
+    short_duration: int = 20
+    long_enabled: bool = False
+    long_interval: int = 60 * 60
+    long_duration: int = 5 * 60
+    short_remaining: int = 0
+    long_remaining: int = 0
+
+
+@dataclass(frozen=True, slots=True)
+class BreakPromptState:
+    kind: str = "none"
+    stage: str = "hidden"
+    snoozed_until: datetime | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class UserNotice:
+    id: str
+    severity: Literal["info", "warning", "error"]
+    code: str
+    message: str
+    action: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class UpdateState:
+    status: Literal[
+        "idle", "checking", "up_to_date", "available", "failed"
+    ] = "idle"
+    current_version: str = ""
+    latest_version: str = ""
+    release_url: str = ""
+
+
+@dataclass(frozen=True, slots=True)
 class AppState:
     display: DisplayState = field(default_factory=DisplayState)
     breaks: BreakState = field(default_factory=BreakState)
@@ -156,3 +214,8 @@ class AppState:
     general: GeneralState = field(default_factory=GeneralState)
     context: ContextState = field(default_factory=ContextState)
     effective_policy: EffectivePolicyState = field(default_factory=EffectivePolicyState)
+    display_health: DisplayHealthState = field(default_factory=DisplayHealthState)
+    break_cadence: BreakCadenceState = field(default_factory=BreakCadenceState)
+    break_prompt: BreakPromptState = field(default_factory=BreakPromptState)
+    notices: tuple[UserNotice, ...] = ()
+    update: UpdateState = field(default_factory=UpdateState)

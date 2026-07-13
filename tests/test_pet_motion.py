@@ -2,7 +2,8 @@
 
 from dataclasses import replace
 
-from PySide6.QtCore import QAbstractAnimation, QObject, Signal
+from PySide6.QtCore import QAbstractAnimation, QObject, QPoint, Signal
+from PySide6.QtWidgets import QApplication
 
 import opencareyes.app as app_module
 from opencareyes.app import OpenCareEyesApp
@@ -114,6 +115,49 @@ def test_pet_applies_light_palette_and_uses_nine_point_hint(qtbot):
     assert pet._pet._theme == "light"
     assert pet._hint_label.font().pointSize() == 9
     assert "#596981" in pet._hint_label.styleSheet()
+
+
+def test_pet_preview_does_not_change_preferences_and_can_end_cleanly(qtbot):
+    pet = MiniCountdownWidget()
+    qtbot.addWidget(pet)
+
+    pet.preview()
+
+    assert pet.isVisible()
+    assert pet._preview_timer.isActive()
+    assert pet._label.text() == "倒计时桌宠预览"
+
+    pet._finish_preview()
+
+    assert not pet.isVisible()
+
+
+def test_clearing_saved_position_moves_visible_pet_to_default(qtbot):
+    screen = QApplication.primaryScreen()
+    area = screen.availableGeometry()
+    saved = QPoint(area.left() + 24, area.top() + 24)
+    state = _state()
+    state = replace(
+        state,
+        general=replace(state.general, pet_x=saved.x(), pet_y=saved.y()),
+    )
+    controller = _Controller(state)
+    pet = MiniCountdownWidget(controller)
+    qtbot.addWidget(pet)
+
+    assert pet.pos() == saved
+
+    controller.publish(
+        replace(
+            state,
+            general=replace(state.general, pet_x=None, pet_y=None),
+        )
+    )
+
+    assert pet.pos() == QPoint(
+        area.right() - pet.width() - 18,
+        area.bottom() - pet.height() - 18,
+    )
 
 
 def test_effective_break_suppression_hides_pet_and_stops_timers(qtbot):

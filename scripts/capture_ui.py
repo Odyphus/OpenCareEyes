@@ -19,10 +19,12 @@ from opencareyes.constants import STYLES_DIR
 from opencareyes.state import (
     AppState,
     AutomationState,
+    BreakCadenceState,
     BreakState,
     CapabilitiesState,
     ContextState,
     DisplayState,
+    DisplayHealthState,
     EffectivePolicyState,
     FeatureRuntimeState,
     FocusState,
@@ -34,6 +36,7 @@ from opencareyes.ui.main_panel import MainPanel
 
 class DemoController(QObject):
     state_changed = Signal(object)
+    break_tick = Signal(int, int)
     operation_failed = Signal(str, str)
     notification_requested = Signal(str, str)
 
@@ -57,6 +60,7 @@ class DemoController(QObject):
                 remaining=18 * 60 + 24,
                 total=20 * 60,
                 force_break=False,
+                countdown_display="floating",
             ),
             focus=FocusState(enabled=False, dim_level=150),
             automation=AutomationState(
@@ -93,6 +97,15 @@ class DemoController(QObject):
                 breaks=FeatureRuntimeState(True, True),
                 focus=FeatureRuntimeState(False, False),
             ),
+            display_health=DisplayHealthState(
+                backend="Windows GDI Gamma + 覆盖层",
+                status="ok",
+                message="显示效果已验证",
+            ),
+            break_cadence=BreakCadenceState(
+                mode="20-20-20",
+                short_remaining=18 * 60 + 24,
+            ),
         )
 
     def __getattr__(self, _name):
@@ -120,6 +133,10 @@ def main() -> int:
     stylesheet = Path(STYLES_DIR) / f"{args.theme}.qss"
     app.setStyleSheet(stylesheet.read_text(encoding="utf-8"))
     panel = MainPanel(DemoController(args.theme))
+    # The offscreen plugin exposes an 800 px virtual desktop. Keep the real
+    # 920x640 product layout for documentation captures instead of triggering
+    # the compact responsive fallback used on genuinely small screens.
+    panel._fit_available_geometry = lambda: None
     panel.show()
     app.processEvents()
     QTest.qWait(100)

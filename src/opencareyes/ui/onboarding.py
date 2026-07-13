@@ -132,6 +132,7 @@ class OnboardingDialog(QDialog):
         for key, label, detail in (
             ("20-20-20", "20-20-20", "每 20 分钟远眺 20 秒"),
             ("pomodoro", "番茄钟", "专注 25 分钟，休息 5 分钟"),
+            ("balanced", "平衡节奏", "短休息 + 每小时长休息"),
             ("custom", "暂不启用", "以后在休息节奏中设置"),
         ):
             choice = QRadioButton(f"{label}\n{detail}")
@@ -144,6 +145,15 @@ class OnboardingDialog(QDialog):
             if key == "20-20-20":
                 choice.setChecked(True)
         card.body.addLayout(options)
+        self._pet_toggle = QCheckBox("在桌面显示倒计时伙伴（推荐）")
+        self._pet_toggle.setChecked(True)
+        self._pet_toggle.setToolTip("可随时拖动、隐藏，也可从托盘一键重新显示")
+        set_accessible(
+            self._pet_toggle,
+            "显示倒计时桌宠",
+            "完成设置后在桌面右下角显示可拖动的休息倒计时伙伴",
+        )
+        card.body.addWidget(self._pet_toggle)
         layout.addWidget(card)
         layout.addStretch()
         return page
@@ -224,6 +234,16 @@ class OnboardingDialog(QDialog):
             self._show_error("onboarding_break", "请选择一个休息节奏后重试。")
             return False
         mode = break_button.property("mode")
+        display_setter = getattr(
+            self._controller,
+            "set_break_countdown_display",
+            None,
+        )
+        if callable(display_setter) and not self._run_command(
+            display_setter,
+            "floating" if self._pet_toggle.isChecked() else "tray",
+        ):
+            return False
         if mode == "custom":
             if not self._run_command(
                 self._controller.set_feature_enabled,
@@ -249,18 +269,12 @@ class OnboardingDialog(QDialog):
         if self._automation_toggle.isChecked():
             latitude, longitude = self._city_combo.currentData()
             if not self._run_command(
-                self._controller.set_location,
-                latitude,
-                longitude,
-                self._city_combo.currentText(),
-            ):
-                return False
-            if not self._run_command(
                 self._controller.set_schedule,
                 True,
                 mode="sun",
                 latitude=latitude,
                 longitude=longitude,
+                city=self._city_combo.currentText(),
             ):
                 return False
         else:
