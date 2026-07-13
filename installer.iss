@@ -1,6 +1,6 @@
 ; Inno Setup 6 script for OpenCareEyes.
 ; The version must be supplied from pyproject.toml:
-;   ISCC.exe /DMyAppVersion=0.2.0 installer.iss
+;   ISCC.exe /DMyAppVersion=<version> installer.iss
 
 #ifndef MyAppVersion
   #error MyAppVersion must be supplied by build.bat or the release workflow

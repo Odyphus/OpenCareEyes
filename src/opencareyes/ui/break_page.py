@@ -47,7 +47,7 @@ class BreakPage(ScrollPage):
     def _build_ui(self) -> None:
         self.layout.addWidget(PageHeader(
             "休息节奏",
-            "用温和提醒建立休息习惯。提醒可以暂停、稍后再说，也始终可以安全跳过。",
+            "到点后自动全屏置顶，帮助你停下工作。可暂停、稍后提醒，也始终可以安全结束。",
         ))
 
         status_card = Card()
@@ -116,18 +116,18 @@ class BreakPage(ScrollPage):
 
         advanced_card = Card(
             "高级设置",
-            "强制休息会显示全屏提示；即使启用，也可按 Esc 或点击按钮安全退出。",
+            "所有休息都会显示全屏提示。严格模式会隐藏“稍后提醒”，但仍可按 Esc 安全结束。",
         )
-        self._force_toggle = QCheckBox("使用全屏休息提示")
+        self._force_toggle = QCheckBox("严格休息模式")
         set_accessible(
             self._force_toggle,
-            "使用全屏休息提示",
-            "全屏提示始终保留安全退出途径",
+            "严格休息模式",
+            "严格模式不允许延后，但始终保留安全退出途径",
         )
         advanced_form = QFormLayout()
         self._display_combo = QComboBox()
         self._display_combo.addItem("仅在托盘显示", "tray")
-        self._display_combo.addItem("显示小浮窗", "floating")
+        self._display_combo.addItem("显示倒计时桌宠", "floating")
         self._display_combo.addItem("完全隐藏倒计时", "hidden")
         set_accessible(self._display_combo, "休息倒计时显示方式")
         advanced_form.addRow("倒计时显示", self._display_combo)
@@ -237,7 +237,7 @@ class BreakPage(ScrollPage):
 
             self._pause_button.setText("继续计时" if paused else "暂停计时")
             self._pause_button.setEnabled(enabled)
-            self._snooze_button.setEnabled(enabled)
+            self._snooze_button.setEnabled(enabled and not force)
             self._skip_button.setVisible(enabled and phase == "resting")
             for widget in (
                 self._enable_toggle,

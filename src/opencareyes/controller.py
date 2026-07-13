@@ -338,11 +338,16 @@ class AppController(QObject):
 
     def snooze_break(self, minutes: int = 5) -> bool:
         minutes = max(1, int(minutes))
+
+        def operation() -> None:
+            self._require_service(self._break_reminder, "break reminder")
+            if self._break_reminder.force_break:
+                raise ValueError("严格休息模式下不能稍后提醒")
+            self._break_reminder.snooze(minutes * 60)
+
         return self._run(
             "break_snooze",
-            lambda: self._require_and_call(
-                self._break_reminder, "snooze", minutes * 60
-            ),
+            operation,
         )
 
     def skip_break(self) -> bool:
