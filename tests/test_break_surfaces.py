@@ -11,6 +11,7 @@ from opencareyes.ui.mini_countdown import MiniCountdownWidget
 
 class _Controller(QObject):
     state_changed = Signal(object)
+    break_tick = Signal(int, int)
 
     def __init__(self, state: AppState):
         super().__init__()
@@ -105,16 +106,55 @@ def test_overlay_hides_when_work_resumes(qtbot):
     assert not overlay.isVisible()
 
 
-def test_visible_overlay_rechecks_screen_geometry(qtbot, monkeypatch):
+def test_visible_overlay_does_not_repeat_unchanged_screen_geometry(
+    qtbot,
+    monkeypatch,
+):
     controller = _Controller(_state(phase="resting"))
     overlay = BreakOverlay(controller)
     qtbot.addWidget(overlay)
-    cover_calls = []
-    monkeypatch.setattr(overlay, "_cover_all_screens", lambda: cover_calls.append(True))
+    geometry_calls = []
+    monkeypatch.setattr(
+        overlay,
+        "setGeometry",
+        lambda *args: geometry_calls.append(args),
+    )
 
     controller.publish(_state(phase="resting", remaining=42))
 
-    assert cover_calls == [True]
+    assert geometry_calls == []
+
+
+def test_break_tick_only_updates_countdown_text(qtbot, monkeypatch):
+    controller = _Controller(_state(phase="resting", remaining=20))
+    overlay = BreakOverlay(controller)
+    qtbot.addWidget(overlay)
+    window_calls = []
+    for method_name in ("show", "hide", "raise_", "activateWindow", "setGeometry"):
+        monkeypatch.setattr(
+            overlay,
+            method_name,
+            lambda *args, name=method_name: window_calls.append(name),
+        )
+
+    for remaining in range(20, -1, -1):
+        controller.break_tick.emit(remaining, 20)
+        assert overlay._countdown_label.text() == f"0:{remaining:02d}"
+        assert overlay.isVisible()
+
+    assert window_calls == []
+
+
+def test_skip_button_ends_rest_once_and_hides_immediately(qtbot):
+    controller = _Controller(_state(phase="resting"))
+    overlay = BreakOverlay(controller)
+    qtbot.addWidget(overlay)
+
+    qtbot.mouseClick(overlay._skip_button, Qt.LeftButton)
+
+    assert controller.skip_calls == 1
+    assert controller.state.breaks.phase == "working"
+    assert not overlay.isVisible()
 
 
 def test_countdown_pet_shows_state_and_can_be_closed(qtbot):

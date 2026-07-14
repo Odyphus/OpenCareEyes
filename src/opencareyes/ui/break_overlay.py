@@ -205,7 +205,8 @@ class BreakOverlay(QWidget):
         combined = screens[0].geometry()
         for screen in screens[1:]:
             combined = combined.united(screen.geometry())
-        self.setGeometry(combined)
+        if self.geometry() != combined:
+            self.setGeometry(combined)
 
     def paintEvent(self, event) -> None:
         painter = QPainter(self)

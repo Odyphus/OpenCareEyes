@@ -16,7 +16,7 @@ python -m PyInstaller --noconfirm --clean opencareyes.spec
 
 逐项完成 [UPLOAD_CHECKLIST.md](UPLOAD_CHECKLIST.md)，尤其确认：
 
-- `pyproject.toml` 是版本号唯一来源，版本为 `0.4.0`。
+- `pyproject.toml` 是版本号唯一来源，版本为 `0.4.1`。
 - 统一效果入口、失败回滚、HDR 安全、短/长休息、渐进提示、桌宠位置、原子热键、自动化偏移和手动更新检查均有测试。
 - 未点击“检查更新”时零更新网络请求。
 - README 的截图/GIF 来自真实 v0.4 构建，不把 v0.3 历史演示标为当前版本。
@@ -30,7 +30,7 @@ python -m PyInstaller --noconfirm --clean opencareyes.spec
 ```powershell
 git switch main
 git pull --ff-only
-$Version = "v0.4.0" # 必须与 pyproject.toml 一致
+$Version = "v0.4.1" # 必须与 pyproject.toml 一致
 git tag -a $Version -m "OpenCareEyes $Version"
 git push origin main
 git push origin $Version
@@ -39,9 +39,9 @@ git push origin $Version
 `v*` 标签会触发 Windows CI，构建：
 
 - `OpenCareEyes.exe`
-- `OpenCareEyes_Setup_0.4.0.exe`
+- `OpenCareEyes_Setup_0.4.1.exe`
 - `SHA256SUMS.txt`
-- `OpenCareEyes_WinGet_0.4.0.zip` 候选清单
+- `OpenCareEyes_WinGet_0.4.1.zip` 候选清单
 - `THIRD_PARTY_NOTICES.md`（安装包和便携版内同时包含完整 `licenses/` 文本）
 
 工作流随后创建 GitHub Release。不要在 Release 工作流成功前创建同名正式 Release，也不要修改已经用于 WinGet 的版本固定资产。
@@ -50,7 +50,7 @@ git push origin $Version
 
 在匿名/无登录浏览器中逐项验证：
 
-1. Tag、Release 标题和 `pyproject.toml` 都是 `0.4.0`。
+1. Tag、Release 标题和 `pyproject.toml` 都是 `0.4.1`。
 2. 五个发布资产可下载，文件名无误。
 3. `SHA256SUMS.txt` 与实际便携版、安装版、WinGet ZIP 和第三方 notice 完全匹配。
 4. 在干净 Windows 环境完成便携启动、单实例唤起、安装、从上一稳定版升级和卸载。
@@ -68,15 +68,15 @@ git push origin $Version
 
 ```powershell
 python scripts\generate_winget_manifest.py `
-  .\installer_output\OpenCareEyes_Setup_0.4.0.exe `
-  --version 0.4.0
+  .\installer_output\OpenCareEyes_Setup_0.4.1.exe `
+  --version 0.4.1
 
-winget validate .\winget_output\manifests\o\Odyphus\OpenCareEyes\0.4.0
+winget validate .\winget_output\manifests\o\Odyphus\OpenCareEyes\0.4.1
 ```
 
 然后按 [Microsoft WinGet 提交流程](https://learn.microsoft.com/windows/package-manager/package/repository) 完成：
 
-1. 检查 `InstallerUrl` 指向版本固定的 `v0.4.0` GitHub Release 资产，不使用 `/latest/`。
+1. 检查 `InstallerUrl` 指向版本固定的 `v0.4.1` GitHub Release 资产，不使用 `/latest/`。
 2. 检查 `InstallerSha256` 与在线下载的安装包一致。
 3. `winget validate` 无错误；不要用忽略警告掩盖需要修复的问题。
 4. 在全新 Windows Sandbox 中验证静默安装、正常启动、从上一版本升级和卸载。

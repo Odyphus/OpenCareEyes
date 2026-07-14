@@ -4,6 +4,14 @@
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-07-14
+
+### Fixed
+
+- 修复 OpenCareEyes 自己的全屏休息窗口触发 `QUNS_BUSY` 后被智能免打扰误判为外部全屏，导致遮罩周期性闪烁、倒计时冻结和按钮点击中断的问题；外部 busy、演示、D3D 和真实全屏检测保持原行为。
+- 休息遮罩仅在显示器联合几何实际变化时调整窗口；普通 `break_tick` 只更新倒计时文字，不再重复显示、隐藏、激活或设置整屏几何。
+- “结束本次休息”和 `Esc` 改为纯运行时安全退出，不再受 Gamma、调暗、效果协调或设置同步失败影响，操作后立即返回工作状态并隐藏遮罩。
+
 ## [0.4.0] - 2026-07-13
 
 ### Added
@@ -100,7 +108,8 @@
 - 修正 `src/` 布局的源码安装命令、包版本不一致、嵌套源码 ZIP 与安装器输入路径。
 - 补全 Apache License 2.0 正文和卸载后本地设置的说明。
 
-[Unreleased]: https://github.com/Odyphus/OpenCareEyes/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/Odyphus/OpenCareEyes/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/Odyphus/OpenCareEyes/releases/tag/v0.4.1
 [0.4.0]: https://github.com/Odyphus/OpenCareEyes/releases/tag/v0.4.0
 [0.3.0]: https://github.com/Odyphus/OpenCareEyes/releases/tag/v0.3.0
 [0.2.1]: https://github.com/Odyphus/OpenCareEyes/releases/tag/v0.2.1

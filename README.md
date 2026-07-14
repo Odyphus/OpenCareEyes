@@ -4,7 +4,7 @@
 
 **面向 Windows 办公与学习用户的本地优先、低打扰护眼助手**
 
-[![Version](https://img.shields.io/badge/version-0.4.0-5B8DEF.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.4.1-5B8DEF.svg)](CHANGELOG.md)
 [![Windows CI](https://github.com/Odyphus/OpenCareEyes/actions/workflows/windows-ci.yml/badge.svg)](https://github.com/Odyphus/OpenCareEyes/actions/workflows/windows-ci.yml)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)

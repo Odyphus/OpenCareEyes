@@ -162,6 +162,30 @@ def test_controller_updates_service_settings_and_snapshot(controller):
     assert spy.count() == 1
 
 
+def test_skip_break_is_runtime_only_and_immediate(controller, monkeypatch):
+    instance, _settings, _blue_filter, _dimmer, reminder, *_ = controller
+    reminder.start()
+    assert reminder.start_break_now("short") is True
+    assert reminder.phase == "resting"
+
+    def unexpected_call(*_args, **_kwargs):
+        raise AssertionError("runtime-only break exit touched persistence or effects")
+
+    monkeypatch.setattr(instance, "_sync_settings_checked", unexpected_call)
+    monkeypatch.setattr(instance, "_reconcile_effects", unexpected_call)
+    monkeypatch.setattr(
+        instance,
+        "_apply_break_configuration_from_settings",
+        unexpected_call,
+    )
+    monkeypatch.setattr(instance, "_restore_pause_deadline", unexpected_call)
+
+    assert instance.skip_break() is True
+    assert reminder.phase == "working"
+    assert reminder.is_on_break is False
+    assert instance.state.breaks.phase == "working"
+
+
 def test_failed_service_write_is_visible_and_not_persisted(controller):
     instance, settings, blue_filter, *_ = controller
     blue_filter.fail_enable = True

@@ -707,6 +707,8 @@ class AppController(QObject):
         return self._run(
             "break_skip",
             lambda: self._require_and_call(self._break_reminder, "skip_break"),
+            reconcile=False,
+            persist_settings=False,
         )
 
     def apply_display_profile(
@@ -2152,17 +2154,19 @@ class AppController(QObject):
                     rollback()
                 except Exception as rollback_exc:
                     rollback_errors.append(str(rollback_exc))
-            try:
-                self._apply_break_configuration_from_settings()
-            except Exception as rollback_exc:
-                rollback_errors.append(str(rollback_exc))
+            if persist_settings:
+                try:
+                    self._apply_break_configuration_from_settings()
+                except Exception as rollback_exc:
+                    rollback_errors.append(str(rollback_exc))
             if reconcile:
                 rollback_result = self._reconcile_effects()
                 if not rollback_result.succeeded:
                     rollback_errors.append(
                         self._reconcile_error_message(rollback_result)
                     )
-            self._restore_pause_deadline()
+            if persist_settings:
+                self._restore_pause_deadline()
             self._in_transaction = False
             self._fail(code, exc)
             if rollback_errors:

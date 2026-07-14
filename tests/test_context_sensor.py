@@ -2,13 +2,17 @@
 
 import ctypes
 from datetime import datetime, timezone
+from types import SimpleNamespace
 
+import pytest
 from PySide6.QtTest import QSignalSpy
 
 from opencareyes.domain.context import ContextSnapshot
+from opencareyes.platform import context_sensor as context_sensor_module
 from opencareyes.platform import win32_api as api
 from opencareyes.platform.context_sensor import (
     ContextSensor,
+    Win32ContextBackend,
     WindowsSessionEventFilter,
 )
 
@@ -66,6 +70,43 @@ def make_sensor(backend, clock=None):
         stale_after_seconds=5,
         monotonic=clock or FakeClock(),
     )
+
+
+@pytest.mark.parametrize(
+    ("is_own_window", "mode", "expected_mode"),
+    [
+        (True, "busy", "normal"),
+        (False, "busy", "busy"),
+        (True, "presentation", "presentation"),
+        (True, "d3d_fullscreen", "d3d_fullscreen"),
+    ],
+)
+def test_win32_backend_ignores_only_own_window_busy(
+    monkeypatch,
+    is_own_window,
+    mode,
+    expected_mode,
+):
+    backend = Win32ContextBackend.__new__(Win32ContextBackend)
+    backend._own_process_id = 42
+    process_id = 42 if is_own_window else 99
+    monkeypatch.setattr(
+        context_sensor_module,
+        "api",
+        SimpleNamespace(GetForegroundWindow=lambda: 123),
+    )
+    monkeypatch.setattr(backend, "_window_process_id", lambda _hwnd: process_id)
+    monkeypatch.setattr(backend, "_window_class", lambda _hwnd: "")
+    monkeypatch.setattr(backend, "_application_id", lambda _pid: "external.exe")
+    monkeypatch.setattr(backend, "_is_fullscreen", lambda _hwnd: False)
+    monkeypatch.setattr(backend, "_notification_mode", lambda: mode)
+    monkeypatch.setattr(backend, "_idle_seconds", lambda: 0)
+
+    snapshot = backend.sample("active")
+
+    assert snapshot.notification_mode == expected_mode
+    assert snapshot.foreground_app_id == ("" if is_own_window else "external.exe")
+    assert snapshot.fullscreen is False
 
 
 def test_start_samples_immediately_and_is_idempotent(qtbot):

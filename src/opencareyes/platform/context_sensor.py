@@ -65,12 +65,18 @@ class Win32ContextBackend:
         )
         app_id = "" if excluded_window else self._application_id(process_id)
         fullscreen = False if excluded_window else self._is_fullscreen(hwnd)
+        notification_mode = self._notification_mode()
+        # A topmost OpenCareEyes break surface can make Windows report
+        # QUNS_BUSY. Treat only that self-generated busy state as normal so it
+        # cannot feed back into smart pause. Stronger modes remain meaningful.
+        if is_own_window and notification_mode == "busy":
+            notification_mode = "normal"
 
         return ContextSnapshot(
             session=session,
             foreground_app_id=app_id,
             fullscreen=fullscreen,
-            notification_mode=self._notification_mode(),
+            notification_mode=notification_mode,
             idle_seconds=self._idle_seconds(),
             captured_at=datetime.now().astimezone(),
         )
