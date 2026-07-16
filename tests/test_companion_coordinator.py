@@ -72,6 +72,18 @@ def test_same_semantic_tick_does_not_restart_current_animation():
     assert pet.state.behavior.started_at == started_at
 
 
+def test_break_completion_releases_rest_action_back_to_idle():
+    pet = coordinator()
+
+    assert pet.sync_break_behavior('resting') is True
+    assert pet.state.behavior.event_kind == 'rest.sleep'
+    assert pet.state.behavior.action_id == 'sleep'
+
+    assert pet.sync_break_behavior('working') is True
+    assert pet.state.behavior.event_kind == 'autonomous.idle'
+    assert pet.state.behavior.action_id == 'idle'
+
+
 def test_cursor_tracking_does_not_interrupt_autonomous_walk():
     pet = coordinator()
 

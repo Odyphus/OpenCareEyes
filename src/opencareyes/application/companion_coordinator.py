@@ -217,6 +217,17 @@ class CompanionCoordinator:
             return False
         return self.complete_action()
 
+    def sync_break_behavior(self, phase: str, prompt_stage: str = 'none') -> bool:
+        '''Keep the companion action aligned with the break state machine.'''
+
+        if str(phase) == 'resting':
+            return self.dispatch_kind('rest.sleep')
+
+        changed = self.clear_event('rest.sleep')
+        if str(prompt_stage) not in {'none', 'hidden'}:
+            changed = self.dispatch_kind('break.due') or changed
+        return changed
+
     def choose_autonomous_action(self) -> PetAction:
         '''Choose a presentation action using injected, testable randomness.'''
 

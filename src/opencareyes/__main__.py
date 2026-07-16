@@ -649,11 +649,19 @@ def main() -> None:
         )
         if break_semantic != last_break_semantic:
             last_break_semantic = break_semantic
+            behavior_changed = companion is not None and companion.sync_break_behavior(
+                state.breaks.phase,
+                state.break_prompt.stage,
+            )
+            if behavior_changed:
+                pet_surface.play_action(
+                    companion.current_action.action_id,
+                    restart=True,
+                )
+                controller.refresh_companion_presentation(force=True)
             if state.breaks.phase == 'resting':
-                dispatch_pet_event('rest.sleep')
                 pet_bubble.hide()
             elif state.break_prompt.stage not in {'none', 'hidden'}:
-                dispatch_pet_event('break.due')
                 if companion_state.visible and not state.breaks.force_break:
                     pet_bubble.set_status('该休息一下了', '看看远处，让眼睛放松。')
                     pet_bubble.show_for(pet_surface)

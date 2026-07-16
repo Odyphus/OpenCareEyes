@@ -36,6 +36,7 @@ build = [
     "tomli>=2.0; python_version < '3.11'",
 ]
 dev = [
+    "pillow>=10.0",
     "pytest>=8.0",
     "pytest-qt>=4.4",
     "ruff>=0.6",
