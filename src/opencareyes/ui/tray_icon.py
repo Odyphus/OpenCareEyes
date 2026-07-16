@@ -8,6 +8,7 @@ from PySide6.QtCore import QSignalBlocker
 from PySide6.QtGui import QAction, QActionGroup, QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 
+from opencareyes.application.status_presenter import StatusPresenter
 from opencareyes.constants import ICONS_DIR
 from opencareyes.ui.widgets import (
     first_state_value,
@@ -20,11 +21,12 @@ from opencareyes.ui.widgets import (
 class TrayIcon(QSystemTrayIcon):
     """Quick actions that never write settings or services directly."""
 
-    def __init__(self, controller, panel, mini_countdown=None, parent=None):
+    def __init__(self, controller, panel, pet_surface=None, parent=None):
         super().__init__(parent)
         self._controller = controller
         self._panel = panel
-        self._mini_countdown = mini_countdown
+        self._pet_surface = pet_surface
+        self._mini_countdown = pet_surface
         self._create_icon()
         self._create_menu()
         self.activated.connect(self._on_activated)
@@ -59,19 +61,59 @@ class TrayIcon(QSystemTrayIcon):
         self._menu = QMenu()
         self._open_action = self._menu.addAction("打开 OpenCareEyes")
         self._open_action.triggered.connect(self._show_panel)
+        self._pet_action = self._check_action("显示桌面伙伴", self._toggle_pet)
+        self._rest_now_action = self._menu.addAction("现在休息")
+        self._rest_now_action.triggered.connect(self._start_break_now)
+
+        pause_menu = self._menu.addMenu("暂停全部")
+        pause_menu.addAction("30 分钟").triggered.connect(
+            lambda: self._controller.pause_all(minutes=30)
+        )
+        pause_menu.addAction("1 小时").triggered.connect(
+            lambda: self._controller.pause_all(minutes=60)
+        )
+        pause_menu.addAction("直到下一次自动切换").triggered.connect(
+            lambda: self._controller.pause_all(minutes=None, until_next_schedule=True)
+        )
+        pause_menu.addAction("直到手动恢复").triggered.connect(
+            lambda: self._controller.pause_all(minutes=None)
+        )
+        self._resume_all_action = self._menu.addAction("恢复全部效果")
+        self._resume_all_action.triggered.connect(self._controller.resume_all)
         self._menu.addSeparator()
 
-        self._filter_action = self._check_action("色温调节", self.toggle_filter)
-        self._dimmer_action = self._check_action("屏幕调暗", self.toggle_dimmer)
-        self._break_action = self._check_action("休息提醒", self.toggle_break)
-        self._pet_action = self._check_action("显示倒计时桌宠", self._toggle_pet)
-        self._preview_pet_action = self._menu.addAction("预览倒计时桌宠")
-        self._preview_pet_action.triggered.connect(self._preview_pet)
-        self._reset_pet_action = self._menu.addAction("重置桌宠位置")
-        self._reset_pet_action.triggered.connect(self._reset_pet_position)
-        self._focus_action = self._check_action("专注模式", self.toggle_focus)
+        protection_menu = self._menu.addMenu("屏幕舒适与专注")
+        self._filter_action = self._check_action(
+            "色温调节", self.toggle_filter, protection_menu
+        )
+        self._dimmer_action = self._check_action(
+            "屏幕调暗", self.toggle_dimmer, protection_menu
+        )
+        self._focus_action = self._check_action(
+            "专注模式", self.toggle_focus, protection_menu
+        )
+        profile_menu = protection_menu.addMenu("显示方案")
+        self._profile_group = QActionGroup(self)
+        self._profile_group.setExclusive(True)
+        self._profile_actions: dict[str, QAction] = {}
+        for key, label in (
+            ("office", "办公"),
+            ("reading", "阅读"),
+            ("night", "夜间"),
+            ("game", "游戏"),
+        ):
+            action = profile_menu.addAction(label)
+            action.setCheckable(True)
+            action.triggered.connect(
+                lambda checked=False, profile=key: self.apply_preset(profile)
+            )
+            self._profile_group.addAction(action)
+            self._profile_actions[key] = action
 
-        self._break_control_menu = self._menu.addMenu("休息计时")
+        self._break_control_menu = self._menu.addMenu("休息提醒")
+        self._break_action = self._check_action(
+            "启用休息提醒", self.toggle_break, self._break_control_menu
+        )
         self._pause_break_action = self._break_control_menu.addAction("暂停计时")
         self._pause_break_action.triggered.connect(self._toggle_break_pause)
         self._snooze_menu = self._break_control_menu.addMenu("稍后提醒")
@@ -90,48 +132,21 @@ class TrayIcon(QSystemTrayIcon):
             self._controller.resume_breaks_for_current_context
         )
 
-        profile_menu = self._menu.addMenu("显示方案")
-        self._profile_group = QActionGroup(self)
-        self._profile_group.setExclusive(True)
-        self._profile_actions: dict[str, QAction] = {}
-        for key, label in (
-            ("office", "办公"),
-            ("reading", "阅读"),
-            ("night", "夜间"),
-            ("game", "游戏"),
-        ):
-            action = profile_menu.addAction(label)
-            action.setCheckable(True)
-            action.triggered.connect(
-                lambda checked=False, profile=key: self.apply_preset(profile)
-            )
-            self._profile_group.addAction(action)
-            self._profile_actions[key] = action
-
-        pause_menu = self._menu.addMenu("暂停全部")
-        pause_menu.addAction("30 分钟").triggered.connect(
-            lambda: self._controller.pause_all(minutes=30)
-        )
-        pause_menu.addAction("1 小时").triggered.connect(
-            lambda: self._controller.pause_all(minutes=60)
-        )
-        pause_menu.addAction("直到下一次自动切换").triggered.connect(
-            lambda: self._controller.pause_all(minutes=None, until_next_schedule=True)
-        )
-        pause_menu.addAction("直到手动恢复").triggered.connect(
-            lambda: self._controller.pause_all(minutes=None)
-        )
-        self._resume_all_action = self._menu.addAction("恢复全部效果")
-        self._resume_all_action.triggered.connect(self._controller.resume_all)
+        companion_menu = self._menu.addMenu("伙伴")
+        self._preview_pet_action = companion_menu.addAction("预览桌面伙伴")
+        self._preview_pet_action.triggered.connect(self._preview_pet)
+        self._reset_pet_action = companion_menu.addAction("重置桌宠位置")
+        self._reset_pet_action.triggered.connect(self._reset_pet_position)
 
         self._menu.addSeparator()
+        settings_menu = self._menu.addMenu("设置与自动化")
         self._autostart_action = self._check_action(
-            "开机自动启动", self._controller.set_autostart
+            "开机自动启动", self._controller.set_autostart, settings_menu
         )
-        self._menu.addAction("自动化设置…").triggered.connect(
-            lambda: self._panel.show_page("自动化")
+        settings_menu.addAction("自动日程…").triggered.connect(
+            lambda: self._panel.show_page("自动日程")
         )
-        self._menu.addAction("设置…").triggered.connect(
+        settings_menu.addAction("设置…").triggered.connect(
             lambda: self._panel.show_page("设置")
         )
         self._menu.addSeparator()
@@ -139,11 +154,16 @@ class TrayIcon(QSystemTrayIcon):
         self._menu.aboutToShow.connect(lambda: self.render(self._controller.state))
         self.setContextMenu(self._menu)
 
-    def _check_action(self, text: str, callback) -> QAction:
-        action = self._menu.addAction(text)
+    def _check_action(self, text: str, callback, menu=None) -> QAction:
+        action = (menu or self._menu).addAction(text)
         action.setCheckable(True)
         action.triggered.connect(callback)
         return action
+
+    def _start_break_now(self) -> None:
+        starter = getattr(self._controller, "start_break_now", None)
+        if callable(starter):
+            starter()
 
     def toggle_filter(self, checked: bool | None = None) -> None:
         enabled = bool(first_state_value(
@@ -169,9 +189,9 @@ class TrayIcon(QSystemTrayIcon):
         self._controller.apply_display_profile(name)
 
     def _toggle_pet(self, visible: bool) -> None:
-        setter = getattr(self._controller, "set_break_countdown_display", None)
+        setter = getattr(self._controller, "set_companion_enabled", None)
         if callable(setter):
-            setter("floating" if visible else "tray")
+            setter(bool(visible))
 
     def _preview_pet(self) -> None:
         preview = getattr(self._mini_countdown, "preview", None)
@@ -241,6 +261,9 @@ class TrayIcon(QSystemTrayIcon):
         countdown_display = str(first_state_value(
             state, "breaks.countdown_display", default="tray"
         ))
+        companion_enabled = bool(first_state_value(
+            state, "companion.enabled", default=True
+        ))
         remaining = first_state_value(state, "breaks.remaining", default=0)
         temp = int(first_state_value(state, "display.color_temperature", default=6500))
         dim_level = int(first_state_value(state, "display.dim_level", default=0))
@@ -256,13 +279,9 @@ class TrayIcon(QSystemTrayIcon):
             with QSignalBlocker(action):
                 action.setChecked(checked)
         with QSignalBlocker(self._pet_action):
-            self._pet_action.setChecked(countdown_display == "floating")
-        self._pet_action.setEnabled(break_enabled)
-        self._pet_action.setToolTip(
-            "在屏幕上显示可拖动的倒计时伙伴"
-            if break_enabled
-            else "请先启用休息提醒"
-        )
+            self._pet_action.setChecked(companion_enabled)
+        self._pet_action.setEnabled(True)
+        self._pet_action.setToolTip("在桌面显示可拖动的陪伴宠物")
         pet_available = self._mini_countdown is not None
         self._preview_pet_action.setEnabled(pet_available)
         self._reset_pet_action.setEnabled(pet_available)
@@ -287,7 +306,8 @@ class TrayIcon(QSystemTrayIcon):
         self._break_action.setText(break_text)
         self._pause_break_action.setText("继续计时" if break_paused else "暂停计时")
         self._pause_break_action.setEnabled(break_enabled and not break_suppressed)
-        self._break_control_menu.setEnabled(break_enabled)
+        self._break_control_menu.setEnabled(True)
+        self._rest_now_action.setEnabled(break_enabled and not break_suppressed)
         self._snooze_menu.setEnabled(
             break_enabled and not force_break and not break_suppressed
         )
@@ -318,21 +338,9 @@ class TrayIcon(QSystemTrayIcon):
             self._autostart_action.setChecked(autostart)
         self._resume_all_action.setVisible(globally_paused)
 
-        if globally_paused:
-            tooltip = "OpenCareEyes · 全部效果已暂停"
-        elif break_enabled and break_suppressed:
-            reason = "、".join(
-                suppression_reason_description(item)
-                for item in break_suppressed
-            )
-            detail = f" · {break_resume}" if break_resume else ""
-            tooltip = f"OpenCareEyes · 因{reason}暂停{detail}"
-        elif break_enabled and countdown_display == "hidden":
-            tooltip = "OpenCareEyes · 休息提醒运行中"
-        elif break_enabled and break_phase == "resting":
-            tooltip = f"OpenCareEyes · 正在休息 {format_duration(remaining)}"
-        elif break_enabled:
-            tooltip = f"OpenCareEyes · 下次休息 {format_duration(remaining)}"
-        else:
-            tooltip = "OpenCareEyes · 让屏幕更舒适"
-        self.setToolTip(tooltip)
+        presentation = StatusPresenter.project(state)
+        tooltip = (
+            f"OpenCareEyes · {presentation.headline} · "
+            f"{presentation.next_break_text}"
+        )
+        self.setToolTip(tooltip[:127])

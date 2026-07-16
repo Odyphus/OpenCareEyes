@@ -98,6 +98,12 @@ def _scrub(value):
                 "location",
                 "city",
                 "window_title",
+                "note",
+                "notes",
+                "note_text",
+                "note_title",
+                "note_body",
+                "note_content",
             }:
                 continue
             if normalized_key in {"app_id", "foreground_app_id", "recent_app_id"}:

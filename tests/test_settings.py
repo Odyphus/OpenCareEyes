@@ -168,6 +168,23 @@ class TestSettingsDefaults:
         assert settings.sunrise_offset == 0
         assert settings.sunset_offset == 0
 
+    def test_v5_companion_defaults(self, settings):
+        assert settings.companion_enabled is True
+        assert settings.active_pet_id == 'snow_ferret'
+        assert settings.pet_scale_percent == 100
+        assert settings.pet_anchor_edge == 'bottom_right'
+        assert settings.pet_anchor_offset == 24
+        assert settings.follow_active_monitor is True
+        assert settings.window_avoidance_enabled is True
+        assert settings.companion_sound_enabled is False
+        assert settings.hourly_chime_enabled is False
+        assert settings.weather_enabled is False
+        assert settings.holiday_pack == 'zh-CN'
+        assert settings.break_rest_scene == 'gaze'
+        assert settings.pet_preferences == {}
+        assert settings.app_prop_rules == ()
+        assert settings.quick_actions == ('rest', 'timer', 'notes', 'system')
+
 
 class TestSettingsSetGet:
     def test_set_filter_enabled(self, settings, mock_qsettings):
@@ -252,14 +269,14 @@ def test_environment_can_select_isolated_ini_backend(monkeypatch, tmp_path):
     assert path.exists()
 
 
-def test_empty_store_migrates_to_v4_with_new_install_defaults():
+def test_empty_store_migrates_to_v6_with_new_install_defaults():
     from opencareyes.config.settings import Settings
 
     store = MemoryStore()
     settings = Settings(store)
 
-    assert store.values == {"meta/schema_version": 4}
-    assert settings.stored_schema_version == 4
+    assert store.values == {"meta/schema_version": 6}
+    assert settings.stored_schema_version == 6
     assert settings.read_only is False
     assert settings.break_mode == "20-20-20"
     assert settings.break_reminder_style == "progressive"
@@ -272,7 +289,7 @@ def test_v1_migrates_in_order_and_preserves_legacy_effective_defaults():
     store = MemoryStore({"filter/enabled": True})
     settings = Settings(store)
 
-    assert settings.stored_schema_version == 4
+    assert settings.stored_schema_version == 6
     assert settings.onboarding_completed is True
     assert settings.break_mode == "pomodoro"
     assert settings.work_duration == 45 * 60
@@ -302,7 +319,7 @@ def test_v2_migration_preserves_explicit_values_and_is_idempotent():
 
     store.writes.clear()
     second = Settings(store)
-    assert second.stored_schema_version == 4
+    assert second.stored_schema_version == 6
     assert store.writes == []
     assert writes_after_first_migration
 
@@ -334,7 +351,7 @@ def test_v3_sun_migration_preserves_behavior_and_materializes_v4_values():
     )
     settings = Settings(store)
 
-    assert settings.stored_schema_version == 4
+    assert settings.stored_schema_version == 6
     assert settings.break_reminder_style == "fullscreen"
     assert settings.cadence_mode == "custom"
     assert settings.cadence_short_interval == 1800
@@ -371,13 +388,112 @@ def test_v3_fixed_migration_keeps_selected_days_and_explicit_style():
     assert writes_after_migration
 
 
+@pytest.mark.parametrize(
+    ('countdown_display', 'expected_enabled'),
+    [('floating', True), ('tray', False), ('hidden', False)],
+)
+def test_v4_to_v5_migration_preserves_previous_pet_visibility(
+    countdown_display,
+    expected_enabled,
+):
+    from opencareyes.config.settings import Settings
+
+    store = MemoryStore(
+        {
+            'meta/schema_version': 4,
+            'break/countdown_display': countdown_display,
+            'ui/pet_x': -240,
+            'ui/pet_y': 96,
+        }
+    )
+    settings = Settings(store)
+
+    assert settings.stored_schema_version == 6
+    assert settings.companion_enabled is expected_enabled
+    assert settings.active_pet_id == 'snow_ferret'
+    assert settings.pet_x == -240
+    assert settings.pet_y == 96
+    assert settings.pet_anchor_edge == 'free'
+    assert settings.pet_anchor_offset == 0
+    assert settings.weather_enabled is False
+    assert settings.companion_sound_enabled is False
+
+
+def test_v5_companion_accessors_validate_and_round_trip():
+    from opencareyes.config.settings import Settings
+
+    settings = Settings(MemoryStore())
+    settings.active_pet_id = 'snow_ferret'
+    settings.recovery_pet_id = 'tiny_bird'
+    settings.pet_scale_percent = 125
+    settings.pet_anchor_edge = 'bottom_left'
+    settings.pet_preferences = {
+        'snow_ferret': {'neckwear': 'red_scarf', 'effect': 'snow'},
+    }
+    settings.app_prop_rules = (
+        {'app_id': 'WINWORD.EXE', 'prop_id': 'pencil'},
+    )
+    settings.quiet_hours_start = '22:30'
+    settings.quiet_hours_end = '07:15'
+    settings.break_rest_scene = 'stretch'
+    settings.quick_actions = ('rest', 'notes', 'timer')
+
+    assert settings.pet_scale_percent == 125
+    assert settings.recovery_pet_id == 'tiny_bird'
+    assert settings.pet_anchor_edge == 'bottom_left'
+    assert settings.pet_preferences['snow_ferret']['neckwear'] == 'red_scarf'
+    assert settings.app_prop_rules == (
+        {'app_id': 'winword.exe', 'prop_id': 'pencil'},
+    )
+    assert settings.quiet_hours_start == '22:30'
+    assert settings.quiet_hours_end == '07:15'
+    assert settings.break_rest_scene == 'stretch'
+    assert settings.quick_actions == ('rest', 'notes', 'timer')
+
+    with pytest.raises(ValueError):
+        settings.active_pet_id = '../unsafe'
+    with pytest.raises(ValueError):
+        settings.recovery_pet_id = '../unsafe'
+    with pytest.raises(ValueError):
+        settings.pet_scale_percent = 20
+    with pytest.raises(ValueError):
+        settings.quiet_hours_start = '24:00'
+    with pytest.raises(ValueError):
+        settings.app_prop_rules = (
+            {'app_id': r'C:\\Windows\\calc.exe', 'prop_id': 'calculator'},
+        )
+    with pytest.raises(ValueError):
+        settings.quick_actions = ('rest', 'unknown')
+
+
+def test_v5_to_v6_materializes_quick_actions_without_changing_preferences():
+    from opencareyes.config.settings import Settings
+
+    store = MemoryStore(
+        {
+            'meta/schema_version': 5,
+            'companion/enabled': False,
+            'general/theme': 'dark',
+        }
+    )
+    settings = Settings(store)
+
+    assert settings.stored_schema_version == 6
+    assert settings.companion_enabled is False
+    assert settings.theme == 'dark'
+    assert settings.quick_actions == ('rest', 'timer', 'notes', 'system')
+    assert store.values['companion/quick_actions_json'] == (
+        '["rest","timer","notes","system"]'
+    )
+
+
 def test_preferences_repository_keeps_settings_compatibility():
     from opencareyes.config.settings import PreferencesRepository, Settings
 
     repository = PreferencesRepository(MemoryStore())
 
     assert isinstance(repository, Settings)
-    assert repository.stored_schema_version == 4
+    assert repository.stored_schema_version == 6
 
 
 def test_migration_sync_failure_restores_exact_snapshot():
@@ -578,7 +694,7 @@ def test_v4_accessors_reject_invalid_values():
 def test_repository_transaction_rolls_back_after_checked_sync_failure():
     from opencareyes.config.settings import PreferencesRepository
 
-    original = {"meta/schema_version": 4, "general/theme": "dark"}
+    original = {"meta/schema_version": 6, "general/theme": "dark"}
     store = MemoryStore(original, fail_sync_count=1)
     repository = PreferencesRepository(store)
 
@@ -593,7 +709,7 @@ def test_sync_checks_backend_status():
     from opencareyes.config.settings import PreferencesRepository
 
     repository = PreferencesRepository(
-        MemoryStore({"meta/schema_version": 4}, status_value=1)
+        MemoryStore({"meta/schema_version": 6}, status_value=1)
     )
     with pytest.raises(OSError, match="sync failed"):
         repository.sync()

@@ -8,33 +8,38 @@ from PySide6.QtCore import QSize, Qt, QTimer
 from PySide6.QtGui import QIcon, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
+    QBoxLayout,
     QFrame,
     QHBoxLayout,
     QLabel,
     QListWidget,
     QListWidgetItem,
+    QListView,
+    QPushButton,
     QStackedWidget,
     QVBoxLayout,
     QWidget,
 )
 
 from opencareyes.constants import ICONS_DIR
-from opencareyes.ui.automation_page import AutomationPage
-from opencareyes.ui.blue_light_page import BlueLightPage
-from opencareyes.ui.break_page import BreakPage
-from opencareyes.ui.focus_page import FocusPage
-from opencareyes.ui.overview_page import OverviewPage
+from opencareyes.ui.companion_pages import (
+    CompanionAutomationPage,
+    CompanionBreakPage,
+    CompanionHomePage,
+    PetCatalogPage,
+    StudyDeskPage,
+)
 from opencareyes.ui.settings_page import SettingsPage
 from opencareyes.ui.widgets import first_state_value
 
 
 _PAGES = (
-    ("总览", OverviewPage, "nav-overview.svg"),
-    ("屏幕舒适度", BlueLightPage, "nav-display.svg"),
-    ("休息节奏", BreakPage, "nav-breaks.svg"),
-    ("专注模式", FocusPage, "nav-focus.svg"),
-    ("自动化", AutomationPage, "nav-automation.svg"),
-    ("设置", SettingsPage, "nav-settings.svg"),
+    ('陪伴屋', CompanionHomePage, 'nav-overview.svg'),
+    ('宠物图鉴', PetCatalogPage, 'nav-focus.svg'),
+    ('学习桌', StudyDeskPage, 'nav-display.svg'),
+    ('休息角', CompanionBreakPage, 'nav-breaks.svg'),
+    ('自动日程', CompanionAutomationPage, 'nav-automation.svg'),
+    ('设置', SettingsPage, 'nav-settings.svg'),
 )
 
 
@@ -47,7 +52,7 @@ class MainPanel(QWidget):
         self._controller = controller
         self._applied_theme = ""
         self.setObjectName("mainPanel")
-        self.setWindowTitle("OpenCareEyes")
+        self.setWindowTitle('OpenCareEyes · 桌面伙伴')
         self.resize(920, 640)
         # Pages scroll independently, so a compact top-level minimum is safer
         # on 200% DPI laptops than forcing the window below the work area.
@@ -60,6 +65,7 @@ class MainPanel(QWidget):
 
     def _build_ui(self) -> None:
         root = QHBoxLayout(self)
+        self._root_layout = root
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
 
@@ -68,13 +74,14 @@ class MainPanel(QWidget):
         self._sidebar.setAttribute(Qt.WA_StyledBackground, True)
         self._sidebar.setFixedWidth(218)
         sidebar_layout = QVBoxLayout(self._sidebar)
+        self._sidebar_layout = sidebar_layout
         sidebar_layout.setContentsMargins(18, 22, 18, 18)
         sidebar_layout.setSpacing(14)
 
         self._brand = QLabel("OpenCareEyes")
         self._brand.setObjectName("brandTitle")
         self._brand.setAccessibleName("OpenCareEyes 主导航")
-        self._subtitle = QLabel("让屏幕更舒适")
+        self._subtitle = QLabel('Windows 桌面陪伴与护眼助手')
         self._subtitle.setObjectName("brandSubtitle")
         sidebar_layout.addWidget(self._brand)
         sidebar_layout.addWidget(self._subtitle)
@@ -105,18 +112,24 @@ class MainPanel(QWidget):
         root.addWidget(self._sidebar)
 
         content = QFrame()
+        self._content_area = content
         content.setObjectName("contentArea")
         content.setAttribute(Qt.WA_StyledBackground, True)
         content_layout = QVBoxLayout(content)
         content_layout.setContentsMargins(0, 0, 0, 0)
         content_layout.setSpacing(0)
 
-        self._message = QLabel()
+        self._message = QLabel(content)
         self._message.setObjectName("messageBanner")
         self._message.setWordWrap(True)
         self._message.setAccessibleName("操作提示")
+        self._message.setContentsMargins(0, 0, 28, 0)
+        self._message_close = QPushButton('×', self._message)
+        self._message_close.setObjectName('quietButton')
+        self._message_close.setAccessibleName('关闭操作提示')
+        self._message_close.setFixedSize(24, 24)
+        self._message_close.clicked.connect(self._message.hide)
         self._message.hide()
-        content_layout.addWidget(self._message)
         self._message_timer = QTimer(self)
         self._message_timer.setSingleShot(True)
         self._message_timer.setInterval(6000)
@@ -170,6 +183,14 @@ class MainPanel(QWidget):
 
     def _render(self, state) -> None:
         theme = str(first_state_value(state, "general.theme", default="system"))
+        pet_name = str(
+            first_state_value(
+                state,
+                'pet_catalog.active_display_name',
+                default='伙伴',
+            )
+        )
+        self.setWindowTitle(f'OpenCareEyes · {pet_name}桌面伙伴')
         self.apply_theme(theme)
 
     def apply_theme(self, theme: str) -> None:
@@ -181,21 +202,44 @@ class MainPanel(QWidget):
         self._applied_theme = str(resolved)
 
     def _update_responsive_layout(self) -> None:
+        narrow = self.width() < 720
         compact = self.width() < 880
-        self._sidebar.setFixedWidth(82 if compact else 218)
+        if narrow:
+            self._root_layout.setDirection(QBoxLayout.TopToBottom)
+            self._sidebar.setMinimumWidth(0)
+            self._sidebar.setMaximumWidth(16777215)
+            self._sidebar.setFixedHeight(64)
+            self._sidebar_layout.setContentsMargins(8, 6, 8, 6)
+            self._navigation.setFlow(QListView.LeftToRight)
+            self._navigation.setWrapping(False)
+            self._navigation.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+            self._navigation.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        else:
+            self._root_layout.setDirection(QBoxLayout.LeftToRight)
+            self._sidebar.setMinimumHeight(0)
+            self._sidebar.setMaximumHeight(16777215)
+            self._sidebar.setFixedWidth(82 if compact else 218)
+            self._sidebar_layout.setContentsMargins(18, 22, 18, 18)
+            self._navigation.setFlow(QListView.TopToBottom)
+            self._navigation.setWrapping(False)
+            self._navigation.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+            self._navigation.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self._brand.setVisible(not compact)
         self._subtitle.setVisible(not compact)
         self._privacy.setVisible(not compact)
         for index, label in enumerate(self._nav_labels):
             item = self._navigation.item(index)
-            item.setText("" if compact else label)
+            item.setText("" if compact or narrow else label)
+            item.setSizeHint(QSize(48 if narrow else 0, 44))
             item.setToolTip(
                 f"{label} · Ctrl+{index + 1}" if compact else f"Ctrl+{index + 1}"
             )
+        QTimer.singleShot(0, self._position_message)
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
         self._update_responsive_layout()
+        self._position_message()
 
     def showEvent(self, event) -> None:
         super().showEvent(event)
@@ -222,7 +266,9 @@ class MainPanel(QWidget):
         self._message.style().unpolish(self._message)
         self._message.style().polish(self._message)
         self._message.show()
-        self._message_timer.start()
+        self._message.raise_()
+        self._message_timer.stop()
+        self._position_message()
 
     def _show_notification(self, title: str, message: str) -> None:
         self._message.setProperty("kind", "info")
@@ -230,7 +276,23 @@ class MainPanel(QWidget):
         self._message.style().unpolish(self._message)
         self._message.style().polish(self._message)
         self._message.show()
+        self._message.raise_()
+        self._position_message()
         self._message_timer.start()
+
+    def _position_message(self) -> None:
+        if not hasattr(self, '_message') or not self._message.isVisible():
+            return
+        available = max(180, self._content_area.width() - 32)
+        width = min(520, available)
+        self._message.setFixedWidth(width)
+        self._message.adjustSize()
+        self._message.move(
+            max(16, self._content_area.width() - width - 16),
+            16,
+        )
+        self._message_close.move(width - 30, 4)
+        self._message_close.raise_()
 
     def show_page(self, name: str) -> None:
         """Open a named page; used by tray menu shortcuts."""

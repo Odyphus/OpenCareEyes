@@ -95,9 +95,11 @@ PackageName: OpenCareEyes
 PackageUrl: {REPOSITORY}
 License: Apache-2.0
 LicenseUrl: {REPOSITORY}/blob/v{version}/LICENSE
-ShortDescription: 本地优先、低打扰的 Windows 屏幕舒适度与休息提醒助手
-Description: 调节屏幕色调与明暗、提供活动加权休息提醒，并在全屏、锁屏或离开电脑时智能暂停。
+ShortDescription: Windows 桌面陪伴与护眼助手
+Description: 以桌面宠物为入口，提供本地优先的学习办公陪伴、活动加权休息提醒、屏幕舒适度、专注和快捷工具。
 Tags:
+  - desktop-pet
+  - study-companion
   - eye-comfort
   - break-reminder
   - local-first

@@ -4,13 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "opencareyes"
-version = "0.4.1"
-description = "Local-first, low-interruption eye comfort assistant for Windows"
+version = "0.6.1"
+description = "Windows 桌面陪伴与护眼助手"
 readme = { file = "README.md", content-type = "text/markdown" }
 license = "Apache-2.0"
 license-files = ["LICENSE"]
 requires-python = ">=3.10"
-keywords = ["eye-comfort", "break-reminder", "screen-dimmer", "windows"]
+keywords = ["desktop-pet", "study-companion", "eye-comfort", "windows"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Environment :: Win32 (MS Windows)",

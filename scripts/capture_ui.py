@@ -15,7 +15,7 @@ from PySide6.QtGui import QColor, QFont, QFontDatabase, QPixmap
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication
 
-from opencareyes.constants import STYLES_DIR
+from opencareyes.constants import PETS_DIR, STYLES_DIR
 from opencareyes.state import (
     AppState,
     AutomationState,
@@ -30,6 +30,8 @@ from opencareyes.state import (
     FocusState,
     GeneralState,
     GlobalPauseState,
+    PetCatalogEntryState,
+    PetCatalogState,
 )
 from opencareyes.ui.main_panel import MainPanel
 
@@ -106,6 +108,19 @@ class DemoController(QObject):
                 mode="20-20-20",
                 short_remaining=18 * 60 + 24,
             ),
+            pet_catalog=PetCatalogState(
+                available_pets=(
+                    PetCatalogEntryState(
+                        pet_id="snow_ferret",
+                        display_name="鼬鼬 · 白鼬",
+                        pack_version="2.0.0",
+                        preview_path=str(
+                            Path(PETS_DIR) / "snow_ferret" / "preview.png"
+                        ),
+                    ),
+                ),
+                active_pet_id="snow_ferret",
+            ),
         )
 
     def __getattr__(self, _name):
@@ -117,8 +132,8 @@ def main() -> int:
     parser.add_argument("--theme", choices=("light", "dark"), required=True)
     parser.add_argument(
         "--page",
-        choices=("总览", "屏幕舒适度", "休息节奏", "专注模式", "自动化", "设置"),
-        default="总览",
+        choices=("陪伴屋", "宠物图鉴", "学习桌", "休息角", "自动日程", "设置"),
+        default="陪伴屋",
     )
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
@@ -142,7 +157,7 @@ def main() -> int:
     QTest.qWait(100)
     panel.show_page(args.page)
     app.processEvents()
-    if args.page == "自动化":
+    if args.page == "自动日程":
         page = panel._stack.currentWidget()
         page.verticalScrollBar().setValue(420)
         app.processEvents()

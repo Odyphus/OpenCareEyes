@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "pet_id": "snow_ferret",
+  "display_name": "鼬鼬",
+  "pack_version": "1.0.0",
+  "min_app_version": "0.5.0",
+  "author": "OpenCareEyes",
+  "license": "Apache-2.0",
+  "canvas_size": [160, 160],
+  "default_scale": 100,
+  "preview_path": "preview.png",
+  "personality": {
+    "activity": 65,
+    "curiosity": 80,
+    "playfulness": 75,
+    "sleepiness": 45,
+    "sociability": 80,
+    "walk_speed": 34
+  },
+  "actions": {
+    "idle": {"loop": true, "frames": [{"path": "sprites/base.png", "duration_ms": 800}]},
+    "sleep": {"loop": true, "frames": [{"path": "sprites/base.png", "duration_ms": 1000}]},
+    "move": {"loop": true, "frames": [{"path": "sprites/base.png", "duration_ms": 120}]},
+    "click_reaction": {"frames": [{"path": "sprites/base.png", "duration_ms": 180}]},
+    "drag_hold": {"loop": true, "frames": [{"path": "sprites/base.png", "duration_ms": 120}]},
+    "drag_release": {"frames": [{"path": "sprites/base.png", "duration_ms": 240}]},
+    "right_click_reaction": {"frames": [{"path": "sprites/base.png", "duration_ms": 250}]},
+    "rest_prompt": {"loop": true, "frames": [{"path": "sprites/base.png", "duration_ms": 500}]},
+    "play": {"frames": [{"path": "sprites/base.png", "duration_ms": 150}]},
+    "paw_cursor": {"frames": [{"path": "sprites/base.png", "duration_ms": 170}]}
+  },
+  "event_bindings": {
+    "click": "paw_cursor",
+    "break.due": "rest_prompt"
+  },
+  "attachment_points": {
+    "headwear": [80, 35],
+    "neckwear": [80, 70],
+    "bodywear": [80, 95],
+    "held_item": [125, 100],
+    "scene": [80, 140],
+    "effect": [80, 80]
+  },
+  "appearance_rules": {
+    "weather.snow": {"neckwear": "accessories/scarf.png"},
+    "accessory.scarf": {"neckwear": "accessories/scarf.png"}
+  },
+  "sound_rules": {
+    "hourly.chime": "sounds/chime.wav"
+  }
+}

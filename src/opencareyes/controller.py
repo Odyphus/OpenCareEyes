@@ -40,11 +40,20 @@ from opencareyes.domain.runtime import (
 )
 from opencareyes.state import (
     AppState,
+    CompanionPresentationSnapshot,
     ContextState,
     DisplayState,
     EffectivePolicyState,
     GlobalPauseState,
+    PetAnchorState,
+    PetAppearanceState,
+    PetCatalogEntryState,
+    PetCatalogState,
+    PetState as AppPetState,
+    QuickToolsState,
+    UtilityTimerState as AppUtilityTimerState,
     UpdateState,
+    WeatherState,
 )
 
 if TYPE_CHECKING:
@@ -199,9 +208,13 @@ class AppController(QObject):
     """Own all feature mutations and publish immutable snapshots."""
 
     state_changed = Signal(object)
+    companion_presentation_changed = Signal(object)
     break_tick = Signal(int, int)
+    utility_timer_tick = Signal(int)
     operation_failed = Signal(str, str)
     notification_requested = Signal(str, str)
+    quick_tool_requested = Signal(str)
+    pet_event_requested = Signal(str, object)
 
     def __init__(
         self,
@@ -214,6 +227,11 @@ class AppController(QObject):
         hotkeys: HotkeyManager | None = None,
         effect_coordinator: EffectCoordinator | None = None,
         update_service=None,
+        companion=None,
+        weather_service=None,
+        utility_timer=None,
+        note_repository=None,
+        system_metrics=None,
         parent: QObject | None = None,
     ):
         super().__init__(parent)
@@ -232,10 +250,22 @@ class AppController(QObject):
             focus_mode=focus_mode,
         )
         self._update_service = update_service
+        self._companion = companion
+        self._weather_service = weather_service
+        self._utility_timer = utility_timer
+        self._note_repository = note_repository
+        self._system_metrics = system_metrics
         self._update_state = (
             update_service.state
             if update_service is not None
             else UpdateState("idle", APP_VERSION)
+        )
+        self._weather_state = WeatherState(
+            status=(
+                'idle'
+                if bool(getattr(settings, 'weather_enabled', False))
+                else 'disabled'
+            )
         )
         self._update_workers: dict[QObject, QRunnable] = {}
         self._context_runtime = None
@@ -300,6 +330,26 @@ class AppController(QObject):
             self._hotkeys.registration_failed.connect(self.operation_failed)
             self._hotkeys.callback_failed.connect(self.operation_failed)
 
+        if self._weather_service is not None:
+            updated = getattr(self._weather_service, 'updated', None)
+            failed = getattr(self._weather_service, 'failed', None)
+            if updated is not None:
+                updated.connect(self._on_weather_updated)
+            if failed is not None:
+                failed.connect(self._on_weather_failed)
+
+        if self._utility_timer is not None:
+            timer_state_changed = getattr(
+                self._utility_timer,
+                'state_changed',
+                None,
+            )
+            if timer_state_changed is not None:
+                timer_state_changed.connect(self._on_utility_timer_state_changed)
+            timer_tick = getattr(self._utility_timer, 'tick', None)
+            if timer_tick is not None:
+                timer_tick.connect(self.utility_timer_tick)
+
         self._effects.state_changed.connect(self._on_effective_policy_changed)
         if self._blue_filter is not None:
             request_finished = getattr(
@@ -328,10 +378,15 @@ class AppController(QObject):
                 )
 
         self._state = self._build_state()
+        self._companion_presentation = self._build_companion_presentation()
 
     @property
     def state(self) -> AppState:
         return self._state
+
+    @property
+    def companion_presentation(self) -> CompanionPresentationSnapshot:
+        return self._companion_presentation
 
     @property
     def settings(self) -> Settings:
@@ -373,6 +428,9 @@ class AppController(QObject):
         if self._hotkeys is not None:
             success = self._register_hotkeys() and success
 
+        if bool(getattr(self._settings, 'weather_enabled', False)):
+            success = self._refresh_weather() and success
+
         self._restored = True
         self.refresh_state()
         return success
@@ -384,7 +442,25 @@ class AppController(QObject):
         if force or new_state != self._state:
             self._state = new_state
             self.state_changed.emit(new_state)
+        self.refresh_companion_presentation()
         return self._state
+
+    def refresh_companion_presentation(
+        self,
+        *_args,
+        force: bool = False,
+    ) -> CompanionPresentationSnapshot:
+        """Publish only paint-relevant companion changes.
+
+        Pointer reactions and animation completions call this method directly,
+        so they do not rebuild or emit the complete application state.
+        """
+
+        snapshot = self._build_companion_presentation()
+        if force or snapshot != self._companion_presentation:
+            self._companion_presentation = snapshot
+            self.companion_presentation_changed.emit(snapshot)
+        return self._companion_presentation
 
     def update_runtime_state(
         self,
@@ -656,6 +732,16 @@ class AppController(QObject):
                 raise RuntimeError("当前没有待开始的休息")
 
         return self._run("break_start_due", operation, reconcile=False)
+
+    def start_break_now(self, kind: str = "short") -> bool:
+        """Begin an immediate rest through the authoritative break service."""
+
+        def operation() -> None:
+            self._require_service(self._break_reminder, "break reminder")
+            if not self._break_reminder.start_break_now(str(kind)):
+                raise RuntimeError("当前无法开始休息")
+
+        return self._run("break_start_now", operation, reconcile=False)
 
     def set_force_break(self, enabled: bool) -> bool:
         def operation() -> None:
@@ -997,6 +1083,274 @@ class AppController(QObject):
             self._settings.pet_y = None
 
         return self._run("pet_position", operation, reconcile=False)
+
+    def set_companion_enabled(self, enabled: bool) -> bool:
+        enabled = bool(enabled)
+        previous = bool(getattr(self._settings, 'companion_enabled', True))
+
+        def apply_runtime(value: bool) -> None:
+            setter = getattr(self._companion, 'set_enabled', None)
+            if callable(setter):
+                result = setter(value)
+                if result is False:
+                    raise RuntimeError('Companion visibility could not be changed')
+
+        def operation() -> None:
+            self._settings.companion_enabled = enabled
+            apply_runtime(enabled)
+
+        return self._run(
+            'companion_enabled',
+            operation,
+            reconcile=False,
+            rollback=lambda: apply_runtime(previous),
+        )
+
+    def set_active_pet(self, pet_id: str) -> bool:
+        normalized = str(pet_id).strip().lower()
+        previous = str(getattr(self._settings, 'active_pet_id', 'snow_ferret'))
+
+        def select(value: str) -> None:
+            selector = getattr(self._companion, 'set_active_pet', None)
+            if not callable(selector):
+                selector = getattr(self._companion, 'select_pet', None)
+            if callable(selector):
+                result = selector(value)
+                if result is False:
+                    raise RuntimeError('Pet pack could not be loaded')
+            preferences = getattr(self._settings, 'pet_preferences', {})
+            selected = (
+                preferences.get(value, {})
+                if isinstance(preferences, dict)
+                else {}
+            )
+            accessory_setter = getattr(
+                self._companion, 'set_manual_accessory', None
+            )
+            if callable(accessory_setter) and isinstance(selected, dict):
+                for slot, item_id in selected.items():
+                    accessory_setter(str(slot), str(item_id))
+
+        def operation() -> None:
+            self._settings.active_pet_id = normalized
+            if hasattr(self._settings, 'recovery_pet_id'):
+                self._settings.recovery_pet_id = ''
+            select(normalized)
+
+        return self._run(
+            'active_pet',
+            operation,
+            reconcile=False,
+            rollback=lambda: select(previous),
+        )
+
+    def set_pet_scale(self, percent: int) -> bool:
+        value = int(percent)
+        previous = int(getattr(self._settings, 'pet_scale_percent', 100))
+
+        def apply_runtime(scale: int) -> None:
+            setter = getattr(self._companion, 'set_scale', None)
+            if callable(setter):
+                setter(scale)
+
+        def operation() -> None:
+            self._settings.pet_scale_percent = value
+            apply_runtime(value)
+
+        return self._run(
+            'pet_scale',
+            operation,
+            reconcile=False,
+            rollback=lambda: apply_runtime(previous),
+        )
+
+    def set_pet_anchor(
+        self,
+        edge: str,
+        offset: int,
+        x: int | None = None,
+        y: int | None = None,
+    ) -> bool:
+        def operation() -> None:
+            self._settings.pet_anchor_edge = edge
+            self._settings.pet_anchor_offset = int(offset)
+            if edge == 'free':
+                if x is None or y is None:
+                    raise ValueError('Free pet anchors require x and y coordinates')
+                self._settings.pet_x = int(x)
+                self._settings.pet_y = int(y)
+
+        return self._run('pet_anchor', operation, reconcile=False)
+
+    def set_pet_accessory(self, slot: str, item_id: str | None) -> bool:
+        pet_id = str(getattr(self._settings, 'active_pet_id', 'snow_ferret'))
+
+        def operation() -> None:
+            preferences = dict(getattr(self._settings, 'pet_preferences', {}))
+            slots = dict(preferences.get(pet_id, {}))
+            if item_id in {None, ''}:
+                slots.pop(str(slot), None)
+            else:
+                slots[str(slot)] = str(item_id)
+            preferences[pet_id] = slots
+            self._settings.pet_preferences = preferences
+            setter = getattr(self._companion, 'set_manual_accessory', None)
+            if not callable(setter):
+                setter = getattr(self._companion, 'set_appearance', None)
+            if callable(setter):
+                setter(str(slot), item_id)
+
+        return self._run('pet_accessory', operation, reconcile=False)
+
+    def upsert_app_prop_rule(self, app_id: str, prop_id: str) -> bool:
+        app = str(app_id).strip().lower()
+        prop = str(prop_id).strip().lower()
+
+        def operation() -> None:
+            rules = [
+                dict(rule)
+                for rule in getattr(self._settings, 'app_prop_rules', ())
+                if str(rule.get('app_id', '')).lower() != app
+            ]
+            rules.append({'app_id': app, 'prop_id': prop})
+            self._settings.app_prop_rules = rules
+
+        return self._run('app_prop_rule', operation, reconcile=False)
+
+    def remove_app_prop_rule(self, app_id: str) -> bool:
+        app = str(app_id).strip().lower()
+
+        def operation() -> None:
+            self._settings.app_prop_rules = [
+                dict(rule)
+                for rule in getattr(self._settings, 'app_prop_rules', ())
+                if str(rule.get('app_id', '')).lower() != app
+            ]
+
+        return self._run('app_prop_rule', operation, reconcile=False)
+
+    def set_follow_active_monitor(self, enabled: bool) -> bool:
+        return self._run(
+            'follow_active_monitor',
+            lambda: setattr(self._settings, 'follow_active_monitor', bool(enabled)),
+            reconcile=False,
+        )
+
+    def set_window_avoidance_enabled(self, enabled: bool) -> bool:
+        return self._run(
+            'window_avoidance',
+            lambda: setattr(
+                self._settings, 'window_avoidance_enabled', bool(enabled)
+            ),
+            reconcile=False,
+        )
+
+    def set_companion_sound_enabled(self, enabled: bool) -> bool:
+        return self._run(
+            'companion_sound',
+            lambda: setattr(
+                self._settings, 'companion_sound_enabled', bool(enabled)
+            ),
+            reconcile=False,
+        )
+
+    def set_hourly_chime_enabled(self, enabled: bool) -> bool:
+        return self._run(
+            'hourly_chime',
+            lambda: setattr(self._settings, 'hourly_chime_enabled', bool(enabled)),
+            reconcile=False,
+        )
+
+    def set_weather_enabled(self, enabled: bool, consent: bool = False) -> bool:
+        enabled = bool(enabled)
+        if enabled and not consent:
+            self.operation_failed.emit(
+                'weather_consent',
+                '开启天气前需要确认会向 Open-Meteo 发送经纬度和网络 IP。',
+            )
+            return False
+        if enabled and not bool(getattr(self._settings, 'location_configured', False)):
+            self.operation_failed.emit(
+                'weather_location',
+                '请先在自动日程中选择城市或填写位置。',
+            )
+            return False
+        previous = bool(getattr(self._settings, 'weather_enabled', False))
+
+        def apply_runtime(value: bool) -> None:
+            if self._weather_service is None:
+                if value:
+                    raise RuntimeError('Weather service is unavailable')
+                return
+            if value:
+                self._weather_state = WeatherState(status='loading')
+                refresh = getattr(self._weather_service, 'refresh', None)
+                if callable(refresh):
+                    refresh(
+                        float(self._settings.latitude),
+                        float(self._settings.longitude),
+                        consent=True,
+                        force=True,
+                    )
+                else:
+                    self._weather_service.start(
+                        float(self._settings.latitude),
+                        float(self._settings.longitude),
+                    )
+            else:
+                cancel = getattr(self._weather_service, 'cancel', None)
+                if callable(cancel):
+                    cancel()
+                else:
+                    stop = getattr(self._weather_service, 'stop', None)
+                    if callable(stop):
+                        stop()
+                self._weather_state = WeatherState(status='disabled')
+
+        def operation() -> None:
+            self._settings.weather_enabled = enabled
+            apply_runtime(enabled)
+
+        return self._run(
+            'weather',
+            operation,
+            reconcile=False,
+            rollback=lambda: apply_runtime(previous),
+        )
+
+    def show_quick_tool(self, tool_id: str) -> bool:
+        tool = str(tool_id).strip().lower()
+        if tool not in {'timer', 'notes', 'system', 'wardrobe', 'more'}:
+            self.operation_failed.emit('quick_tool', '不支持这个快捷工具。')
+            return False
+        self.quick_tool_requested.emit(tool)
+        return True
+
+    def set_quick_actions(self, actions) -> bool:
+        return self._run(
+            'quick_actions',
+            lambda: setattr(self._settings, 'quick_actions', tuple(actions)),
+            reconcile=False,
+        )
+
+    def offer_pet_item(self, item_id: str) -> bool:
+        item = str(item_id).strip().lower()
+        if item not in {'yarn_ball', 'hot_cocoa', 'pine_cone'}:
+            self.operation_failed.emit('pet_item', '不支持这个互动道具。')
+            return False
+        handler = getattr(self._companion, 'offer_item', None)
+        if callable(handler) and handler(item) is False:
+            self.operation_failed.emit('pet_item', '伙伴现在无法接住这个道具。')
+            return False
+        self.refresh_companion_presentation(force=True)
+        return True
+
+    def select_rest_scene(self, scene_id: str) -> bool:
+        return self._run(
+            'rest_scene',
+            lambda: setattr(self._settings, 'break_rest_scene', scene_id),
+            reconcile=False,
+        )
 
     def set_smart_pause_enabled(self, enabled: bool) -> bool:
         return self._set_context_preference("smart_pause_enabled", bool(enabled))
@@ -2678,6 +3032,210 @@ class AppController(QObject):
                 self._transaction_pause_state(transaction)
                 if transaction is not None and transaction.owns_pause
                 else None
+            ),
+            pet_catalog=self._project_pet_catalog(),
+            companion=self._project_companion(),
+            weather=self._weather_state,
+            quick_tools=self._project_quick_tools(),
+        )
+
+    def _project_quick_tools(self) -> QuickToolsState:
+        runtime = getattr(self._utility_timer, 'state', None)
+        status = str(getattr(runtime, 'status', 'idle'))
+        if status not in {'idle', 'running', 'paused', 'finished'}:
+            status = 'idle'
+        return QuickToolsState(
+            utility_timer=AppUtilityTimerState(
+                status=status,
+                label=str(getattr(runtime, 'label', '')),
+                remaining=max(
+                    0,
+                    int(getattr(runtime, 'remaining_seconds', 0)),
+                ),
+                total=max(
+                    0,
+                    int(getattr(runtime, 'duration_seconds', 0)),
+                ),
+            ),
+            hourly_chime_enabled=bool(
+                getattr(self._settings, 'hourly_chime_enabled', False)
+            ),
+            quiet_hours_start=str(
+                getattr(self._settings, 'quiet_hours_start', '23:00')
+            ),
+            quiet_hours_end=str(
+                getattr(self._settings, 'quiet_hours_end', '07:00')
+            ),
+            quick_actions=tuple(
+                getattr(
+                    self._settings,
+                    'quick_actions',
+                    ('rest', 'timer', 'notes', 'system'),
+                )
+            ),
+        )
+
+    def _build_companion_presentation(self) -> CompanionPresentationSnapshot:
+        companion = self._project_companion()
+        if companion is None:
+            companion = AppPetState(enabled=False, visible=False)
+        motion_mode = str(getattr(self._settings, 'motion_mode', 'system'))
+        return CompanionPresentationSnapshot(
+            pet_id=companion.pet_id,
+            action_id=companion.behavior,
+            visible=companion.visible,
+            scale_percent=companion.scale_percent,
+            appearance=companion.appearance,
+            bubble=companion.bubble,
+            suppressed_by=companion.suppressed_by,
+            motion_profile=(
+                'reduced' if motion_mode == 'reduced' else 'standard'
+            ),
+        )
+
+    def _on_utility_timer_state_changed(self, _state) -> None:
+        if hasattr(self, '_state'):
+            self.refresh_state()
+
+    def _refresh_weather(self) -> bool:
+        if self._weather_service is None:
+            return False
+        if not bool(getattr(self._settings, 'location_configured', False)):
+            self._weather_state = WeatherState(
+                status='failed',
+                message='天气位置尚未配置。',
+            )
+            return False
+        self._weather_state = WeatherState(status='loading')
+        refresh = getattr(self._weather_service, 'refresh', None)
+        if callable(refresh):
+            refresh(
+                float(self._settings.latitude),
+                float(self._settings.longitude),
+                consent=True,
+            )
+        else:
+            self._weather_service.start(
+                float(self._settings.latitude),
+                float(self._settings.longitude),
+            )
+        return True
+
+    def _on_weather_updated(self, snapshot) -> None:
+        self._weather_state = WeatherState(
+            status=(
+                'stale'
+                if bool(getattr(snapshot, 'stale', False))
+                else 'ready'
+            ),
+            condition=str(getattr(snapshot, 'condition', 'unknown')),
+            temperature=getattr(snapshot, 'temperature_c', None),
+            observed_at=getattr(snapshot, 'observed_at', None),
+            stale=bool(getattr(snapshot, 'stale', False)),
+            attribution='Open-Meteo',
+        )
+        if hasattr(self, '_state'):
+            self.refresh_state()
+
+    def _on_weather_failed(self, code: str, message: str) -> None:
+        if self._weather_state.status not in {'ready', 'stale'}:
+            self._weather_state = WeatherState(
+                status='failed',
+                message=str(message),
+            )
+        self.operation_failed.emit(f'weather_{code}', str(message))
+        if hasattr(self, '_state'):
+            self.refresh_state()
+
+    def _project_pet_catalog(self) -> PetCatalogState | None:
+        companion = self._companion
+        registry = getattr(companion, 'registry', None)
+        if registry is None:
+            return None
+        entries = getattr(self, '_pet_catalog_entries', None)
+        if entries is None:
+            try:
+                projected_entries = []
+                for item in registry.available_pets():
+                    try:
+                        preview_path = str(
+                            registry.resolve_resource(item.pet_id, item.preview_path)
+                        )
+                    except Exception:
+                        preview_path = ''
+                    projected_entries.append(PetCatalogEntryState(
+                        pet_id=item.pet_id,
+                        display_name=item.display_name,
+                        pack_version=item.pack_version,
+                        preview_path=preview_path,
+                    ))
+                entries = tuple(projected_entries)
+            except Exception:
+                log.exception('Bundled pet catalog could not be projected')
+                entries = ()
+            self._pet_catalog_entries = entries
+        return PetCatalogState(
+            available_pets=entries,
+            active_pet_id=str(
+                getattr(self._settings, 'active_pet_id', 'snow_ferret')
+            ),
+        )
+
+    def _project_companion(self) -> AppPetState | None:
+        runtime = getattr(self._companion, 'state', None)
+        if runtime is None:
+            return None
+        appearance = getattr(runtime, 'appearance', None)
+        behavior = getattr(runtime, 'behavior', None)
+        reasons = list(getattr(runtime, 'suppressed_by', ()))
+        if self._context_state.session in {'locked', 'suspended'}:
+            reasons.append(self._context_state.session)
+        if self._context_state.fullscreen:
+            reasons.append('fullscreen')
+        reasons = list(dict.fromkeys(reasons))
+        enabled = bool(getattr(self._settings, 'companion_enabled', True))
+        return AppPetState(
+            pet_id=str(getattr(runtime, 'pet_id', 'snow_ferret')),
+            enabled=enabled,
+            visible=(
+                enabled
+                and bool(getattr(runtime, 'visible', True))
+                and not reasons
+            ),
+            behavior=str(getattr(behavior, 'action_id', 'idle')),
+            scale_percent=int(
+                getattr(self._settings, 'pet_scale_percent', 100)
+            ),
+            appearance=PetAppearanceState(
+                headwear=str(getattr(appearance, 'headwear', '')),
+                neckwear=str(getattr(appearance, 'neckwear', '')),
+                bodywear=str(getattr(appearance, 'bodywear', '')),
+                held_item=str(getattr(appearance, 'held_item', '')),
+                scene=str(getattr(appearance, 'scene', '')),
+                effect=str(getattr(appearance, 'effect', '')),
+            ),
+            anchor=PetAnchorState(
+                edge=str(
+                    getattr(self._settings, 'pet_anchor_edge', 'bottom_right')
+                ),
+                offset=int(getattr(self._settings, 'pet_anchor_offset', 24)),
+                x=getattr(self._settings, 'pet_x', None),
+                y=getattr(self._settings, 'pet_y', None),
+            ),
+            bubble=(
+                'visible'
+                if bool(getattr(runtime, 'bubble_visible', False))
+                else 'hidden'
+            ),
+            suppressed_by=tuple(reasons),
+            follow_active_monitor=bool(
+                getattr(self._settings, 'follow_active_monitor', True)
+            ),
+            window_avoidance_enabled=bool(
+                getattr(self._settings, 'window_avoidance_enabled', True)
+            ),
+            sound_enabled=bool(
+                getattr(self._settings, 'companion_sound_enabled', False)
             ),
         )
 

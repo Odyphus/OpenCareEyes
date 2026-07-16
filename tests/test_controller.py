@@ -10,6 +10,7 @@ from PySide6.QtTest import QSignalSpy
 from opencareyes.config.settings import Settings
 from opencareyes.controller import AppController
 from opencareyes.core.break_reminder import BreakReminder
+from opencareyes.application.utility_timer import UtilityTimerService
 
 
 @pytest.fixture(scope="module")
@@ -124,6 +125,45 @@ class FakeScheduler(QObject):
         self.manual_override_changed.emit(value)
 
 
+class FakeCompanion:
+    def __init__(self):
+        self.enabled = True
+        self.pet_id = 'snow_ferret'
+        self.scale = 100
+        self.items = []
+
+    def set_enabled(self, enabled):
+        self.enabled = bool(enabled)
+        return True
+
+    def select_pet(self, pet_id):
+        if pet_id == 'missing':
+            return False
+        self.pet_id = pet_id
+        return True
+
+    def set_scale(self, scale):
+        self.scale = int(scale)
+
+    def offer_item(self, item_id):
+        self.items.append(item_id)
+        return True
+
+
+class FakeWeatherService:
+    def __init__(self):
+        self.started_with = None
+        self.stopped = False
+
+    def start(self, latitude, longitude):
+        self.started_with = (latitude, longitude)
+        return True
+
+    def stop(self):
+        self.stopped = True
+        return True
+
+
 @pytest.fixture
 def controller(qapp):
     settings = Settings(MemoryStore())
@@ -160,6 +200,132 @@ def test_controller_updates_service_settings_and_snapshot(controller):
     assert settings.filter_enabled is True
     assert instance.state.display.filter_enabled is True
     assert spy.count() == 1
+
+
+def test_companion_commands_persist_and_update_runtime(qapp):
+    settings = Settings(MemoryStore())
+    settings.recovery_pet_id = 'missing_pet'
+    companion = FakeCompanion()
+    instance = AppController(settings, companion=companion)
+
+    assert instance.set_companion_enabled(False) is True
+    assert settings.companion_enabled is False
+    assert companion.enabled is False
+    assert instance.set_active_pet('snow_ferret') is True
+    assert companion.pet_id == 'snow_ferret'
+    assert settings.recovery_pet_id == ''
+    assert instance.set_pet_scale(125) is True
+    assert settings.pet_scale_percent == 125
+    assert companion.scale == 125
+    assert instance.set_pet_accessory('neckwear', 'red_scarf') is True
+    assert settings.pet_preferences == {
+        'snow_ferret': {'neckwear': 'red_scarf'},
+    }
+    assert instance.offer_pet_item('yarn_ball') is True
+    assert companion.items == ['yarn_ball']
+
+
+def test_instant_pet_action_uses_presentation_signal_not_full_state(qapp):
+    settings = Settings(MemoryStore())
+    companion = FakeCompanion()
+    instance = AppController(settings, companion=companion)
+    state_changes = QSignalSpy(instance.state_changed)
+    presentation_changes = QSignalSpy(instance.companion_presentation_changed)
+
+    assert instance.offer_pet_item('yarn_ball') is True
+
+    assert state_changes.count() == 0
+    assert presentation_changes.count() == 1
+
+
+def test_quick_actions_are_saved_atomically(qapp):
+    settings = Settings(MemoryStore())
+    instance = AppController(settings)
+
+    assert instance.set_quick_actions(('rest', 'notes', 'timer')) is True
+    assert settings.quick_actions == ('rest', 'notes', 'timer')
+    assert instance.state.quick_tools.quick_actions == ('rest', 'notes', 'timer')
+
+
+def test_missing_pet_rolls_back_persisted_selection(qapp):
+    settings = Settings(MemoryStore())
+    companion = FakeCompanion()
+    instance = AppController(settings, companion=companion)
+    failure = QSignalSpy(instance.operation_failed)
+
+    assert instance.set_active_pet('missing') is False
+    assert settings.active_pet_id == 'snow_ferret'
+    assert companion.pet_id == 'snow_ferret'
+    assert failure.count() == 1
+
+
+def test_application_prop_rules_keep_only_safe_exe_basenames(qapp):
+    settings = Settings(MemoryStore())
+    instance = AppController(settings)
+
+    assert instance.upsert_app_prop_rule('WINWORD.EXE', 'writing') is True
+    assert settings.app_prop_rules == (
+        {'app_id': 'winword.exe', 'prop_id': 'writing'},
+    )
+    assert instance.upsert_app_prop_rule('winword.exe', 'calculator') is True
+    assert settings.app_prop_rules == (
+        {'app_id': 'winword.exe', 'prop_id': 'calculator'},
+    )
+    assert instance.upsert_app_prop_rule(r'C:\\Office\\winword.exe', 'writing') is False
+    assert settings.app_prop_rules[0]['prop_id'] == 'calculator'
+    assert instance.remove_app_prop_rule('winword.exe') is True
+    assert settings.app_prop_rules == ()
+
+
+def test_weather_requires_explicit_consent_and_location(qapp):
+    settings = Settings(MemoryStore())
+    weather = FakeWeatherService()
+    instance = AppController(settings, weather_service=weather)
+
+    assert instance.set_weather_enabled(True, consent=False) is False
+    assert settings.weather_enabled is False
+    assert instance.set_weather_enabled(True, consent=True) is False
+    settings.latitude = 36.6512
+    settings.longitude = 117.1201
+    settings.location_configured = True
+    assert instance.set_weather_enabled(True, consent=True) is True
+    assert settings.weather_enabled is True
+    assert weather.started_with == (36.6512, 117.1201)
+
+
+def test_quick_tools_and_rest_scene_validate_requests(qapp):
+    settings = Settings(MemoryStore())
+    instance = AppController(settings)
+    quick = QSignalSpy(instance.quick_tool_requested)
+
+    assert instance.show_quick_tool('timer') is True
+    assert quick.count() == 1
+    assert instance.show_quick_tool('dangerous') is False
+    assert instance.select_rest_scene('stretch') is True
+    assert settings.break_rest_scene == 'stretch'
+
+
+def test_utility_timer_semantic_state_is_projected_without_tick_rebuilds(qapp):
+    settings = Settings(MemoryStore())
+    timer = UtilityTimerService()
+    instance = AppController(settings, utility_timer=timer)
+    changed = QSignalSpy(instance.state_changed)
+
+    timer.start(60, label='阅读')
+    assert instance.state.quick_tools.utility_timer.status == 'running'
+    assert instance.state.quick_tools.utility_timer.remaining == 60
+    assert instance.state.quick_tools.utility_timer.total == 60
+    assert instance.state.quick_tools.utility_timer.label == '阅读'
+    assert changed.count() == 1
+
+    timer.tick.emit(59)
+    assert changed.count() == 1
+    assert timer.pause() is True
+    assert instance.state.quick_tools.utility_timer.status == 'paused'
+    assert changed.count() == 2
+    assert timer.cancel() is True
+    assert instance.state.quick_tools.utility_timer.status == 'idle'
+    assert changed.count() == 3
 
 
 def test_skip_break_is_runtime_only_and_immediate(controller, monkeypatch):

@@ -292,6 +292,10 @@ GetForegroundWindow = user32.GetForegroundWindow
 GetForegroundWindow.argtypes = []
 GetForegroundWindow.restype = wintypes.HWND
 
+GetWindowRect = user32.GetWindowRect
+GetWindowRect.argtypes = [wintypes.HWND, ctypes.POINTER(RECT)]
+GetWindowRect.restype = wintypes.BOOL
+
 GetWindowThreadProcessId = user32.GetWindowThreadProcessId
 GetWindowThreadProcessId.argtypes = [
     wintypes.HWND,

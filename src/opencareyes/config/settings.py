@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from collections.abc import Iterable, Iterator, Mapping
 from contextlib import contextmanager
 from enum import Enum
@@ -16,7 +17,22 @@ from opencareyes.config.presets import PRESETS
 from opencareyes.constants import APP_NAME, ORG_NAME
 
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 6
+
+_PET_ID_PATTERN = re.compile(r'^[a-z0-9_]{1,64}$')
+_ITEM_ID_PATTERN = re.compile(r'^[a-z0-9_.-]{1,64}$')
+_CLOCK_PATTERN = re.compile(r'^(?:[01]\d|2[0-3]):[0-5]\d$')
+_PET_ANCHOR_EDGES = {'bottom_right', 'bottom_left', 'top_right', 'top_left', 'free'}
+_PET_ACCESSORY_SLOTS = {
+    'headwear',
+    'neckwear',
+    'bodywear',
+    'held_item',
+    'scene',
+    'effect',
+}
+_REST_SCENES = {'gaze', 'snow_breathing', 'stretch', 'sleep'}
+_QUICK_ACTIONS = {'rest', 'timer', 'notes', 'system', 'wardrobe', 'more'}
 
 
 class SettingsReadOnlyError(RuntimeError):
@@ -37,6 +53,11 @@ class AppRule(TypedDict):
     focus: bool
     filter: bool
     dimmer: bool
+
+
+class AppPropRule(TypedDict):
+    app_id: str
+    prop_id: str
 
 
 _APP_RULE_FLAGS = ("breaks", "focus", "filter", "dimmer")
@@ -115,6 +136,39 @@ def _validated_offset(value: object) -> int:
     return offset
 
 
+def _validated_pet_id(value: object) -> str:
+    pet_id = str(value).strip().lower()
+    if not _PET_ID_PATTERN.fullmatch(pet_id):
+        raise ValueError('pet_id must contain only lowercase letters, digits, or underscores')
+    return pet_id
+
+
+def _validated_item_id(value: object) -> str:
+    item_id = str(value).strip().lower()
+    if not _ITEM_ID_PATTERN.fullmatch(item_id):
+        raise ValueError('item id must contain only safe identifier characters')
+    return item_id
+
+
+def _validated_app_id(value: object) -> str:
+    app_id = str(value).strip().lower()
+    if (
+        not app_id
+        or len(app_id) > 128
+        or not app_id.endswith('.exe')
+        or any(separator in app_id for separator in ('/', '\\', ':'))
+    ):
+        raise ValueError('app_id must be a basename ending in .exe')
+    return app_id
+
+
+def _validated_app_prop_rule(rule: Mapping[str, object]) -> AppPropRule:
+    return AppPropRule(
+        app_id=_validated_app_id(rule.get('app_id', '')),
+        prop_id=_validated_item_id(rule.get('prop_id', '')),
+    )
+
+
 class SettingsMigrator:
     """Apply ordered settings migrations with snapshot-based rollback."""
 
@@ -143,6 +197,12 @@ class SettingsMigrator:
             if version < 4:
                 self._migrate_v3_to_v4(existing_profile)
                 version = 4
+            if version < 5:
+                self._migrate_v4_to_v5(existing_profile)
+                version = 5
+            if version < 6:
+                self._migrate_v5_to_v6(existing_profile)
+                version = 6
             self._sync_checked()
         except Exception as exc:
             self._restore(snapshot)
@@ -225,6 +285,75 @@ class SettingsMigrator:
                 # all days so an upgrade keeps the same effective schedule.
                 self._store.setValue("automation/days", list(range(7)))
         self._store.setValue("meta/schema_version", 4)
+
+    def _migrate_v4_to_v5(self, existing_profile: bool) -> None:
+        if existing_profile:
+            countdown_display = str(
+                self._store.value(
+                    'break/countdown_display',
+                    DEFAULT_PREFERENCES.break_countdown_display,
+                )
+            )
+            legacy_x = self._store.value('ui/pet_x', None)
+            legacy_y = self._store.value('ui/pet_y', None)
+            has_legacy_position = False
+            try:
+                int(legacy_x)
+                int(legacy_y)
+                has_legacy_position = legacy_x not in {None, ''} and legacy_y not in {None, ''}
+            except (TypeError, ValueError):
+                pass
+            legacy_values = {
+                'companion/enabled': countdown_display == 'floating',
+                'companion/active_pet_id': DEFAULT_PREFERENCES.active_pet_id,
+                'companion/recovery_pet_id': DEFAULT_PREFERENCES.recovery_pet_id,
+                'companion/scale_percent': DEFAULT_PREFERENCES.pet_scale_percent,
+                'companion/anchor_edge': (
+                    'free' if has_legacy_position else DEFAULT_PREFERENCES.pet_anchor_edge
+                ),
+                'companion/anchor_offset': (
+                    0 if has_legacy_position else DEFAULT_PREFERENCES.pet_anchor_offset
+                ),
+                'companion/follow_active_monitor': (
+                    DEFAULT_PREFERENCES.follow_active_monitor
+                ),
+                'companion/window_avoidance_enabled': (
+                    DEFAULT_PREFERENCES.window_avoidance_enabled
+                ),
+                'companion/sound_enabled': (
+                    DEFAULT_PREFERENCES.companion_sound_enabled
+                ),
+                'companion/hourly_chime_enabled': (
+                    DEFAULT_PREFERENCES.hourly_chime_enabled
+                ),
+                'companion/quiet_hours_start': (
+                    DEFAULT_PREFERENCES.quiet_hours_start
+                ),
+                'companion/quiet_hours_end': DEFAULT_PREFERENCES.quiet_hours_end,
+                'companion/pet_preferences_json': '{}',
+                'companion/app_prop_rules_json': '[]',
+                'weather/enabled': False,
+                'holiday/pack': DEFAULT_PREFERENCES.holiday_pack,
+                'break/rest_scene': DEFAULT_PREFERENCES.rest_scene,
+            }
+            for key, value in legacy_values.items():
+                if self._store.value(key, None) is None:
+                    self._store.setValue(key, value)
+        self._store.setValue('meta/schema_version', 5)
+
+    def _migrate_v5_to_v6(self, existing_profile: bool) -> None:
+        if existing_profile and self._store.value(
+            'companion/quick_actions_json', None
+        ) is None:
+            self._store.setValue(
+                'companion/quick_actions_json',
+                json.dumps(
+                    DEFAULT_PREFERENCES.quick_actions,
+                    ensure_ascii=True,
+                    separators=(',', ':'),
+                ),
+            )
+        self._store.setValue('meta/schema_version', 6)
 
     def _sync_checked(self) -> None:
         _sync_store_checked(self._store)
@@ -891,6 +1020,338 @@ class Settings:
     def pet_y(self, value: int | None) -> None:
         self._set_value("ui/pet_y", "" if value is None else int(value))
 
+    # ---- Desktop companion ----
+    @property
+    def companion_enabled(self) -> bool:
+        return self._s.value(
+            'companion/enabled', DEFAULT_PREFERENCES.companion_enabled, type=bool
+        )
+
+    @companion_enabled.setter
+    def companion_enabled(self, value: bool) -> None:
+        self._set_value('companion/enabled', bool(value))
+
+    @property
+    def active_pet_id(self) -> str:
+        raw = self._s.value(
+            'companion/active_pet_id', DEFAULT_PREFERENCES.active_pet_id, type=str
+        )
+        try:
+            return _validated_pet_id(raw)
+        except ValueError:
+            return DEFAULT_PREFERENCES.active_pet_id
+
+    @active_pet_id.setter
+    def active_pet_id(self, value: str) -> None:
+        self._set_value('companion/active_pet_id', _validated_pet_id(value))
+
+    @property
+    def recovery_pet_id(self) -> str:
+        raw = self._s.value(
+            'companion/recovery_pet_id',
+            DEFAULT_PREFERENCES.recovery_pet_id,
+            type=str,
+        )
+        if not str(raw).strip():
+            return ''
+        try:
+            return _validated_pet_id(raw)
+        except ValueError:
+            return ''
+
+    @recovery_pet_id.setter
+    def recovery_pet_id(self, value: str) -> None:
+        raw = str(value).strip()
+        self._set_value(
+            'companion/recovery_pet_id',
+            _validated_pet_id(raw) if raw else '',
+        )
+
+    @property
+    def pet_scale_percent(self) -> int:
+        value = self._s.value(
+            'companion/scale_percent',
+            DEFAULT_PREFERENCES.pet_scale_percent,
+            type=int,
+        )
+        return value if 60 <= value <= 200 else DEFAULT_PREFERENCES.pet_scale_percent
+
+    @pet_scale_percent.setter
+    def pet_scale_percent(self, value: int) -> None:
+        scale = int(value)
+        if not 60 <= scale <= 200:
+            raise ValueError('Pet scale must be between 60 and 200 percent')
+        self._set_value('companion/scale_percent', scale)
+
+    @property
+    def pet_anchor_edge(self) -> str:
+        edge = self._s.value(
+            'companion/anchor_edge', DEFAULT_PREFERENCES.pet_anchor_edge, type=str
+        )
+        return edge if edge in _PET_ANCHOR_EDGES else DEFAULT_PREFERENCES.pet_anchor_edge
+
+    @pet_anchor_edge.setter
+    def pet_anchor_edge(self, value: str) -> None:
+        edge = str(value).strip().lower()
+        if edge not in _PET_ANCHOR_EDGES:
+            raise ValueError('Unknown pet anchor edge')
+        self._set_value('companion/anchor_edge', edge)
+
+    @property
+    def pet_anchor_offset(self) -> int:
+        value = self._s.value(
+            'companion/anchor_offset',
+            DEFAULT_PREFERENCES.pet_anchor_offset,
+            type=int,
+        )
+        return value if 0 <= value <= 10000 else DEFAULT_PREFERENCES.pet_anchor_offset
+
+    @pet_anchor_offset.setter
+    def pet_anchor_offset(self, value: int) -> None:
+        offset = int(value)
+        if not 0 <= offset <= 10000:
+            raise ValueError('Pet anchor offset is outside the supported range')
+        self._set_value('companion/anchor_offset', offset)
+
+    @property
+    def follow_active_monitor(self) -> bool:
+        return self._s.value(
+            'companion/follow_active_monitor',
+            DEFAULT_PREFERENCES.follow_active_monitor,
+            type=bool,
+        )
+
+    @follow_active_monitor.setter
+    def follow_active_monitor(self, value: bool) -> None:
+        self._set_value('companion/follow_active_monitor', bool(value))
+
+    @property
+    def window_avoidance_enabled(self) -> bool:
+        return self._s.value(
+            'companion/window_avoidance_enabled',
+            DEFAULT_PREFERENCES.window_avoidance_enabled,
+            type=bool,
+        )
+
+    @window_avoidance_enabled.setter
+    def window_avoidance_enabled(self, value: bool) -> None:
+        self._set_value('companion/window_avoidance_enabled', bool(value))
+
+    @property
+    def companion_sound_enabled(self) -> bool:
+        return self._s.value(
+            'companion/sound_enabled',
+            DEFAULT_PREFERENCES.companion_sound_enabled,
+            type=bool,
+        )
+
+    @companion_sound_enabled.setter
+    def companion_sound_enabled(self, value: bool) -> None:
+        self._set_value('companion/sound_enabled', bool(value))
+
+    @property
+    def hourly_chime_enabled(self) -> bool:
+        return self._s.value(
+            'companion/hourly_chime_enabled',
+            DEFAULT_PREFERENCES.hourly_chime_enabled,
+            type=bool,
+        )
+
+    @hourly_chime_enabled.setter
+    def hourly_chime_enabled(self, value: bool) -> None:
+        self._set_value('companion/hourly_chime_enabled', bool(value))
+
+    @property
+    def quiet_hours_start(self) -> str:
+        value = self._s.value(
+            'companion/quiet_hours_start',
+            DEFAULT_PREFERENCES.quiet_hours_start,
+            type=str,
+        )
+        return value if _CLOCK_PATTERN.fullmatch(value) else DEFAULT_PREFERENCES.quiet_hours_start
+
+    @quiet_hours_start.setter
+    def quiet_hours_start(self, value: str) -> None:
+        clock = str(value).strip()
+        if not _CLOCK_PATTERN.fullmatch(clock):
+            raise ValueError('Quiet-hours start must use HH:MM')
+        self._set_value('companion/quiet_hours_start', clock)
+
+    @property
+    def quiet_hours_end(self) -> str:
+        value = self._s.value(
+            'companion/quiet_hours_end',
+            DEFAULT_PREFERENCES.quiet_hours_end,
+            type=str,
+        )
+        return value if _CLOCK_PATTERN.fullmatch(value) else DEFAULT_PREFERENCES.quiet_hours_end
+
+    @quiet_hours_end.setter
+    def quiet_hours_end(self, value: str) -> None:
+        clock = str(value).strip()
+        if not _CLOCK_PATTERN.fullmatch(clock):
+            raise ValueError('Quiet-hours end must use HH:MM')
+        self._set_value('companion/quiet_hours_end', clock)
+
+    @property
+    def quick_actions(self) -> tuple[str, ...]:
+        raw = self._s.value('companion/quick_actions_json', '[]')
+        try:
+            decoded = json.loads(raw) if isinstance(raw, str) else raw
+        except (TypeError, ValueError):
+            decoded = ()
+        if not isinstance(decoded, (list, tuple)):
+            return DEFAULT_PREFERENCES.quick_actions
+        result = tuple(
+            dict.fromkeys(
+                str(item).strip().lower()
+                for item in decoded
+                if str(item).strip().lower() in _QUICK_ACTIONS
+            )
+        )
+        return result or DEFAULT_PREFERENCES.quick_actions
+
+    @quick_actions.setter
+    def quick_actions(self, value: Iterable[str]) -> None:
+        normalized = tuple(
+            dict.fromkeys(str(item).strip().lower() for item in value)
+        )
+        if not 1 <= len(normalized) <= 4:
+            raise ValueError('Choose between one and four quick actions')
+        if any(item not in _QUICK_ACTIONS for item in normalized):
+            raise ValueError('Unknown companion quick action')
+        self._set_value(
+            'companion/quick_actions_json',
+            json.dumps(normalized, ensure_ascii=True, separators=(',', ':')),
+        )
+
+    @property
+    def pet_preferences(self) -> dict[str, dict[str, str]]:
+        raw = self._s.value('companion/pet_preferences_json', '{}')
+        try:
+            decoded = json.loads(raw) if isinstance(raw, str) else raw
+        except (TypeError, ValueError):
+            return {}
+        if not isinstance(decoded, Mapping):
+            return {}
+        result: dict[str, dict[str, str]] = {}
+        for raw_pet_id, raw_slots in tuple(decoded.items())[:32]:
+            if not isinstance(raw_slots, Mapping):
+                continue
+            try:
+                pet_id = _validated_pet_id(raw_pet_id)
+            except ValueError:
+                continue
+            slots: dict[str, str] = {}
+            for raw_slot, raw_item in raw_slots.items():
+                slot = str(raw_slot)
+                if slot not in _PET_ACCESSORY_SLOTS:
+                    continue
+                try:
+                    slots[slot] = _validated_item_id(raw_item)
+                except ValueError:
+                    continue
+            result[pet_id] = slots
+        return result
+
+    @pet_preferences.setter
+    def pet_preferences(self, value: Mapping[str, Mapping[str, object]]) -> None:
+        if len(value) > 32:
+            raise ValueError('At most 32 pet preference entries may be stored')
+        normalized: dict[str, dict[str, str]] = {}
+        for raw_pet_id, raw_slots in value.items():
+            pet_id = _validated_pet_id(raw_pet_id)
+            if not isinstance(raw_slots, Mapping):
+                raise ValueError('Pet preferences must contain slot mappings')
+            slots: dict[str, str] = {}
+            for raw_slot, raw_item in raw_slots.items():
+                slot = str(raw_slot)
+                if slot not in _PET_ACCESSORY_SLOTS:
+                    raise ValueError('Unknown pet accessory slot')
+                slots[slot] = _validated_item_id(raw_item)
+            normalized[pet_id] = slots
+        self._set_value(
+            'companion/pet_preferences_json',
+            json.dumps(normalized, ensure_ascii=True, separators=(',', ':')),
+        )
+
+    @property
+    def app_prop_rules(self) -> tuple[AppPropRule, ...]:
+        raw = self._s.value('companion/app_prop_rules_json', '[]')
+        try:
+            decoded = json.loads(raw) if isinstance(raw, str) else raw
+        except (TypeError, ValueError):
+            return ()
+        if not isinstance(decoded, list):
+            return ()
+        result: list[AppPropRule] = []
+        seen: set[str] = set()
+        for item in decoded:
+            if not isinstance(item, Mapping):
+                continue
+            try:
+                rule = _validated_app_prop_rule(item)
+            except ValueError:
+                continue
+            if rule['app_id'] in seen:
+                continue
+            seen.add(rule['app_id'])
+            result.append(rule)
+            if len(result) == 100:
+                break
+        return tuple(result)
+
+    @app_prop_rules.setter
+    def app_prop_rules(self, value: Iterable[Mapping[str, object]]) -> None:
+        rules = tuple(_validated_app_prop_rule(rule) for rule in value)
+        if len(rules) > 100:
+            raise ValueError('At most 100 application prop rules may be stored')
+        app_ids = [rule['app_id'] for rule in rules]
+        if len(app_ids) != len(set(app_ids)):
+            raise ValueError('Application prop rule app_id values must be unique')
+        self._set_value(
+            'companion/app_prop_rules_json',
+            json.dumps(rules, ensure_ascii=True, separators=(',', ':')),
+        )
+
+    @property
+    def weather_enabled(self) -> bool:
+        return self._s.value(
+            'weather/enabled', DEFAULT_PREFERENCES.weather_enabled, type=bool
+        )
+
+    @weather_enabled.setter
+    def weather_enabled(self, value: bool) -> None:
+        self._set_value('weather/enabled', bool(value))
+
+    @property
+    def holiday_pack(self) -> str:
+        value = self._s.value(
+            'holiday/pack', DEFAULT_PREFERENCES.holiday_pack, type=str
+        )
+        return value if value in {'zh-CN', 'none'} else DEFAULT_PREFERENCES.holiday_pack
+
+    @holiday_pack.setter
+    def holiday_pack(self, value: str) -> None:
+        pack = str(value)
+        if pack not in {'zh-CN', 'none'}:
+            raise ValueError('Unknown holiday pack')
+        self._set_value('holiday/pack', pack)
+
+    @property
+    def break_rest_scene(self) -> str:
+        value = self._s.value(
+            'break/rest_scene', DEFAULT_PREFERENCES.rest_scene, type=str
+        )
+        return value if value in _REST_SCENES else DEFAULT_PREFERENCES.rest_scene
+
+    @break_rest_scene.setter
+    def break_rest_scene(self, value: str) -> None:
+        scene = str(value).strip().lower()
+        if scene not in _REST_SCENES:
+            raise ValueError('Unknown rest scene')
+        self._set_value('break/rest_scene', scene)
+
     # ---- Hotkeys ----
     @property
     def hotkey_filter(self) -> str:
@@ -1014,7 +1475,7 @@ class Settings:
             raise
 
     def reset(self) -> None:
-        """Clear user settings and recreate a fresh schema-v4 marker."""
+        """Clear user settings and recreate a fresh schema-v6 marker."""
         if self._read_only:
             raise SettingsReadOnlyError(
                 f"Cannot reset newer settings schema v{self._stored_schema_version}"

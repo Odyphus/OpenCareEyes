@@ -6,7 +6,7 @@ body:
     id: version
     attributes:
       label: OpenCareEyes 版本
-      placeholder: 0.4.1
+      placeholder: 0.5.0
     validations:
       required: true
   - type: input

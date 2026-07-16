@@ -16,6 +16,29 @@ _TIPS = (
     "站起来伸展身体，再做几次深呼吸。",
 )
 
+_REST_SCENES = {
+    'gaze': (
+        '和伙伴一起眺望远方',
+        '看向约 6 米外的物体，让眼睛慢慢放松。',
+        QColor(10, 20, 39, 226),
+    ),
+    'snow_breathing': (
+        '跟着雪球慢慢呼吸',
+        '吸气四拍，停一拍，再用六拍缓缓呼气。',
+        QColor(15, 36, 58, 226),
+    ),
+    'stretch': (
+        '和伙伴一起伸展',
+        '放松肩膀，轻轻抬头，再向左右缓慢转动。',
+        QColor(10, 43, 45, 226),
+    ),
+    'sleep': (
+        '安静地休息一会儿',
+        '轻轻闭眼，放松眼周、下颌与肩颈。',
+        QColor(24, 22, 38, 230),
+    ),
+}
+
 
 class BreakOverlay(QWidget):
     skip_requested = Signal()
@@ -32,6 +55,7 @@ class BreakOverlay(QWidget):
         self._remaining = 0
         self._force = False
         self._kind = "short"
+        self._scene = 'gaze'
         self._tip_index = 0
         self._fallback_timer = QTimer(self)
         self._fallback_timer.setInterval(1000)
@@ -127,7 +151,7 @@ class BreakOverlay(QWidget):
         elif self._kind == "long":
             title = "现在进行一次长休息"
         else:
-            title = "该休息一下眼睛了"
+            title = _REST_SCENES[self._scene][0]
         self._title_label.setText(title)
         self._snooze_button.setVisible(not self._force)
         self._resume_button.setVisible(paused)
@@ -137,7 +161,9 @@ class BreakOverlay(QWidget):
         self._update_display()
         self._cover_all_screens()
         if not self.isVisible():
-            self._tip_label.setText(_TIPS[self._tip_index % len(_TIPS)])
+            scene_tip = _REST_SCENES[self._scene][1]
+            fallback_tip = _TIPS[self._tip_index % len(_TIPS)]
+            self._tip_label.setText(scene_tip or fallback_tip)
             self._tip_index += 1
             self.show()
             self.raise_()
@@ -158,6 +184,8 @@ class BreakOverlay(QWidget):
             "breaks.cadence.current_break_kind",
             default="short",
         ))
+        scene = str(first_state_value(state, 'breaks.rest_scene', default='gaze'))
+        self._scene = scene if scene in _REST_SCENES else 'gaze'
         suppressed = tuple(first_state_value(
             state, "effective_policy.breaks.suppressed_by", default=()
         ))
@@ -210,7 +238,7 @@ class BreakOverlay(QWidget):
 
     def paintEvent(self, event) -> None:
         painter = QPainter(self)
-        painter.fillRect(self.rect(), QColor(10, 14, 24, 222))
+        painter.fillRect(self.rect(), _REST_SCENES[self._scene][2])
         painter.end()
 
     def keyPressEvent(self, event: QKeyEvent) -> None:

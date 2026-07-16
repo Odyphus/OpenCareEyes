@@ -1,0 +1,154 @@
+{
+  "schema_version": 2,
+  "pet_id": "snow_ferret",
+  "display_name": "鼬鼬",
+  "pack_version": "2.0.0",
+  "min_app_version": "0.6.0",
+  "author": "OpenCareEyes Contributors",
+  "license": "Apache-2.0",
+  "canvas_size": [192, 192],
+  "asset_scale": 2,
+  "default_scale": 100,
+  "preview_path": "preview.png",
+  "visual_theme": {
+    "accent": "#6B9EEA",
+    "warm_accent": "#F2A65A",
+    "stage_light": "#EEF5FC",
+    "stage_dark": "#1D2633"
+  },
+  "personality": {
+    "activity": 52,
+    "curiosity": 78,
+    "playfulness": 68,
+    "sleepiness": 55,
+    "sociability": 82,
+    "walk_speed": 30
+  },
+  "actions": {
+    "idle": {
+      "loop": true,
+      "frames": [
+        {"path": "sprites/ferret_atlas_2x.png", "duration_ms": 1800, "source_rect": [0, 0, 384, 384]},
+        {"path": "sprites/ferret_atlas_2x.png", "duration_ms": 160, "source_rect": [384, 0, 384, 384]},
+        {"path": "sprites/ferret_atlas_2x.png", "duration_ms": 2100, "source_rect": [0, 0, 384, 384]},
+        {"path": "sprites/ferret_atlas_2x.png", "duration_ms": 700, "source_rect": [768, 0, 384, 384]}
+      ]
+    },
+    "sleep": {
+      "loop": true,
+      "frames": [
+        {"path": "sprites/ferret_atlas_2x.png", "duration_ms": 1600, "source_rect": [768, 768, 384, 384]}
+      ]
+    },
+    "move": {
+      "loop": true,
+      "frames": [
+        {"path": "sprites/ferret_atlas_2x.png", "duration_ms": 240, "source_rect": [0, 384, 384, 384]},
+        {"path": "sprites/ferret_atlas_2x.png", "duration_ms": 240, "source_rect": [384, 384, 384, 384]}
+      ]
+    },
+    "click_reaction": {
+      "frames": [
+        {"path": "sprites/ferret_atlas_2x.png", "duration_ms": 320, "source_rect": [1152, 768, 384, 384]},
+        {"path": "sprites/ferret_atlas_2x.png", "duration_ms": 260, "source_rect": [1152, 384, 384, 384]},
+        {"path": "sprites/ferret_atlas_2x.png", "duration_ms": 160, "source_rect": [0, 0, 384, 384]}
+      ]
+    },
+    "drag_hold": {
+      "loop": true,
+      "frames": [
+        {"path": "sprites/ferret_atlas_2x.png", "duration_ms": 420, "source_rect": [0, 1152, 384, 384]}
+      ]
+    },
+    "drag_release": {
+      "frames": [
+        {"path": "sprites/ferret_atlas_2x.png", "duration_ms": 650, "source_rect": [384, 1152, 384, 384]},
+        {"path": "sprites/ferret_atlas_2x.png", "duration_ms": 180, "source_rect": [0, 0, 384, 384]}
+      ]
+    },
+    "right_click_reaction": {
+      "frames": [
+        {"path": "sprites/ferret_atlas_2x.png", "duration_ms": 1100, "source_rect": [768, 1152, 384, 384]},
+        {"path": "sprites/ferret_atlas_2x.png", "duration_ms": 180, "source_rect": [0, 0, 384, 384]}
+      ]
+    },
+    "rest_prompt": {
+      "frames": [
+        {"path": "sprites/ferret_atlas_2x.png", "duration_ms": 420, "source_rect": [768, 384, 384, 384]},
+        {"path": "sprites/ferret_atlas_2x.png", "duration_ms": 1100, "source_rect": [1152, 1152, 384, 384]},
+        {"path": "sprites/ferret_atlas_2x.png", "duration_ms": 180, "source_rect": [0, 0, 384, 384]}
+      ]
+    },
+    "play": {
+      "frames": [
+        {"path": "sprites/ferret_atlas_2x.png", "duration_ms": 280, "source_rect": [1152, 384, 384, 384]},
+        {"path": "sprites/ferret_atlas_2x.png", "duration_ms": 420, "source_rect": [0, 768, 384, 384]},
+        {"path": "sprites/ferret_atlas_2x.png", "duration_ms": 520, "source_rect": [384, 768, 384, 384]},
+        {"path": "sprites/ferret_atlas_2x.png", "duration_ms": 180, "source_rect": [0, 0, 384, 384]}
+      ]
+    },
+    "yawn": {
+      "frames": [
+        {"path": "sprites/ferret_atlas_2x.png", "duration_ms": 950, "source_rect": [1152, 0, 384, 384]},
+        {"path": "sprites/ferret_atlas_2x.png", "duration_ms": 180, "source_rect": [0, 0, 384, 384]}
+      ]
+    },
+    "edge_paw": {
+      "frames": [
+        {"path": "sprites/ferret_atlas_2x.png", "duration_ms": 1000, "source_rect": [768, 384, 384, 384]},
+        {"path": "sprites/ferret_atlas_2x.png", "duration_ms": 180, "source_rect": [0, 0, 384, 384]}
+      ]
+    },
+    "look_cursor": {
+      "frames": [
+        {"path": "sprites/ferret_atlas_2x.png", "duration_ms": 620, "source_rect": [768, 0, 384, 384]},
+        {"path": "sprites/ferret_atlas_2x.png", "duration_ms": 180, "source_rect": [0, 0, 384, 384]}
+      ]
+    }
+  },
+  "event_bindings": {
+    "click": "click_reaction",
+    "right_click": "right_click_reaction",
+    "drag.hold": "drag_hold",
+    "drag.release": "drag_release",
+    "break.due": "rest_prompt",
+    "rest.prompt": "rest_prompt",
+    "rest.sleep": "sleep",
+    "reminder.hourly": "rest_prompt",
+    "item.offered": "play",
+    "cursor.near": "look_cursor",
+    "cursor.still": "sleep",
+    "autonomous.idle": "idle",
+    "autonomous.move": "move",
+    "autonomous.play": "play",
+    "autonomous.sleep": "sleep"
+  },
+  "attachment_points": {
+    "headwear": [96, 38],
+    "neckwear": [96, 82],
+    "bodywear": [96, 112],
+    "held_item": [136, 116],
+    "scene": [96, 96],
+    "effect": [96, 96]
+  },
+  "appearance_rules": {
+    "weather.clear": {"headwear": "accessories/sunglasses.png"},
+    "weather.rain": {"bodywear": "accessories/raincoat.png", "held_item": "accessories/umbrella.png"},
+    "weather.snow": {"neckwear": "accessories/scarf.png", "effect": "accessories/snow_effect.png"},
+    "weather.thunder": {"bodywear": "accessories/raincoat.png"},
+    "holiday.christmas": {"neckwear": "accessories/red_scarf.png", "scene": "accessories/christmas_tree.png"},
+    "holiday.lantern": {"held_item": "accessories/lantern.png"},
+    "application.writing": {"held_item": "accessories/pencil_ruler.png"},
+    "application.calculator": {"held_item": "accessories/calculator.png"},
+    "application.eda": {"held_item": "accessories/pcb.png"},
+    "item.yarn_ball": {"held_item": "accessories/yarn_ball.png"},
+    "item.hot_cocoa": {"held_item": "accessories/hot_cocoa.png"},
+    "item.pine_cone": {"held_item": "accessories/pine_cone.png"},
+    "accessory.sunglasses": {"headwear": "accessories/sunglasses.png"},
+    "accessory.scarf": {"neckwear": "accessories/scarf.png"},
+    "accessory.red_scarf": {"neckwear": "accessories/red_scarf.png"}
+  },
+  "sound_rules": {
+    "reminder.hourly": "sounds/chime.wav"
+  }
+}

@@ -21,8 +21,15 @@ from opencareyes.state import (
     GeneralState,
     GlobalPauseState,
     HotkeyState,
+    PetAnchorState,
+    PetAppearanceState,
+    PetCatalogEntryState,
+    PetCatalogState,
+    PetState,
+    QuickToolsState,
     SmartPausePreferencesState,
     UpdateState,
+    WeatherState,
 )
 
 
@@ -63,6 +70,10 @@ class StateProjector:
         update: UpdateState | None = None,
         display_override: DisplayState | None = None,
         global_pause_override: GlobalPauseState | None = None,
+        pet_catalog: PetCatalogState | None = None,
+        companion: PetState | None = None,
+        weather: WeatherState | None = None,
+        quick_tools: QuickToolsState | None = None,
     ) -> AppState:
         settings = self._settings
         reminder = self._break_reminder
@@ -116,6 +127,7 @@ class StateProjector:
                 reminder_style=str(
                     getattr(settings, "break_reminder_style", "progressive")
                 ),
+                rest_scene=str(getattr(settings, 'break_rest_scene', 'gaze')),
             ),
             focus=FocusState(
                 enabled=settings.focus_enabled,
@@ -239,6 +251,92 @@ class StateProjector:
                 ),
             ),
             update=update or UpdateState(),
+            pet_catalog=pet_catalog or self._default_pet_catalog(),
+            companion=companion or self._default_companion_state(context),
+            weather=weather or WeatherState(
+                status=(
+                    'idle'
+                    if bool(getattr(settings, 'weather_enabled', False))
+                    else 'disabled'
+                )
+            ),
+            quick_tools=quick_tools or QuickToolsState(
+                hourly_chime_enabled=bool(
+                    getattr(settings, 'hourly_chime_enabled', False)
+                ),
+                quiet_hours_start=str(
+                    getattr(settings, 'quiet_hours_start', '23:00')
+                ),
+                quiet_hours_end=str(
+                    getattr(settings, 'quiet_hours_end', '07:00')
+                ),
+                quick_actions=tuple(
+                    getattr(
+                        settings,
+                        'quick_actions',
+                        ('rest', 'timer', 'notes', 'system'),
+                    )
+                ),
+            ),
+        )
+
+    def _default_pet_catalog(self) -> PetCatalogState:
+        pet_id = str(getattr(self._settings, 'active_pet_id', 'snow_ferret'))
+        return PetCatalogState(
+            available_pets=(
+                PetCatalogEntryState(
+                    pet_id='snow_ferret',
+                    display_name='鼬鼬',
+                ),
+            ),
+            active_pet_id=pet_id,
+        )
+
+    def _default_companion_state(
+        self,
+        context: ContextState | None,
+    ) -> PetState:
+        settings = self._settings
+        pet_id = str(getattr(settings, 'active_pet_id', 'snow_ferret'))
+        preferences = getattr(settings, 'pet_preferences', {})
+        slots = preferences.get(pet_id, {}) if isinstance(preferences, dict) else {}
+        appearance = PetAppearanceState(
+            headwear=str(slots.get('headwear', '')),
+            neckwear=str(slots.get('neckwear', '')),
+            bodywear=str(slots.get('bodywear', '')),
+            held_item=str(slots.get('held_item', '')),
+            scene=str(slots.get('scene', '')),
+            effect=str(slots.get('effect', '')),
+        )
+        active_context = context or ContextState()
+        suppressed: list[str] = []
+        if active_context.session in {'locked', 'suspended'}:
+            suppressed.append(active_context.session)
+        if active_context.fullscreen:
+            suppressed.append('fullscreen')
+        enabled = bool(getattr(settings, 'companion_enabled', True))
+        return PetState(
+            pet_id=pet_id,
+            enabled=enabled,
+            visible=enabled and not suppressed,
+            appearance=appearance,
+            scale_percent=int(getattr(settings, 'pet_scale_percent', 100)),
+            anchor=PetAnchorState(
+                edge=str(getattr(settings, 'pet_anchor_edge', 'bottom_right')),
+                offset=int(getattr(settings, 'pet_anchor_offset', 24)),
+                x=getattr(settings, 'pet_x', None),
+                y=getattr(settings, 'pet_y', None),
+            ),
+            suppressed_by=tuple(suppressed),
+            follow_active_monitor=bool(
+                getattr(settings, 'follow_active_monitor', True)
+            ),
+            window_avoidance_enabled=bool(
+                getattr(settings, 'window_avoidance_enabled', True)
+            ),
+            sound_enabled=bool(
+                getattr(settings, 'companion_sound_enabled', False)
+            ),
         )
 
     def _display_health(self) -> DisplayHealthState:

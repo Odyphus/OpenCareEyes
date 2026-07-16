@@ -61,3 +61,21 @@ def test_diagnostic_export_never_contains_window_title_or_executable_path(tmp_pa
     assert "D:\\Work" not in text
     assert "game.exe" in text.lower()
     assert "powerpnt.exe" in text.lower()
+
+
+def test_diagnostic_export_drops_note_fields_even_if_future_state_adds_them(tmp_path):
+    target = tmp_path / "diagnostics.zip"
+    state = {
+        "enabled": True,
+        "notes": [{"title": "PRIVATE_TITLE", "text": "PRIVATE_BODY"}],
+        "note_text": "SECOND_PRIVATE_BODY",
+        "note_title": "SECOND_PRIVATE_TITLE",
+    }
+
+    export_diagnostics(target, state)
+
+    with zipfile.ZipFile(target) as archive:
+        text = archive.read("diagnostics.json").decode("utf-8")
+    assert "PRIVATE" not in text
+    payload = json.loads(text)
+    assert payload["state"] == {"enabled": True}

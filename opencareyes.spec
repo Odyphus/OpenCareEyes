@@ -31,7 +31,10 @@ _version_info = VSVersionInfo(
                     "080404B0",
                     [
                         StringStruct("CompanyName", "Odyphus"),
-                        StringStruct("FileDescription", "OpenCareEyes"),
+                        StringStruct(
+                            "FileDescription",
+                            "OpenCareEyes - Windows 桌面陪伴与护眼助手",
+                        ),
                         StringStruct("FileVersion", _version),
                         StringStruct("InternalName", "OpenCareEyes"),
                         StringStruct("LegalCopyright", "Copyright (c) 2026 Odyphus"),

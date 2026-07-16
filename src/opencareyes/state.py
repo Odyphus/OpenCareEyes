@@ -29,6 +29,7 @@ class BreakState:
     force_break: bool = False
     countdown_display: str = "tray"
     reminder_style: str = "progressive"
+    rest_scene: str = 'gaze'
 
 
 @dataclass(frozen=True, slots=True)
@@ -204,6 +205,117 @@ class UpdateState:
 
 
 @dataclass(frozen=True, slots=True)
+class PetCatalogEntryState:
+    pet_id: str
+    display_name: str
+    pack_version: str = '1.0.0'
+    preview_path: str = ''
+    available: bool = True
+
+
+@dataclass(frozen=True, slots=True)
+class PetCatalogState:
+    available_pets: tuple[PetCatalogEntryState, ...] = ()
+    active_pet_id: str = 'snow_ferret'
+    loading_pet_id: str = ''
+
+    @property
+    def active_display_name(self) -> str:
+        for entry in self.available_pets:
+            if entry.pet_id == self.active_pet_id and entry.display_name.strip():
+                return entry.display_name.strip()
+        return '伙伴'
+
+
+@dataclass(frozen=True, slots=True)
+class PetAppearanceState:
+    headwear: str = ''
+    neckwear: str = ''
+    bodywear: str = ''
+    held_item: str = ''
+    scene: str = ''
+    effect: str = ''
+
+
+@dataclass(frozen=True, slots=True)
+class PetAnchorState:
+    edge: Literal[
+        'bottom_right', 'bottom_left', 'top_right', 'top_left', 'free'
+    ] = 'bottom_right'
+    offset: int = 24
+    x: int | None = None
+    y: int | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class PetState:
+    pet_id: str = 'snow_ferret'
+    enabled: bool = True
+    visible: bool = True
+    behavior: str = 'idle'
+    mood: str = 'calm'
+    scale_percent: int = 100
+    appearance: PetAppearanceState = field(default_factory=PetAppearanceState)
+    anchor: PetAnchorState = field(default_factory=PetAnchorState)
+    bubble: str = 'hidden'
+    suppressed_by: tuple[str, ...] = ()
+    follow_active_monitor: bool = True
+    window_avoidance_enabled: bool = True
+    sound_enabled: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class CompanionPresentationSnapshot:
+    """Small, high-frequency companion projection for desktop surfaces.
+
+    Animation and pointer interactions use this snapshot instead of forcing a
+    complete :class:`AppState` rebuild. It intentionally contains no business
+    settings beyond what the companion surface needs to paint one stable frame.
+    """
+
+    pet_id: str = 'snow_ferret'
+    action_id: str = 'idle'
+    visible: bool = True
+    scale_percent: int = 100
+    appearance: PetAppearanceState = field(default_factory=PetAppearanceState)
+    bubble: str = 'hidden'
+    suppressed_by: tuple[str, ...] = ()
+    motion_profile: Literal['standard', 'reduced'] = 'standard'
+
+
+@dataclass(frozen=True, slots=True)
+class WeatherState:
+    status: Literal['disabled', 'idle', 'loading', 'ready', 'stale', 'failed'] = (
+        'disabled'
+    )
+    condition: str = 'unknown'
+    temperature: float | None = None
+    observed_at: datetime | None = None
+    stale: bool = False
+    attribution: str = 'Open-Meteo'
+    message: str = ''
+
+
+@dataclass(frozen=True, slots=True)
+class UtilityTimerState:
+    status: Literal['idle', 'running', 'paused', 'finished'] = 'idle'
+    label: str = ''
+    remaining: int = 0
+    total: int = 0
+    ends_at: datetime | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class QuickToolsState:
+    utility_timer: UtilityTimerState = field(default_factory=UtilityTimerState)
+    system_panel_visible: bool = False
+    hourly_chime_enabled: bool = False
+    quiet_hours_start: str = '23:00'
+    quiet_hours_end: str = '07:00'
+    quick_actions: tuple[str, ...] = ('rest', 'timer', 'notes', 'system')
+
+
+@dataclass(frozen=True, slots=True)
 class AppState:
     display: DisplayState = field(default_factory=DisplayState)
     breaks: BreakState = field(default_factory=BreakState)
@@ -219,3 +331,7 @@ class AppState:
     break_prompt: BreakPromptState = field(default_factory=BreakPromptState)
     notices: tuple[UserNotice, ...] = ()
     update: UpdateState = field(default_factory=UpdateState)
+    pet_catalog: PetCatalogState = field(default_factory=PetCatalogState)
+    companion: PetState = field(default_factory=PetState)
+    weather: WeatherState = field(default_factory=WeatherState)
+    quick_tools: QuickToolsState = field(default_factory=QuickToolsState)

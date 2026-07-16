@@ -8,22 +8,28 @@ from pathlib import Path
 APP_NAME = "OpenCareEyes"
 ORG_NAME = "OpenCareEyes"
 
-try:
-    APP_VERSION = version("opencareyes")
-except PackageNotFoundError:
-    # Editable/source-tree runs may not have package metadata yet. Read the
-    # canonical value directly instead of duplicating a release version here.
+def _source_tree_version() -> str | None:
     project_table = False
-    APP_VERSION = "0+unknown"
     pyproject = Path(__file__).resolve().parents[2] / "pyproject.toml"
-    if pyproject.is_file():
-        for raw_line in pyproject.read_text(encoding="utf-8").splitlines():
-            line = raw_line.strip()
-            if line.startswith("["):
-                project_table = line == "[project]"
-            elif project_table and line.startswith("version") and "=" in line:
-                APP_VERSION = line.split("=", 1)[1].strip().strip('"\'')
-                break
+    if not pyproject.is_file():
+        return None
+    for raw_line in pyproject.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if line.startswith("["):
+            project_table = line == "[project]"
+        elif project_table and line.startswith("version") and "=" in line:
+            return line.split("=", 1)[1].strip().strip('"\'')
+    return None
+
+
+# pyproject.toml is the canonical version while running from a source tree.
+# Frozen/installed builds fall back to package metadata generated from it.
+APP_VERSION = _source_tree_version()
+if APP_VERSION is None:
+    try:
+        APP_VERSION = version("opencareyes")
+    except PackageNotFoundError:
+        APP_VERSION = "0+unknown"
 
 # Paths
 if getattr(sys, "frozen", False):
@@ -36,6 +42,7 @@ ASSETS_DIR = os.path.join(BASE_DIR, "assets")
 ICONS_DIR = os.path.join(ASSETS_DIR, "icons")
 SOUNDS_DIR = os.path.join(ASSETS_DIR, "sounds")
 STYLES_DIR = os.path.join(ASSETS_DIR, "styles")
+PETS_DIR = os.path.join(ASSETS_DIR, "pets")
 
 # Color temperature range (Kelvin)
 TEMP_MIN = 1000

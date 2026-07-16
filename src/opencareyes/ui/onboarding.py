@@ -1,4 +1,4 @@
-"""Three-step first-run welcome dialog."""
+"""Pet-first first-run welcome dialog."""
 
 from __future__ import annotations
 
@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 )
 
 from opencareyes.ui.widgets import Card, set_accessible
+from opencareyes.ui.companion_pages import FerretPreview
 
 
 class OnboardingDialog(QDialog):
@@ -29,7 +30,7 @@ class OnboardingDialog(QDialog):
         self.setObjectName("onboardingDialog")
         self.setWindowTitle("欢迎使用 OpenCareEyes")
         self.setModal(True)
-        self.setMinimumSize(680, 500)
+        self.setMinimumSize(640, 480)
         self.resize(720, 520)
         self.setWindowFlag(Qt.WindowContextHelpButtonHint, False)
         self._build_ui()
@@ -51,6 +52,7 @@ class OnboardingDialog(QDialog):
         root.addWidget(self._step_label)
 
         self._stack = QStackedWidget()
+        self._stack.addWidget(self._companion_step())
         self._stack.addWidget(self._display_step())
         self._stack.addWidget(self._break_step())
         self._stack.addWidget(self._automation_step())
@@ -80,6 +82,45 @@ class OnboardingDialog(QDialog):
         self._error_label.hide()
         root.addWidget(self._error_label)
         root.addLayout(navigation)
+
+    def _companion_step(self) -> QWidget:
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(0, 0, 0, 0)
+        title = QLabel("先认识你的桌面伙伴")
+        title.setObjectName("onboardingTitle")
+        description = QLabel("鼬鼬会在桌面陪伴、提示休息，并帮你打开常用工具。")
+        description.setObjectName("pageDescription")
+        layout.addWidget(title)
+        layout.addWidget(description)
+
+        card = Card()
+        row = QHBoxLayout()
+        preview = FerretPreview()
+        preview.setMinimumSize(220, 180)
+        row.addWidget(preview, 3)
+        copy = QVBoxLayout()
+        name = QLabel("鼬鼬 · 白鼬")
+        name.setObjectName("statusValue")
+        detail = QLabel("可拖动、可隐藏；锁屏、全屏和睡眠时会安静退场。")
+        detail.setWordWrap(True)
+        self._pet_toggle = QCheckBox("完成后在桌面显示鼬鼬（推荐）")
+        self._pet_toggle.setChecked(True)
+        self._pet_toggle.setToolTip("可随时从托盘显示或隐藏")
+        set_accessible(
+            self._pet_toggle,
+            "显示桌面伙伴",
+            "完成设置后在桌面右下角显示可互动、可拖动的鼬鼬伙伴",
+        )
+        copy.addWidget(name)
+        copy.addWidget(detail)
+        copy.addStretch()
+        copy.addWidget(self._pet_toggle)
+        row.addLayout(copy, 2)
+        card.body.addLayout(row)
+        layout.addWidget(card)
+        layout.addStretch()
+        return page
 
     def _display_step(self) -> QWidget:
         page = QWidget()
@@ -145,15 +186,6 @@ class OnboardingDialog(QDialog):
             if key == "20-20-20":
                 choice.setChecked(True)
         card.body.addLayout(options)
-        self._pet_toggle = QCheckBox("在桌面显示倒计时伙伴（推荐）")
-        self._pet_toggle.setChecked(True)
-        self._pet_toggle.setToolTip("可随时拖动、隐藏，也可从托盘一键重新显示")
-        set_accessible(
-            self._pet_toggle,
-            "显示倒计时桌宠",
-            "完成设置后在桌面右下角显示可拖动的休息倒计时伙伴",
-        )
-        card.body.addWidget(self._pet_toggle)
         layout.addWidget(card)
         layout.addStretch()
         return page
@@ -181,6 +213,7 @@ class OnboardingDialog(QDialog):
             ("广州", (23.1291, 113.2644)),
             ("深圳", (22.5431, 114.0579)),
             ("成都", (30.5728, 104.0668)),
+            ("济南", (36.6512, 117.1201)),
         ):
             self._city_combo.addItem(city, coordinates)
         self._city_combo.setEnabled(False)
@@ -197,7 +230,7 @@ class OnboardingDialog(QDialog):
 
     def _update_navigation(self, *_args) -> None:
         index = self._stack.currentIndex()
-        self._step_label.setText(f"步骤 {index + 1} / 3")
+        self._step_label.setText(f"步骤 {index + 1} / {self._stack.count()}")
         self._back_button.setVisible(index > 0)
         last = index == self._stack.count() - 1
         self._next_button.setText("完成设置" if last else "下一步")
@@ -242,6 +275,16 @@ class OnboardingDialog(QDialog):
         if callable(display_setter) and not self._run_command(
             display_setter,
             "floating" if self._pet_toggle.isChecked() else "tray",
+        ):
+            return False
+        companion_setter = getattr(
+            self._controller,
+            "set_companion_enabled",
+            None,
+        )
+        if callable(companion_setter) and not self._run_command(
+            companion_setter,
+            self._pet_toggle.isChecked(),
         ):
             return False
         if mode == "custom":

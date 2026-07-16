@@ -137,9 +137,17 @@ jobs:
           python scripts\generate_winget_manifest.py $installer.FullName --version $version
           if ($LASTEXITCODE -ne 0) { throw "WinGet manifest generation failed" }
           Compress-Archive -Path ".\winget_output\manifests" -DestinationPath ".\OpenCareEyes_WinGet_$version.zip"
+          Compress-Archive -LiteralPath @(
+            '.\dist\OpenCareEyes.exe',
+            '.\README.md',
+            '.\使用说明.md',
+            '.\LICENSE',
+            '.\THIRD_PARTY_NOTICES.md'
+          ) -DestinationPath ".\OpenCareEyes_Portable_$version.zip"
           $files = @(
             Get-Item .\dist\OpenCareEyes.exe
             Get-Item .\installer_output\OpenCareEyes_Setup_*.exe
+            Get-Item ".\OpenCareEyes_Portable_$version.zip"
             Get-Item ".\OpenCareEyes_WinGet_$version.zip"
             Get-Item .\THIRD_PARTY_NOTICES.md
           )
@@ -159,4 +167,4 @@ jobs:
         run: |
           $installer = Get-Item .\installer_output\OpenCareEyes_Setup_*.exe
           $version = $env:GITHUB_REF_NAME.TrimStart('v')
-          gh release create $env:GITHUB_REF_NAME --verify-tag --generate-notes --title "OpenCareEyes $env:GITHUB_REF_NAME" .\dist\OpenCareEyes.exe $installer.FullName ".\OpenCareEyes_WinGet_$version.zip" .\SHA256SUMS.txt .\THIRD_PARTY_NOTICES.md
+          gh release create $env:GITHUB_REF_NAME --verify-tag --generate-notes --title "OpenCareEyes $env:GITHUB_REF_NAME" .\dist\OpenCareEyes.exe $installer.FullName ".\OpenCareEyes_Portable_$version.zip" ".\OpenCareEyes_WinGet_$version.zip" .\SHA256SUMS.txt .\THIRD_PARTY_NOTICES.md

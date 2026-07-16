@@ -8,6 +8,8 @@ __pycache__/
 build/
 dist/
 installer_output/
+release_output/
+winget_output/
 
 # Test, lint and coverage caches
 .pytest_cache/

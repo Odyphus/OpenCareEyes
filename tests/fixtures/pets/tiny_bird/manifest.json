@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "pet_id": "tiny_bird",
+  "display_name": "小团雀",
+  "pack_version": "1.0.0",
+  "min_app_version": "0.5.0",
+  "author": "OpenCareEyes",
+  "license": "Apache-2.0",
+  "canvas_size": [96, 72],
+  "default_scale": 125,
+  "preview_path": "preview.png",
+  "personality": {
+    "activity": 90,
+    "curiosity": 60,
+    "playfulness": 20,
+    "sleepiness": 15,
+    "sociability": 55,
+    "walk_speed": 48
+  },
+  "actions": {
+    "idle": {"loop": true, "frames": [{"path": "sprites/bird.png", "duration_ms": 600}]},
+    "sleep": {"loop": true, "frames": [{"path": "sprites/bird.png", "duration_ms": 900}]},
+    "move": {"loop": true, "frames": [{"path": "sprites/bird.png", "duration_ms": 90}]},
+    "click_reaction": {"frames": [{"path": "sprites/bird.png", "duration_ms": 120}]},
+    "drag_hold": {"loop": true, "frames": [{"path": "sprites/bird.png", "duration_ms": 100}]},
+    "drag_release": {"frames": [{"path": "sprites/bird.png", "duration_ms": 200}]},
+    "right_click_reaction": {"frames": [{"path": "sprites/bird.png", "duration_ms": 220}]},
+    "rest_prompt": {"loop": true, "frames": [{"path": "sprites/bird.png", "duration_ms": 450}]},
+    "peck": {"frames": [{"path": "sprites/bird.png", "duration_ms": 80}]}
+  },
+  "event_bindings": {
+    "click": "peck"
+  },
+  "attachment_points": {
+    "headwear": [48, 12],
+    "held_item": [72, 42],
+    "effect": [48, 36]
+  },
+  "appearance_rules": {},
+  "sound_rules": {}
+}

@@ -47,7 +47,7 @@ class BreakPage(ScrollPage):
 
     def _build_ui(self) -> None:
         self.layout.addWidget(PageHeader(
-            "休息节奏",
+            "休息角",
             "按活跃用眼时间安排短休息与长休息；温和提醒不会突然打断当前操作。",
         ))
 
@@ -145,12 +145,22 @@ class BreakPage(ScrollPage):
         self._reminder_style_combo.addItem("到点立即全屏", "fullscreen")
         set_accessible(self._reminder_style_combo, "休息提醒显示方式")
         reminder_form.addRow("到点后", self._reminder_style_combo)
+        self._rest_scene_combo = QComboBox()
+        for label, scene_id in (
+            ('眺望远方', 'gaze'),
+            ('雪球呼吸', 'snow_breathing'),
+            ('伸展陪练', 'stretch'),
+            ('团子安睡', 'sleep'),
+        ):
+            self._rest_scene_combo.addItem(label, scene_id)
+        set_accessible(self._rest_scene_combo, '宠物休息场景')
+        reminder_form.addRow('休息场景', self._rest_scene_combo)
         reminder_card.body.addLayout(reminder_form)
         self.layout.addWidget(reminder_card)
 
         pet_card = Card(
-            "倒计时桌宠",
-            "作为功能型小伙伴显示状态；到点后可直接休息、延后或跳过。",
+            "桌面伙伴与倒计时",
+            "桌面伙伴独立常驻；休息倒计时可以显示在伙伴气泡或仅保留托盘。",
         )
         pet_form = QFormLayout()
         self._display_combo = QComboBox()
@@ -160,7 +170,7 @@ class BreakPage(ScrollPage):
         set_accessible(self._display_combo, "休息倒计时显示方式")
         pet_form.addRow("显示方式", self._display_combo)
         pet_actions = QHBoxLayout()
-        self._pet_preview_button = QPushButton("显示桌宠")
+        self._pet_preview_button = QPushButton("显示桌面伙伴")
         self._pet_preview_button.setObjectName("secondaryButton")
         self._pet_reset_button = QPushButton("重置位置")
         self._pet_reset_button.setObjectName("quietButton")
@@ -202,10 +212,11 @@ class BreakPage(ScrollPage):
         self._reminder_style_combo.currentIndexChanged.connect(
             self._reminder_style_changed
         )
-        self._display_combo.currentIndexChanged.connect(self._display_mode_changed)
-        self._pet_preview_button.clicked.connect(
-            lambda: self._controller.set_break_countdown_display("floating")
+        self._rest_scene_combo.currentIndexChanged.connect(
+            self._rest_scene_changed
         )
+        self._display_combo.currentIndexChanged.connect(self._display_mode_changed)
+        self._pet_preview_button.clicked.connect(self._show_pet_preview)
         self._pet_reset_button.clicked.connect(self._reset_pet_position)
         self._controller.state_changed.connect(self.render)
         break_tick = getattr(self._controller, "break_tick", None)
@@ -270,9 +281,29 @@ class BreakPage(ScrollPage):
             command(self._reminder_style_combo.itemData(index))
 
     def _reset_pet_position(self) -> None:
+        anchor = getattr(self._controller, 'set_pet_anchor', None)
+        if callable(anchor):
+            anchor('bottom_right', 24)
         command = getattr(self._controller, "reset_pet_position", None)
         if command is not None:
             command()
+
+    def _show_pet_preview(self) -> None:
+        # Keep the v4 countdown preference in sync for upgraded users while
+        # enabling the v5 companion through its dedicated command.
+        display = getattr(self._controller, 'set_break_countdown_display', None)
+        if callable(display):
+            display('floating')
+        companion = getattr(self._controller, 'set_companion_enabled', None)
+        if callable(companion):
+            companion(True)
+
+    def _rest_scene_changed(self, index: int) -> None:
+        if self._rendering:
+            return
+        self._controller.select_rest_scene(
+            str(self._rest_scene_combo.itemData(index))
+        )
 
     def _display_mode_changed(self, index: int) -> None:
         if self._rendering:
@@ -353,6 +384,9 @@ class BreakPage(ScrollPage):
             display_mode = str(first_state_value(
                 state, "breaks.countdown_display", default="tray"
             ))
+            rest_scene = str(first_state_value(
+                state, 'breaks.rest_scene', default='gaze'
+            ))
             available = bool(first_state_value(state, "capabilities.breaks_available", default=True))
 
             with QSignalBlocker(self._enable_toggle):
@@ -382,6 +416,10 @@ class BreakPage(ScrollPage):
             if display_index >= 0:
                 with QSignalBlocker(self._display_combo):
                     self._display_combo.setCurrentIndex(display_index)
+            scene_index = self._rest_scene_combo.findData(rest_scene)
+            if scene_index >= 0:
+                with QSignalBlocker(self._rest_scene_combo):
+                    self._rest_scene_combo.setCurrentIndex(scene_index)
 
             if not enabled or phase == "stopped":
                 status = "提醒未启用"
@@ -414,6 +452,7 @@ class BreakPage(ScrollPage):
                 self._mode_combo,
                 self._force_toggle,
                 self._reminder_style_combo,
+                self._rest_scene_combo,
                 self._display_combo,
                 self._pet_preview_button,
                 self._pet_reset_button,
