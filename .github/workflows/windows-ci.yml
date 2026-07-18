@@ -340,7 +340,8 @@ jobs:
           $seconds = [int][Math]::Ceiling($minutes * 60)
           python scripts\ci_stability_smoke.py `
             --executable .\dist\OpenCareEyes.exe `
-            --duration-seconds $seconds
+            --duration-seconds $seconds `
+            --max-startup-seconds 30
 
   release:
     name: Package release

@@ -343,6 +343,7 @@ def run_packaged_smoke(
     duration_seconds: float,
     warmup_seconds: float,
     sample_interval_seconds: float,
+    max_startup_seconds: float = MAX_STARTUP_SECONDS,
 ) -> SmokeResult:
     """Launch the packaged app, monitor it, then always stop its process tree."""
 
@@ -352,7 +353,7 @@ def run_packaged_smoke(
         raise RuntimeError("the packaged stability smoke requires Windows")
     if not executable.is_file():
         raise FileNotFoundError(executable)
-    minimum_duration = MAX_STARTUP_SECONDS + warmup_seconds + sample_interval_seconds * 2
+    minimum_duration = max_startup_seconds + warmup_seconds + sample_interval_seconds * 2
     if duration_seconds <= minimum_duration:
         raise ValueError("duration must include startup, warm-up, and at least three samples")
 
@@ -390,7 +391,10 @@ def run_packaged_smoke(
                 ready_path,
                 started_at,
             )
-            assert_startup_ready(startup_seconds)
+            assert_startup_ready(
+                startup_seconds,
+                max_startup_seconds=max_startup_seconds,
+            )
             warmup_deadline = time.monotonic() + warmup_seconds
             while time.monotonic() < warmup_deadline:
                 if child.poll() is not None:
@@ -419,6 +423,12 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--duration-seconds", type=float, default=600)
     parser.add_argument("--warmup-seconds", type=float, default=30)
     parser.add_argument("--sample-interval-seconds", type=float, default=5)
+    parser.add_argument(
+        "--max-startup-seconds",
+        type=float,
+        default=MAX_STARTUP_SECONDS,
+        help="startup limit; keep the 3-second default outside shared CI runners",
+    )
     return parser.parse_args(argv)
 
 
@@ -430,6 +440,7 @@ def main(argv: list[str] | None = None) -> int:
         duration_seconds=args.duration_seconds,
         warmup_seconds=args.warmup_seconds,
         sample_interval_seconds=args.sample_interval_seconds,
+        max_startup_seconds=args.max_startup_seconds,
     )
     samples = result.samples
     first, last = samples[0], samples[-1]

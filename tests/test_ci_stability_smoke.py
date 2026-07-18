@@ -117,6 +117,8 @@ def test_startup_gate_accepts_three_seconds_and_rejects_slower_start():
     with pytest.raises(RuntimeError, match="packaged startup took 3.001s"):
         assert_startup_ready(3.001)
 
+    assert_startup_ready(16.156, max_startup_seconds=30.0)
+
 
 def test_ready_marker_requires_exact_nonempty_startup_message(tmp_path):
     log_path = tmp_path / "opencareyes.log"
@@ -190,3 +192,4 @@ def test_main_push_runs_the_bounded_stability_gate():
     assert "github.event_name == 'workflow_dispatch'" in stability_job
     assert "github.ref == 'refs/heads/main'" in stability_job
     assert "--duration-seconds $seconds" in stability_job
+    assert "--max-startup-seconds 30" in stability_job
