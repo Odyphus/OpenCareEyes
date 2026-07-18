@@ -21,12 +21,21 @@ from opencareyes.ui.widgets import (
 class TrayIcon(QSystemTrayIcon):
     """Quick actions that never write settings or services directly."""
 
-    def __init__(self, controller, panel, pet_surface=None, parent=None):
+    def __init__(
+        self,
+        controller,
+        panel,
+        pet_surface=None,
+        parent=None,
+        *,
+        companion_runtime=None,
+    ):
         super().__init__(parent)
         self._controller = controller
         self._panel = panel
         self._pet_surface = pet_surface
         self._mini_countdown = pet_surface
+        self._companion_runtime = companion_runtime
         self._create_icon()
         self._create_menu()
         self.activated.connect(self._on_activated)
@@ -133,6 +142,8 @@ class TrayIcon(QSystemTrayIcon):
         )
 
         companion_menu = self._menu.addMenu("伙伴")
+        self._open_pet_bubble_action = companion_menu.addAction("打开伙伴气泡")
+        self._open_pet_bubble_action.triggered.connect(self._show_pet_bubble)
         self._preview_pet_action = companion_menu.addAction("预览桌面伙伴")
         self._preview_pet_action.triggered.connect(self._preview_pet)
         self._reset_pet_action = companion_menu.addAction("重置桌宠位置")
@@ -197,6 +208,11 @@ class TrayIcon(QSystemTrayIcon):
         preview = getattr(self._mini_countdown, "preview", None)
         if callable(preview):
             preview()
+
+    def _show_pet_bubble(self) -> None:
+        show_bubble = getattr(self._companion_runtime, "show_bubble", None)
+        if callable(show_bubble):
+            show_bubble(focusable=True)
 
     def _reset_pet_position(self) -> None:
         reset = getattr(self._mini_countdown, "reset_position", None)
@@ -264,6 +280,9 @@ class TrayIcon(QSystemTrayIcon):
         companion_enabled = bool(first_state_value(
             state, "companion.enabled", default=True
         ))
+        companion_visible = bool(first_state_value(
+            state, "companion.visible", default=companion_enabled
+        ))
         remaining = first_state_value(state, "breaks.remaining", default=0)
         temp = int(first_state_value(state, "display.color_temperature", default=6500))
         dim_level = int(first_state_value(state, "display.dim_level", default=0))
@@ -283,6 +302,14 @@ class TrayIcon(QSystemTrayIcon):
         self._pet_action.setEnabled(True)
         self._pet_action.setToolTip("在桌面显示可拖动的陪伴宠物")
         pet_available = self._mini_countdown is not None
+        self._open_pet_bubble_action.setEnabled(
+            companion_visible and self._companion_runtime is not None
+        )
+        self._open_pet_bubble_action.setToolTip(
+            "用键盘操作伙伴快捷气泡"
+            if companion_visible
+            else "伙伴当前隐藏，恢复显示后可打开气泡"
+        )
         self._preview_pet_action.setEnabled(pet_available)
         self._reset_pet_action.setEnabled(pet_available)
         self._filter_action.setText(

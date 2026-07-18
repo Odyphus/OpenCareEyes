@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import QTimer, Qt, Signal
-from PySide6.QtGui import QColor, QKeyEvent, QPainter
+from PySide6.QtGui import QColor, QKeyEvent, QPainter, QPalette
 from PySide6.QtWidgets import (
     QApplication,
     QHBoxLayout,
@@ -23,6 +23,8 @@ class _UndoToast(QWidget):
 
     def __init__(self):
         super().__init__(None)
+        self._theme_signature = None
+        self._theme_colors: dict[str, str] = {}
         self.setWindowFlags(
             Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool
         )
@@ -30,23 +32,64 @@ class _UndoToast(QWidget):
         self.setObjectName("undoToast")
         self.setAccessibleName("休息提醒已延后，可撤销")
         self.setFixedSize(360, 76)
-        self.setStyleSheet(
-            "QWidget#undoToast { background: #172033; border: 1px solid #3A4963; "
-            "border-radius: 12px; } QLabel { color: white; background: transparent; }"
-        )
         layout = QHBoxLayout(self)
         layout.setContentsMargins(18, 12, 14, 12)
-        label = QLabel("已延后 5 分钟 · 不计入活跃用眼")
+        self._label = QLabel("已延后 5 分钟 · 不计入活跃用眼")
+        self._label.setAccessibleName("延后结果")
         self._undo = QPushButton("撤销")
         self._undo.setObjectName("secondaryButton")
         self._undo.setAccessibleName("撤销稍后提醒")
+        self._undo.setFocusPolicy(Qt.StrongFocus)
         self._undo.clicked.connect(self.undo_clicked)
-        layout.addWidget(label, 1)
+        layout.addWidget(self._label, 1)
         layout.addWidget(self._undo)
         self._timer = QTimer(self)
         self._timer.setSingleShot(True)
         self._timer.setInterval(8000)
         self._timer.timeout.connect(self.hide)
+        app = QApplication.instance()
+        self.apply_theme(getattr(app, "theme_snapshot", None))
+
+    def apply_theme(self, snapshot) -> None:
+        resolved = str(getattr(snapshot, "resolved", "dark"))
+        resolved = resolved if resolved in {"light", "dark"} else "dark"
+        high_contrast = bool(getattr(snapshot, "high_contrast", False))
+        signature = (resolved, high_contrast)
+        if signature == self._theme_signature:
+            return
+        self._theme_signature = signature
+        self.setProperty("highContrast", high_contrast)
+        if high_contrast:
+            palette = QApplication.palette()
+            colors = {
+                "card": palette.color(QPalette.Window).name(),
+                "text": palette.color(QPalette.WindowText).name(),
+                "border": palette.color(QPalette.Mid).name(),
+                "button": palette.color(QPalette.Button).name(),
+                "button_text": palette.color(QPalette.ButtonText).name(),
+                "focus": palette.color(QPalette.Highlight).name(),
+            }
+        elif resolved == "light":
+            colors = {
+                "card": "#FFFFFF", "text": "#172033", "border": "#CAD5E5",
+                "button": "#EAF0FA", "button_text": "#172033", "focus": "#365FBD",
+            }
+        else:
+            colors = {
+                "card": "#172033", "text": "#F7FAFF", "border": "#3A4963",
+                "button": "#253149", "button_text": "#F7FAFF", "focus": "#8FB2FF",
+            }
+        self._theme_colors = colors
+        self.setStyleSheet(
+            "QWidget#undoToast { "
+            f"background: {colors['card']}; border: 1px solid {colors['border']}; "
+            "border-radius: 12px; } "
+            f"QLabel {{ color: {colors['text']}; background: transparent; }} "
+            "QPushButton { border-radius: 8px; padding: 6px 12px; "
+            f"background: {colors['button']}; color: {colors['button_text']}; "
+            f"border: 1px solid {colors['border']}; }} "
+            f"QPushButton:focus {{ border: 2px solid {colors['focus']}; }}"
+        )
 
     def show_toast(self) -> None:
         app = QApplication.instance()
@@ -76,6 +119,8 @@ class BreakPrompt(QWidget):
         self._kind = "short"
         self._stage = "gentle"
         self._handling_action = False
+        self._theme_signature = None
+        self._theme_colors: dict[str, str] = {}
         self.setObjectName("breakPrompt")
         self.setWindowFlags(
             Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool
@@ -87,6 +132,8 @@ class BreakPrompt(QWidget):
         self._build_ui()
         self._undo_toast = _UndoToast()
         self._undo_toast.undo_clicked.connect(self._undo_snooze)
+        app = QApplication.instance()
+        self.apply_theme(getattr(app, "theme_snapshot", None))
 
         if controller is not None:
             start = getattr(controller, "start_due_break", None)
@@ -115,11 +162,13 @@ class BreakPrompt(QWidget):
     def _build_ui(self) -> None:
         self._title = QLabel("该让眼睛休息一下了")
         self._title.setObjectName("promptTitle")
+        self._title.setAccessibleName("休息提醒标题")
         self._title.setStyleSheet(
             "color: white; background: transparent; font-size: 19px; font-weight: 600;"
         )
         self._message = QLabel("现在停一下，看看远处，让眼睛慢慢放松。")
         self._message.setWordWrap(True)
+        self._message.setAccessibleName("休息提醒说明")
         self._message.setStyleSheet(
             "color: rgba(255,255,255,205); background: transparent; font-size: 13px;"
         )
@@ -129,6 +178,7 @@ class BreakPrompt(QWidget):
         self._close.setFixedSize(28, 28)
         self._close.setAccessibleName("关闭并在 5 分钟后提醒")
         self._close.setToolTip("关闭后将在 5 分钟后再次提醒")
+        self._close.setFocusPolicy(Qt.StrongFocus)
         self._close.setStyleSheet(
             "QToolButton { color: rgba(255,255,255,190); background: transparent; "
             "border: none; border-radius: 14px; font-size: 18px; }"
@@ -144,12 +194,14 @@ class BreakPrompt(QWidget):
         self._start = QPushButton("现在休息")
         self._start.setObjectName("primaryButton")
         self._start.setAccessibleName("现在开始休息")
+        self._start.setFocusPolicy(Qt.StrongFocus)
         self._start.clicked.connect(self._start_break)
 
         self._snooze_button = QToolButton()
         self._snooze_button.setText("稍后提醒")
         self._snooze_button.setPopupMode(QToolButton.InstantPopup)
         menu = QMenu(self._snooze_button)
+        menu.setAccessibleName("稍后提醒时间")
         for minutes in (5, 10, 30):
             action = menu.addAction(f"{minutes} 分钟后提醒")
             action.triggered.connect(
@@ -157,10 +209,12 @@ class BreakPrompt(QWidget):
             )
         self._snooze_button.setMenu(menu)
         self._snooze_button.setAccessibleName("选择稍后提醒时间")
+        self._snooze_button.setFocusPolicy(Qt.StrongFocus)
 
         self._skip = QPushButton("本次跳过")
         self._skip.setObjectName("quietButton")
         self._skip.setAccessibleName("跳过本次休息并重置当前周期")
+        self._skip.setFocusPolicy(Qt.StrongFocus)
         self._skip.clicked.connect(self._skip_break)
 
         actions = QHBoxLayout()
@@ -176,6 +230,90 @@ class BreakPrompt(QWidget):
         layout.addWidget(self._message)
         layout.addStretch()
         layout.addLayout(actions)
+
+    def apply_theme(self, snapshot) -> None:
+        """Apply the shared theme to the prompt and its undo notice."""
+
+        resolved = str(getattr(snapshot, "resolved", "dark"))
+        resolved = resolved if resolved in {"light", "dark"} else "dark"
+        high_contrast = bool(getattr(snapshot, "high_contrast", False))
+        signature = (resolved, high_contrast)
+        if signature == self._theme_signature:
+            self._undo_toast.apply_theme(snapshot)
+            return
+        self._theme_signature = signature
+        self.setProperty("highContrast", high_contrast)
+        if high_contrast:
+            palette = QApplication.palette()
+            colors = {
+                "card": palette.color(QPalette.Window).name(),
+                "prominent": palette.color(QPalette.Window).name(),
+                "text": palette.color(QPalette.WindowText).name(),
+                "muted": palette.color(QPalette.Text).name(),
+                "border": palette.color(QPalette.Mid).name(),
+                "button": palette.color(QPalette.Button).name(),
+                "button_text": palette.color(QPalette.ButtonText).name(),
+                "primary": palette.color(QPalette.Highlight).name(),
+                "primary_text": palette.color(QPalette.HighlightedText).name(),
+                "focus": palette.color(QPalette.Highlight).name(),
+                "accent": palette.color(QPalette.Highlight).name(),
+                "shadow": palette.color(QPalette.Shadow).name(),
+            }
+        elif resolved == "light":
+            colors = {
+                "card": "#F8FBFF", "prominent": "#EEF3FC", "text": "#172033",
+                "muted": "#58677F", "border": "#CAD5E5", "button": "#EAF0FA",
+                "button_text": "#172033", "primary": "#5B8DEF",
+                "primary_text": "#FFFFFF", "focus": "#365FBD",
+                "accent": "#F2A65A", "shadow": "#71809A",
+            }
+        else:
+            colors = {
+                "card": "#172033", "prominent": "#29354D", "text": "#F7FAFF",
+                "muted": "#C4CFE1", "border": "#3A4963", "button": "#253149",
+                "button_text": "#F7FAFF", "primary": "#5B8DEF",
+                "primary_text": "#FFFFFF", "focus": "#8FB2FF",
+                "accent": "#F2A65A", "shadow": "#000000",
+            }
+        self._theme_colors = colors
+        self._title.setStyleSheet(
+            f"color: {colors['text']}; background: transparent; "
+            "font-size: 19px; font-weight: 600;"
+        )
+        self._message.setStyleSheet(
+            f"color: {colors['muted']}; background: transparent; font-size: 13px;"
+        )
+        self._close.setStyleSheet(
+            "QToolButton { background: transparent; border: 1px solid transparent; "
+            f"color: {colors['muted']}; border-radius: 14px; font-size: 18px; }} "
+            f"QToolButton:hover {{ background: {colors['button']}; color: {colors['text']}; }} "
+            f"QToolButton:focus {{ border: 2px solid {colors['focus']}; }}"
+        )
+        secondary_style = (
+            "QPushButton, QToolButton { border-radius: 8px; padding: 7px 12px; "
+            f"background: {colors['button']}; color: {colors['button_text']}; "
+            f"border: 1px solid {colors['border']}; }} "
+            f"QPushButton:hover, QToolButton:hover {{ border-color: {colors['focus']}; }} "
+            f"QPushButton:focus, QToolButton:focus {{ border: 2px solid {colors['focus']}; }}"
+        )
+        self._snooze_button.setStyleSheet(secondary_style)
+        self._skip.setStyleSheet(secondary_style)
+        self._start.setStyleSheet(
+            "QPushButton { border-radius: 8px; padding: 7px 12px; "
+            f"background: {colors['primary']}; color: {colors['primary_text']}; "
+            f"border: 1px solid {colors['primary']}; }} "
+            f"QPushButton:focus {{ border: 2px solid {colors['focus']}; }}"
+        )
+        menu = self._snooze_button.menu()
+        if menu is not None:
+            menu.setStyleSheet(
+                f"QMenu {{ background: {colors['card']}; color: {colors['text']}; "
+                f"border: 1px solid {colors['border']}; }} "
+                f"QMenu::item:selected {{ background: {colors['primary']}; "
+                f"color: {colors['primary_text']}; }}"
+            )
+        self._undo_toast.apply_theme(snapshot)
+        self.update()
 
     def show_prompt(self, kind: str = "short", stage: str = "gentle") -> None:
         self._start.show()
@@ -304,14 +442,18 @@ class BreakPrompt(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
         card = self.rect().adjusted(4, 3, -4, -8)
+        colors = self._theme_colors
+        shadow = QColor(colors.get("shadow", "#000000"))
+        shadow.setAlpha(62)
         painter.setPen(Qt.NoPen)
-        painter.setBrush(QColor(0, 0, 0, 62))
+        painter.setBrush(shadow)
         painter.drawRoundedRect(card.translated(0, 4), 18, 18)
-        painter.setBrush(
-            QColor("#29354D") if self._stage == "prominent" else QColor("#172033")
-        )
+        painter.setPen(QColor(colors.get("border", "#3A4963")))
+        card_color = colors.get("prominent" if self._stage == "prominent" else "card")
+        painter.setBrush(QColor(card_color or "#172033"))
         painter.drawRoundedRect(card, 18, 18)
-        painter.setBrush(QColor("#F2A65A"))
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(QColor(colors.get("accent", "#F2A65A")))
         painter.drawRoundedRect(card.adjusted(16, card.height() - 4, -16, -1), 2, 2)
 
     def keyPressEvent(self, event: QKeyEvent) -> None:

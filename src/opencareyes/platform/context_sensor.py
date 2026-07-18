@@ -13,14 +13,7 @@ from dataclasses import replace
 from datetime import datetime
 from typing import Protocol
 
-from PySide6.QtCore import (
-    QAbstractNativeEventFilter,
-    QObject,
-    QTimer,
-    Qt,
-    Signal,
-    Slot,
-)
+from PySide6.QtCore import QObject, QTimer, Qt, Signal, Slot
 
 from opencareyes.domain.context import ContextSnapshot, SessionState
 from opencareyes.platform.windows_event_hub import WindowsEventHub
@@ -309,9 +302,7 @@ class ContextSensor(QObject):
             hook_started = self._event_hub.foreground_hook_available
         else:
             try:
-                hook_started = self._backend.start_foreground_hook(
-                    self._sample_requested.emit
-                )
+                hook_started = self._backend.start_foreground_hook(self._sample_requested.emit)
             except Exception:
                 hook_started = False
         if not hook_started:
@@ -416,98 +407,3 @@ class ContextSensor(QObject):
             return
         self._current_snapshot = snapshot
         self.snapshot_changed.emit(snapshot)
-
-
-class WindowsSessionEventFilter(QAbstractNativeEventFilter):
-    """Bridge WTS and power messages into the sensor's queued setters.
-
-    Install this object on ``QCoreApplication`` and call :meth:`register` with
-    a real top-level window handle after that window has been created.
-    """
-
-    def __init__(self, sensor: ContextSensor) -> None:
-        super().__init__()
-        self._sensor = sensor
-        self._hwnd = 0
-        self._wts_registered = False
-
-    def register(self, hwnd: int) -> bool:
-        """Register a top-level HWND for WTS session notifications."""
-        self.unregister()
-        if api is None or not hwnd:
-            return False
-        self._hwnd = int(hwnd)
-        try:
-            self._wts_registered = bool(
-                api.WTSRegisterSessionNotification(
-                    api.wintypes.HWND(self._hwnd),
-                    api.NOTIFY_FOR_THIS_SESSION,
-                )
-            )
-        except Exception:
-            self._wts_registered = False
-        if not self._wts_registered:
-            log.warning("WTS session notifications are unavailable")
-        return self._wts_registered
-
-    def unregister(self) -> None:
-        if api is not None and self._hwnd and self._wts_registered:
-            try:
-                api.WTSUnRegisterSessionNotification(
-                    api.wintypes.HWND(self._hwnd)
-                )
-            except Exception:
-                log.warning("WTS session notifications could not be unregistered")
-        self._hwnd = 0
-        self._wts_registered = False
-
-    @staticmethod
-    def interpret_message(message: int, wparam: int) -> tuple[str, bool] | None:
-        """Translate a native message into a sensor setter and value."""
-        if api is None:
-            return None
-        if message == api.WM_WTSSESSION_CHANGE:
-            if wparam == api.WTS_SESSION_LOCK:
-                return "session_locked", True
-            if wparam == api.WTS_SESSION_UNLOCK:
-                return "session_locked", False
-        elif message == api.WM_POWERBROADCAST:
-            if wparam == api.PBT_APMSUSPEND:
-                return "system_suspended", True
-            if wparam in {
-                api.PBT_APMRESUMECRITICAL,
-                api.PBT_APMRESUMESUSPEND,
-                api.PBT_APMRESUMEAUTOMATIC,
-            }:
-                return "system_suspended", False
-        return None
-
-    def nativeEventFilter(self, _event_type, message):  # noqa: N802
-        if api is None or not self._hwnd:
-            return False, 0
-        try:
-            address = int(message)
-            if not address:
-                return False, 0
-            native_message = ctypes.cast(
-                address,
-                ctypes.POINTER(api.MSG),
-            ).contents
-            if int(native_message.hwnd or 0) != self._hwnd:
-                return False, 0
-            event = self.interpret_message(
-                int(native_message.message),
-                int(native_message.wParam),
-            )
-        except (TypeError, ValueError, OSError):
-            return False, 0
-
-        if event == ("session_locked", True):
-            self._sensor.set_session_locked(True)
-        elif event == ("session_locked", False):
-            self._sensor.set_session_locked(False)
-        elif event == ("system_suspended", True):
-            self._sensor.set_system_suspended(True)
-        elif event == ("system_suspended", False):
-            self._sensor.set_system_suspended(False)
-        return False, 0

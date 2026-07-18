@@ -4,7 +4,8 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 
 import pytest
-from PySide6.QtCore import QObject, Signal, Qt
+from PySide6.QtCore import QObject, QRect, Signal, Qt
+from PySide6.QtWidgets import QBoxLayout
 
 from opencareyes.application.note_repository import NoteRepository
 from opencareyes.application.utility_timer import UtilityTimerService
@@ -201,3 +202,36 @@ def test_unknown_tool_is_rejected_without_destroying_window(qtbot, tmp_path):
         window.show_tool('calendar')
 
     assert not window.testAttribute(Qt.WA_DeleteOnClose)
+
+
+def test_quick_tools_fit_small_available_geometry_and_reflow_notes(
+    qtbot,
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        QuickToolsWindow,
+        "_available_geometry",
+        lambda _self: QRect(0, 0, 683, 384),
+    )
+    window, *_ = _window(qtbot, tmp_path, [100.0])
+    window.show_tool('notes')
+    qtbot.wait(1)
+
+    assert window.width() <= 651
+    assert window.height() <= 352
+    assert window.minimumHeight() <= 352
+
+    window.resize(400, 320)
+    qtbot.wait(1)
+
+    assert all(
+        page.horizontalScrollBarPolicy() == Qt.ScrollBarAlwaysOff
+        for page in window._page_scrolls
+    )
+    assert all(
+        page.verticalScrollBarPolicy() == Qt.ScrollBarAsNeeded
+        for page in window._page_scrolls
+    )
+    assert window._notes_layout.direction() == QBoxLayout.TopToBottom
+    assert window.tabs.currentWidget().horizontalScrollBar().maximum() == 0

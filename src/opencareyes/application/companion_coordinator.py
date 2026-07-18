@@ -223,7 +223,9 @@ class CompanionCoordinator:
         if str(phase) == 'resting':
             return self.dispatch_kind('rest.sleep')
 
-        changed = self.clear_event('rest.sleep')
+        changed = False
+        if self._state.behavior.event_kind in {'break.due', 'rest.sleep'}:
+            changed = self.complete_action()
         if str(prompt_stage) not in {'none', 'hidden'}:
             changed = self.dispatch_kind('break.due') or changed
         return changed

@@ -168,7 +168,11 @@ class EffectCoordinator(QObject):
             failure = ReconcileFailure(exc.feature, str(exc))
             log.error("Effect reconciliation failed [%s]: %s", exc.feature, exc)
             self.operation_failed.emit("context_effect", message)
-            rollback_succeeded = self._restore_before_state(before)
+            rollback_succeeded = self._restore_before_state(
+                before,
+                restore_filter=display_purpose
+                not in {"commit", "compensation"},
+            )
             policy = self._publish_state()
             self._last_result = ReconcileResult(
                 policy=policy,
@@ -183,7 +187,11 @@ class EffectCoordinator(QObject):
             message = "运行时效果未能应用，请重试。"
             log.exception("Unexpected effect reconciliation failure")
             self.operation_failed.emit("context_effect", message)
-            rollback_succeeded = self._restore_before_state(before)
+            rollback_succeeded = self._restore_before_state(
+                before,
+                restore_filter=display_purpose
+                not in {"commit", "compensation"},
+            )
             policy = self._publish_state()
             self._last_result = ReconcileResult(
                 policy=policy,
@@ -526,7 +534,12 @@ class EffectCoordinator(QObject):
             "natural_rest": self._natural_rest_pending,
         }
 
-    def _restore_before_state(self, before: dict[str, object]) -> bool:
+    def _restore_before_state(
+        self,
+        before: dict[str, object],
+        *,
+        restore_filter: bool = True,
+    ) -> bool:
         failures: list[str] = []
         for name, service, enabled, level, enable, update in (
             (
@@ -555,6 +568,8 @@ class EffectCoordinator(QObject):
             ),
         ):
             if service is None:
+                continue
+            if name == "filter" and not restore_filter:
                 continue
             try:
                 actual = bool(getattr(service, "enabled", False))

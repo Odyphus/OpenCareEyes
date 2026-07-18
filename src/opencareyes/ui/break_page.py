@@ -51,7 +51,7 @@ class BreakPage(ScrollPage):
             "按活跃用眼时间安排短休息与长休息；温和提醒不会突然打断当前操作。",
         ))
 
-        status_card = Card()
+        self._status_card = status_card = Card()
         status_row = QHBoxLayout()
         status_text = QHBoxLayout()
         self._status_dot = QLabel()
@@ -97,7 +97,10 @@ class BreakPage(ScrollPage):
         status_card.body.addLayout(action_row)
         self.layout.addWidget(status_card)
 
-        rhythm_card = Card("活动加权节奏", "只累计未暂停、未被情境抑制的活跃时间。")
+        self._rhythm_card = rhythm_card = Card(
+            "活动加权节奏",
+            "只累计未暂停、未被情境抑制的活跃时间。",
+        )
         form = QFormLayout()
         form.setHorizontalSpacing(24)
         form.setVerticalSpacing(12)
@@ -135,7 +138,7 @@ class BreakPage(ScrollPage):
         rhythm_card.body.addLayout(form)
         self.layout.addWidget(rhythm_card)
 
-        reminder_card = Card(
+        self._reminder_card = reminder_card = Card(
             "提醒方式",
             "温和渐进先显示可操作卡片；选择“现在休息”后才开始倒计时。",
         )
@@ -158,7 +161,7 @@ class BreakPage(ScrollPage):
         reminder_card.body.addLayout(reminder_form)
         self.layout.addWidget(reminder_card)
 
-        pet_card = Card(
+        self._pet_card = pet_card = Card(
             "桌面伙伴与倒计时",
             "桌面伙伴独立常驻；休息倒计时可以显示在伙伴气泡或仅保留托盘。",
         )
@@ -181,7 +184,7 @@ class BreakPage(ScrollPage):
         pet_card.body.addLayout(pet_actions)
         self.layout.addWidget(pet_card)
 
-        advanced_card = Card(
+        self._advanced_card = advanced_card = Card(
             "高级设置",
             "严格模式会立即全屏并隐藏“稍后提醒”，但仍保留明确的安全退出。",
         )
@@ -223,8 +226,26 @@ class BreakPage(ScrollPage):
         if break_tick is not None:
             break_tick.connect(self._render_break_tick)
 
-    def _render_break_tick(self, *_args) -> None:
-        self.render(self._controller.state)
+    def _render_break_tick(self, remaining: int, _total: int) -> None:
+        state = self._controller.state
+        enabled = bool(first_state_value(state, "breaks.enabled", default=False))
+        phase = str(first_state_value(state, "breaks.phase", default="stopped"))
+        paused = bool(first_state_value(state, "breaks.paused", default=False))
+        remaining = max(0, int(remaining))
+        if not enabled or phase == "stopped":
+            status = "提醒未启用"
+        elif paused:
+            status = f"计时已暂停 · 剩余 {format_duration(remaining)}"
+        elif phase == "resting":
+            status = f"休息中 · 剩余 {format_duration(remaining)}"
+        elif phase == "prompting":
+            status = "休息提醒等待处理"
+        elif phase == "snoozed":
+            status = f"已延后 · {format_duration(remaining)} 后再次提醒"
+        else:
+            status = f"距离下次休息 {format_duration(remaining)}"
+        self._status_label.setText(status)
+        self._status_label.setAccessibleName(status)
 
     def _toggle_pause(self) -> None:
         paused = bool(first_state_value(self._controller.state, "breaks.paused", default=False))

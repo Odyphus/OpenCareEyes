@@ -2,8 +2,10 @@
 
 from types import SimpleNamespace
 
-from PySide6.QtCore import QObject, Qt, Signal
+from PySide6.QtCore import QObject, QSignalBlocker, Qt, Signal
+from PySide6.QtGui import QPalette
 from PySide6.QtTest import QSignalSpy
+from PySide6.QtWidgets import QApplication
 
 from opencareyes.ui.break_prompt import BreakPrompt
 from opencareyes.ui.break_page import BreakPage
@@ -302,6 +304,19 @@ def test_break_page_exposes_balanced_custom_and_progressive_controls(qtbot):
     assert controller.cadences[-1] == (1800, 45, True, 5400, 480)
 
 
+def test_break_page_tick_updates_only_live_status(qtbot):
+    controller = _PageController(_page_state())
+    page = BreakPage(controller)
+    qtbot.addWidget(page)
+    with QSignalBlocker(page._work_spin):
+        page._work_spin.setValue(99)
+
+    controller.break_tick.emit(59, 1200)
+
+    assert page._work_spin.value() == 99
+    assert page._status_label.text() == "距离下次休息 0:59"
+
+
 def test_break_page_pet_and_reminder_actions_use_controller_hooks(qtbot):
     controller = _PageController(_page_state())
     page = BreakPage(controller)
@@ -315,3 +330,29 @@ def test_break_page_pet_and_reminder_actions_use_controller_hooks(qtbot):
     qtbot.mouseClick(page._pet_reset_button, Qt.LeftButton)
     assert controller.display_modes == ["floating"]
     assert controller.reset_count == 1
+
+
+def test_prompt_and_undo_toast_share_light_dark_and_high_contrast_theme(qtbot):
+    prompt = BreakPrompt()
+    qtbot.addWidget(prompt)
+
+    prompt.apply_theme(SimpleNamespace(resolved="light", high_contrast=False))
+    assert prompt._theme_signature == ("light", False)
+    assert prompt._theme_colors["card"] == "#F8FBFF"
+    assert prompt._undo_toast._theme_signature == ("light", False)
+
+    prompt.apply_theme(SimpleNamespace(resolved="dark", high_contrast=False))
+    assert prompt._theme_signature == ("dark", False)
+    assert prompt._theme_colors["card"] == "#172033"
+
+    prompt.apply_theme(SimpleNamespace(resolved="dark", high_contrast=True))
+    native = QApplication.palette()
+    assert prompt.property("highContrast") is True
+    assert prompt._theme_colors["card"] == native.color(QPalette.Window).name()
+    assert (
+        prompt._undo_toast._theme_colors["text"]
+        == native.color(QPalette.WindowText).name()
+    )
+    for button in (prompt._close, prompt._start, prompt._snooze_button, prompt._skip):
+        assert button.focusPolicy() == Qt.StrongFocus
+        assert button.accessibleName()

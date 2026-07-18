@@ -14,14 +14,18 @@ class MemoryStore:
         values=None,
         *,
         fail_sync_count=0,
+        fail_sync_calls=(),
         fail_set_key=None,
         status_value=0,
     ):
         self.values = dict(values or {})
         self.fail_sync_count = fail_sync_count
+        self.fail_sync_calls = set(fail_sync_calls)
         self.fail_set_key = fail_set_key
         self.status_value = status_value
         self.writes = []
+        self.events = []
+        self.sync_calls = 0
 
     def value(self, key, default=None, type=None):
         value = self.values.get(key, default)
@@ -35,17 +39,26 @@ class MemoryStore:
             raise OSError("simulated write failure")
         self.values[key] = value
         self.writes.append((key, value))
+        self.events.append(("set", key, value))
 
     def allKeys(self):
         return list(self.values)
 
     def sync(self):
+        self.sync_calls += 1
+        self.events.append(("sync", self.sync_calls))
+        if self.sync_calls in self.fail_sync_calls:
+            raise OSError("simulated sync failure")
         if self.fail_sync_count:
             self.fail_sync_count -= 1
             raise OSError("simulated sync failure")
 
     def clear(self):
         self.values.clear()
+
+    def remove(self, key):
+        self.values.pop(key, None)
+        self.events.append(("remove", key))
 
     def status(self):
         return self.status_value
@@ -62,10 +75,15 @@ def mock_qsettings():
     def fake_set(key, value):
         store[key] = value
 
+    def fake_remove(key):
+        store.pop(key, None)
+
     with patch("opencareyes.config.settings.QSettings") as mock_cls:
         instance = MagicMock()
         instance.value.side_effect = fake_value
         instance.setValue.side_effect = fake_set
+        instance.remove.side_effect = fake_remove
+        instance.allKeys.side_effect = lambda: list(store)
         mock_cls.return_value = instance
         yield instance, store
 
@@ -500,7 +518,7 @@ def test_migration_sync_failure_restores_exact_snapshot():
     from opencareyes.config.settings import Settings
 
     original = {"meta/schema_version": 2, "general/theme": "dark"}
-    store = MemoryStore(original, fail_sync_count=1)
+    store = MemoryStore(original, fail_sync_calls={2})
 
     with pytest.raises(SettingsMigrationError, match="previous settings were restored"):
         Settings(store)
@@ -703,6 +721,113 @@ def test_repository_transaction_rolls_back_after_checked_sync_failure():
             repository.theme = "light"
 
     assert store.values == original
+
+
+def test_transaction_persists_snapshot_marker_before_user_writes():
+    from opencareyes.config.settings import PreferencesRepository
+
+    store = MemoryStore({"meta/schema_version": 6, "general/theme": "dark"})
+    repository = PreferencesRepository(store)
+
+    with repository.transaction():
+        repository.theme = "light"
+
+    first_sync = store.events.index(("sync", 1))
+    theme_write = store.events.index(("set", "general/theme", "light"))
+    assert first_sync < theme_write
+    assert "meta/pending_settings" not in store.values
+    assert "meta/pending_settings_snapshot" not in store.values
+    assert "meta/pending_settings_operation" not in store.values
+
+
+def test_startup_recovers_pending_transaction_snapshot():
+    from opencareyes.config.settings import Settings
+
+    store = MemoryStore(
+        {
+            "meta/schema_version": 6,
+            "general/theme": "light",
+            "meta/pending_settings": True,
+            "meta/pending_settings_operation": "transaction",
+            "meta/pending_settings_snapshot": (
+                '{"general/theme":"dark","meta/schema_version":6}'
+            ),
+        }
+    )
+
+    settings = Settings(store)
+
+    assert settings.read_only is False
+    assert settings.theme == "dark"
+    assert store.values == {
+        "general/theme": "dark",
+        "meta/schema_version": 6,
+    }
+
+
+def test_startup_recovery_sync_failure_enters_read_only_mode():
+    from opencareyes.config.settings import Settings, SettingsReadOnlyError
+
+    store = MemoryStore(
+        {
+            "meta/schema_version": 6,
+            "general/theme": "light",
+            "meta/pending_settings": True,
+            "meta/pending_settings_operation": "transaction",
+            "meta/pending_settings_snapshot": (
+                '{"general/theme":"dark","meta/schema_version":6}'
+            ),
+        },
+        fail_sync_calls={1},
+    )
+
+    settings = Settings(store)
+
+    assert settings.read_only is True
+    with pytest.raises(SettingsReadOnlyError, match="recovery"):
+        settings.theme = "light"
+
+
+def test_transaction_rollback_sync_failure_enters_read_only_mode():
+    from opencareyes.config.settings import (
+        PreferencesRepository,
+        SettingsReadOnlyError,
+        SettingsTransactionError,
+    )
+
+    store = MemoryStore(
+        {"meta/schema_version": 6, "general/theme": "dark"},
+        fail_sync_calls={2, 3},
+    )
+    repository = PreferencesRepository(store)
+
+    with pytest.raises(SettingsTransactionError, match="rollback"):
+        with repository.transaction():
+            repository.theme = "light"
+
+    assert repository.read_only is True
+    with pytest.raises(SettingsReadOnlyError, match="recovery"):
+        repository.theme = "dark"
+
+
+def test_migration_persists_recovery_marker_and_logs_schema_change(caplog):
+    from opencareyes.config.settings import Settings
+
+    store = MemoryStore({"meta/schema_version": 5, "general/theme": "dark"})
+
+    with caplog.at_level("INFO", logger="opencareyes.config.settings"):
+        settings = Settings(store)
+
+    first_sync = store.events.index(("sync", 1))
+    migration_write = next(
+        index
+        for index, event in enumerate(store.events)
+        if event[:2] == ("set", "companion/quick_actions_json")
+    )
+    assert first_sync < migration_write
+    assert settings.stored_schema_version == 6
+    assert "settings migration from schema v5 to v6" in caplog.text.lower()
+    assert "general/theme" not in caplog.text
 
 
 def test_sync_checks_backend_status():

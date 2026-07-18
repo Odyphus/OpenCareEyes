@@ -84,6 +84,17 @@ def test_break_completion_releases_rest_action_back_to_idle():
     assert pet.state.behavior.action_id == 'idle'
 
 
+def test_dismissed_due_prompt_releases_rest_action_back_to_idle():
+    pet = coordinator()
+
+    assert pet.sync_break_behavior('prompting', 'initial') is True
+    assert pet.state.behavior.event_kind == 'break.due'
+
+    assert pet.sync_break_behavior('working', 'hidden') is True
+    assert pet.state.behavior.event_kind == 'autonomous.idle'
+    assert pet.state.behavior.action_id == 'idle'
+
+
 def test_cursor_tracking_does_not_interrupt_autonomous_walk():
     pet = coordinator()
 

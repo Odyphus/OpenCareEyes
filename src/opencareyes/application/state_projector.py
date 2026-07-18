@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import datetime
 
 from opencareyes.state import (
@@ -74,6 +75,8 @@ class StateProjector:
         companion: PetState | None = None,
         weather: WeatherState | None = None,
         quick_tools: QuickToolsState | None = None,
+        display_transaction_phase: str = "idle",
+        display_request_id: int | None = None,
     ) -> AppState:
         settings = self._settings
         reminder = self._break_reminder
@@ -100,6 +103,24 @@ class StateProjector:
         )
         if effective_policy is None:
             effective_policy = self._default_effective_policy()
+        transaction_phase = str(display_transaction_phase or "idle")
+        if transaction_phase not in {
+            "idle",
+            "applying",
+            "compensating",
+            "completed",
+        }:
+            transaction_phase = "idle"
+        base_display_health = self._display_health()
+        display_health = replace(
+            base_display_health,
+            pending=(
+                base_display_health.pending
+                or transaction_phase in {"applying", "compensating"}
+            ),
+            transaction_phase=transaction_phase,
+            request_id=display_request_id,
+        )
 
         return AppState(
             display=(
@@ -211,7 +232,7 @@ class StateProjector:
             ),
             context=context or ContextState(),
             effective_policy=effective_policy,
-            display_health=self._display_health(),
+            display_health=display_health,
             break_cadence=BreakCadenceState(
                 mode=str(getattr(settings, "cadence_mode", settings.break_mode)),
                 short_interval=int(

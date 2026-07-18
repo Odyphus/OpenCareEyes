@@ -225,6 +225,296 @@ def test_companion_commands_persist_and_update_runtime(qapp):
     assert companion.items == ['yarn_ball']
 
 
+@pytest.mark.parametrize(
+    ("method_name", "args"),
+    (
+        ("set_companion_enabled", (False,)),
+        ("set_active_pet", ("snow_ferret",)),
+        ("set_pet_scale", (125,)),
+        ("set_pet_anchor", ("free", 8, 120, 240)),
+        ("set_pet_accessory", ("neckwear", "red_scarf")),
+        ("upsert_app_prop_rule", ("winword.exe", "writing")),
+        ("remove_app_prop_rule", ("winword.exe",)),
+        ("set_follow_active_monitor", (True,)),
+        ("set_window_avoidance_enabled", (True,)),
+        ("set_companion_sound_enabled", (True,)),
+        ("set_hourly_chime_enabled", (True,)),
+        ("set_weather_enabled", (True, True)),
+        ("show_quick_tool", ("timer",)),
+        ("set_quick_actions", (("rest", "notes"),)),
+        ("offer_pet_item", ("yarn_ball",)),
+        ("select_rest_scene", ("stretch",)),
+    ),
+)
+def test_companion_tool_public_commands_delegate(
+    qapp,
+    monkeypatch,
+    method_name,
+    args,
+):
+    instance = AppController(Settings(MemoryStore()))
+    calls = []
+
+    def delegated(*actual_args):
+        calls.append(actual_args)
+        return True
+
+    monkeypatch.setattr(instance._companion_commands, method_name, delegated)
+
+    assert getattr(instance, method_name)(*args) is True
+    assert calls == [args]
+
+
+@pytest.mark.parametrize(
+    ("method_name", "args"),
+    (
+        ("set_break_enabled", (False,)),
+        ("set_focus_enabled", (True,)),
+        ("set_focus_dim_level", (96,)),
+        ("set_break_mode", ("pomodoro",)),
+        ("set_break_durations", (1200, 20)),
+        ("set_break_cadence", (1200, 20, True, 3600, 300)),
+        ("set_break_reminder_style", ("progressive",)),
+        ("start_due_break", ()),
+        ("start_break_now", ("long",)),
+        ("set_force_break", (True,)),
+        ("set_break_countdown_display", ("floating",)),
+        ("pause_break", ()),
+        ("resume_break", ()),
+        ("snooze_break", (30,)),
+        ("skip_break", ()),
+        ("undo_break_snooze", ()),
+        ("start_focus_session", (45,)),
+    ),
+)
+def test_break_focus_public_commands_delegate(
+    qapp,
+    monkeypatch,
+    method_name,
+    args,
+):
+    instance = AppController(Settings(MemoryStore()))
+    calls = []
+
+    def delegated(*actual_args):
+        calls.append(actual_args)
+        return True
+
+    monkeypatch.setattr(instance._break_focus_commands, method_name, delegated)
+
+    assert getattr(instance, method_name)(*args) is True
+    assert calls == [args]
+
+
+@pytest.mark.parametrize(
+    ("method_name", "args"),
+    (
+        ("set_location", (39.9, 116.4, "北京")),
+        ("set_smart_pause_enabled", (False,)),
+        ("set_fullscreen_pause_enabled", (False,)),
+        ("set_natural_rest_enabled", (False,)),
+        (
+            "upsert_app_rule",
+            ({"app_id": "powerpnt.exe", "breaks": True},),
+        ),
+        ("remove_app_rule", ("powerpnt.exe",)),
+        ("resume_breaks_for_current_context", ()),
+    ),
+)
+def test_automation_public_commands_delegate(
+    qapp,
+    monkeypatch,
+    method_name,
+    args,
+):
+    instance = AppController(Settings(MemoryStore()))
+    calls = []
+
+    def delegated(*actual_args):
+        calls.append(actual_args)
+        return True
+
+    monkeypatch.setattr(instance._automation_commands, method_name, delegated)
+
+    assert getattr(instance, method_name)(*args) is True
+    assert calls == [args]
+
+
+def test_schedule_public_command_delegates_all_arguments(qapp, monkeypatch):
+    instance = AppController(Settings(MemoryStore()))
+    calls = []
+
+    def delegated(enabled, **kwargs):
+        calls.append((enabled, kwargs))
+        return True
+
+    monkeypatch.setattr(instance._automation_commands, "set_schedule", delegated)
+
+    assert instance.set_schedule(
+        True,
+        mode="sun",
+        latitude=39.9,
+        longitude=116.4,
+        city="北京",
+        on_time="19:10",
+        off_time="07:20",
+        days=(0, 2, 4),
+        day_profile="office",
+        night_profile="night",
+        sunrise_offset=15,
+        sunset_offset=-20,
+    ) is True
+    assert calls == [
+        (
+            True,
+            {
+                "mode": "sun",
+                "latitude": 39.9,
+                "longitude": 116.4,
+                "city": "北京",
+                "on_time": "19:10",
+                "off_time": "07:20",
+                "days": (0, 2, 4),
+                "day_profile": "office",
+                "night_profile": "night",
+                "sunrise_offset": 15,
+                "sunset_offset": -20,
+            },
+        )
+    ]
+
+
+@pytest.mark.parametrize(
+    ("controller_method", "handler_method", "args"),
+    (
+        (
+            "_on_scheduled_filter_state_requested",
+            "on_scheduled_filter_state_requested",
+            (True,),
+        ),
+        (
+            "_on_scheduled_profile_requested",
+            "on_scheduled_profile_requested",
+            ("night",),
+        ),
+        (
+            "_clear_next_schedule_pause",
+            "clear_next_schedule_pause",
+            (),
+        ),
+    ),
+)
+def test_scheduler_callback_shell_delegates_exactly_once(
+    qapp,
+    monkeypatch,
+    controller_method,
+    handler_method,
+    args,
+):
+    instance = AppController(Settings(MemoryStore()))
+    calls = []
+
+    def delegated(*actual_args):
+        calls.append(actual_args)
+
+    monkeypatch.setattr(instance._automation_commands, handler_method, delegated)
+
+    getattr(instance, controller_method)(*args)
+
+    assert calls == [args]
+
+
+@pytest.mark.parametrize(
+    ("method_name", "args", "return_value"),
+    (
+        ("set_filter_enabled", (False,), True),
+        ("set_dimmer_enabled", (True,), False),
+        ("set_color_temperature", (4200, False), True),
+        ("set_dim_level", (45, False), True),
+        ("recheck_display_capabilities", (), True),
+        ("restore_display_effects", (), False),
+        ("resume_all", (), True),
+    ),
+)
+def test_display_public_commands_delegate_and_return_result(
+    qapp,
+    monkeypatch,
+    method_name,
+    args,
+    return_value,
+):
+    instance = AppController(Settings(MemoryStore()))
+    calls = []
+
+    def delegated(*actual_args):
+        calls.append(actual_args)
+        return return_value
+
+    monkeypatch.setattr(instance._display_commands, method_name, delegated)
+
+    assert getattr(instance, method_name)(*args) is return_value
+    assert calls == [args]
+
+
+def test_display_keyword_commands_delegate_all_arguments(qapp, monkeypatch):
+    instance = AppController(Settings(MemoryStore()))
+    profile_calls = []
+    pause_calls = []
+
+    def apply_profile(name, **kwargs):
+        profile_calls.append((name, kwargs))
+        return True
+
+    def pause_all(minutes, **kwargs):
+        pause_calls.append((minutes, kwargs))
+        return False
+
+    monkeypatch.setattr(
+        instance._display_commands,
+        "apply_display_profile",
+        apply_profile,
+    )
+    monkeypatch.setattr(instance._display_commands, "pause_all", pause_all)
+
+    assert instance.apply_display_profile(
+        "night",
+        mark_manual_override=False,
+    ) is True
+    assert instance.pause_all(30, until_next_schedule=True) is False
+    assert profile_calls == [
+        ("night", {"mark_manual_override": False}),
+    ]
+    assert pause_calls == [
+        (30, {"until_next_schedule": True}),
+    ]
+
+
+@pytest.mark.parametrize(
+    ("feature", "public_method"),
+    (
+        ("filter", "set_filter_enabled"),
+        ("dimmer", "set_dimmer_enabled"),
+    ),
+)
+def test_set_feature_enabled_still_routes_through_public_facade(
+    qapp,
+    monkeypatch,
+    feature,
+    public_method,
+):
+    instance = AppController(Settings(MemoryStore()))
+    calls = []
+
+    def delegated(enabled):
+        calls.append(enabled)
+        return False
+
+    monkeypatch.setattr(instance, public_method, delegated)
+
+    assert instance.set_feature_enabled(feature, True) is False
+    assert calls == [True]
+
+
 def test_instant_pet_action_uses_presentation_signal_not_full_state(qapp):
     settings = Settings(MemoryStore())
     companion = FakeCompanion()
@@ -326,6 +616,26 @@ def test_utility_timer_semantic_state_is_projected_without_tick_rebuilds(qapp):
     assert timer.cancel() is True
     assert instance.state.quick_tools.utility_timer.status == 'idle'
     assert changed.count() == 3
+
+
+def test_break_tick_is_lightweight_and_does_not_rebuild_app_state(
+    controller,
+    monkeypatch,
+):
+    instance, *_ = controller
+    ticks = QSignalSpy(instance.break_tick)
+    state_before = instance.state
+
+    def unexpected_rebuild():
+        raise AssertionError('break tick rebuilt the complete AppState')
+
+    monkeypatch.setattr(instance, '_build_state', unexpected_rebuild)
+
+    instance._on_break_tick(59, 1200)
+
+    assert ticks.count() == 1
+    assert ticks.at(0) == [59, 1200]
+    assert instance.state is state_before
 
 
 def test_skip_break_is_runtime_only_and_immediate(controller, monkeypatch):

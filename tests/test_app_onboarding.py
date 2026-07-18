@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import os
 import sys
+from types import SimpleNamespace
 
 import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtCore import QObject, Signal  # noqa: E402
-from PySide6.QtWidgets import QApplication, QDialog  # noqa: E402
+from PySide6.QtCore import QObject, QRect, Signal, Qt  # noqa: E402
+from PySide6.QtWidgets import QApplication, QBoxLayout, QDialog  # noqa: E402
 
 from opencareyes.ui.onboarding import OnboardingDialog  # noqa: E402
 
@@ -124,3 +125,39 @@ def test_automation_setup_uses_one_schedule_command(gui_app):
     assert "location" not in controller.calls
     assert controller.calls.count("schedule") == 1
     assert controller.completed is True
+
+
+def test_onboarding_fits_small_available_geometry_without_horizontal_scroll(
+    qtbot,
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        OnboardingDialog,
+        "_available_geometry",
+        lambda _self: QRect(0, 0, 683, 384),
+    )
+    dialog = OnboardingDialog(FakeController())
+    qtbot.addWidget(dialog)
+    dialog._stack.setCurrentIndex(1)
+    dialog.show()
+    qtbot.wait(1)
+
+    assert dialog.width() <= 651
+    assert dialog.height() <= 352
+    assert dialog.minimumHeight() <= 352
+    assert dialog._content_scroll.horizontalScrollBarPolicy() == Qt.ScrollBarAlwaysOff
+    assert dialog._content_scroll.horizontalScrollBar().maximum() == 0
+    assert dialog._content_scroll.verticalScrollBar().maximum() > 0
+    assert dialog._profile_layout.direction() == QBoxLayout.TopToBottom
+    assert dialog._next_button.isVisible()
+
+
+def test_onboarding_applies_shared_theme_snapshot(gui_app):
+    dialog = OnboardingDialog(FakeController())
+
+    dialog.apply_theme(
+        SimpleNamespace(resolved="dark", high_contrast=True)
+    )
+
+    assert dialog.property("resolvedTheme") == "dark"
+    assert dialog.property("highContrast") is True

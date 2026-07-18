@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "opencareyes"
-version = "0.6.1"
+version = "0.7.0"
 description = "Windows 桌面陪伴与护眼助手"
 readme = { file = "README.md", content-type = "text/markdown" }
 license = "Apache-2.0"

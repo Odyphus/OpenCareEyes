@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
     QGridLayout,
     QHBoxLayout,
     QLabel,
+    QMenu,
     QPushButton,
     QToolButton,
     QVBoxLayout,
@@ -41,6 +42,9 @@ class PetBubble(QWidget):
 
     tool_requested = Signal(str)
     item_requested = Signal(str)
+    start_due_requested = Signal()
+    snooze_requested = Signal(int)
+    skip_requested = Signal()
     dismissed = Signal()
 
     def __init__(self, parent=None):
@@ -51,6 +55,8 @@ class PetBubble(QWidget):
         self._active_palette = dict(_THEMES['dark'])
         self._anchor_rect: QRect | None = None
         self._anchor_target = None
+        self._mode = ''
+        self._focusable = False
 
         self.setObjectName('petBubble')
         self.setWindowFlags(
@@ -80,6 +86,14 @@ class PetBubble(QWidget):
     def item_buttons(self) -> dict[str, QPushButton]:
         return dict(self._item_buttons)
 
+    @property
+    def mode(self) -> str:
+        return self._mode
+
+    @property
+    def is_rest_prompt_active(self) -> bool:
+        return self._mode == 'rest_prompt'
+
     def _build_ui(self) -> None:
         layout = QVBoxLayout(self)
         layout.setContentsMargins(18, 14, 14, 14)
@@ -97,7 +111,8 @@ class PetBubble(QWidget):
         self._close.setFixedSize(24, 24)
         self._close.setAccessibleName('关闭伙伴快捷气泡')
         self._close.setToolTip('关闭')
-        self._close.clicked.connect(self.hide)
+        self._close.setFocusPolicy(Qt.StrongFocus)
+        self._close.clicked.connect(self._close_requested)
         header.addWidget(self._close)
         layout.addLayout(header)
 
@@ -112,7 +127,9 @@ class PetBubble(QWidget):
         self._countdown.setAccessibleName('休息倒计时')
         layout.addWidget(self._countdown)
 
-        tools = QGridLayout()
+        self._tools_widget = QWidget(self)
+        tools = QGridLayout(self._tools_widget)
+        tools.setContentsMargins(0, 0, 0, 0)
         tools.setHorizontalSpacing(7)
         tools.setVerticalSpacing(7)
         definitions = (
@@ -126,6 +143,7 @@ class PetBubble(QWidget):
             button = QPushButton(label)
             button.setCursor(Qt.PointingHandCursor)
             button.setAccessibleName(label)
+            button.setFocusPolicy(Qt.StrongFocus)
             button.clicked.connect(
                 lambda _checked=False, selected=tool_id: self.tool_requested.emit(selected)
             )
@@ -142,6 +160,7 @@ class PetBubble(QWidget):
             button = QPushButton(label)
             button.setCursor(Qt.PointingHandCursor)
             button.setAccessibleName(f'给伙伴{label}')
+            button.setFocusPolicy(Qt.StrongFocus)
             button.clicked.connect(
                 lambda _checked=False, selected=item_id: self.item_requested.emit(
                     selected
@@ -149,11 +168,69 @@ class PetBubble(QWidget):
             )
             tools.addWidget(button, 1, column)
             self._item_buttons[item_id] = button
-        layout.addLayout(tools)
+        layout.addWidget(self._tools_widget)
+
+        self._rest_actions_widget = QWidget(self)
+        rest_actions = QHBoxLayout(self._rest_actions_widget)
+        rest_actions.setContentsMargins(0, 0, 0, 0)
+        rest_actions.setSpacing(8)
+
+        self._start_due_button = QPushButton('现在休息')
+        self._start_due_button.setCursor(Qt.PointingHandCursor)
+        self._start_due_button.setAccessibleName('现在开始本次休息')
+        self._start_due_button.setFocusPolicy(Qt.StrongFocus)
+        self._start_due_button.clicked.connect(self._request_start_due)
+        rest_actions.addWidget(self._start_due_button)
+
+        self._snooze_button = QToolButton(self)
+        self._snooze_button.setText('稍后提醒')
+        self._snooze_button.setPopupMode(QToolButton.InstantPopup)
+        self._snooze_button.setCursor(Qt.PointingHandCursor)
+        self._snooze_button.setAccessibleName('选择稍后提醒时间')
+        self._snooze_button.setFocusPolicy(Qt.StrongFocus)
+        self._snooze_menu = QMenu(self._snooze_button)
+        self._snooze_menu.setAccessibleName('稍后提醒时间')
+        self._snooze_actions = {}
+        for minutes in (5, 10, 30):
+            action = self._snooze_menu.addAction(f'{minutes} 分钟')
+            action.triggered.connect(
+                lambda _checked=False, value=minutes: self._request_snooze(value)
+            )
+            self._snooze_actions[minutes] = action
+        self._snooze_button.setMenu(self._snooze_menu)
+        rest_actions.addWidget(self._snooze_button)
+
+        self._skip_button = QPushButton('本次跳过')
+        self._skip_button.setCursor(Qt.PointingHandCursor)
+        self._skip_button.setAccessibleName('跳过本次休息提醒')
+        self._skip_button.setFocusPolicy(Qt.StrongFocus)
+        self._skip_button.clicked.connect(self._request_skip)
+        rest_actions.addWidget(self._skip_button)
+        layout.addWidget(self._rest_actions_widget)
+        self._set_mode('quick')
 
     def set_status(self, title: str, detail: str = '') -> None:
+        if self.is_rest_prompt_active:
+            return
         self._title.setText(str(title))
         self._detail.setText(str(detail))
+
+    def show_rest_prompt(
+        self,
+        anchor,
+        *,
+        title: str = '该休息一下眼睛了',
+        detail: str = '看看远处，让眼睛放松一下。',
+    ) -> None:
+        self._set_mode('rest_prompt')
+        self._title.setText(str(title))
+        self._detail.setText(str(detail))
+        self.show_for(anchor)
+
+    def clear_rest_prompt(self) -> None:
+        if self.is_rest_prompt_active:
+            self._set_mode('quick')
+            self.hide()
 
     def set_break_countdown(self, remaining: int, total: int | None = None) -> None:
         '''Update displayed text only; authoritative timing remains elsewhere.'''
@@ -169,6 +246,11 @@ class PetBubble(QWidget):
         for tool_id, button in self._tool_buttons.items():
             semantic = aliases.get(tool_id, tool_id)
             button.setVisible(semantic in selected)
+
+    def apply_theme(self, snapshot) -> None:
+        '''Compatibility entry point shared by all themed companion surfaces.'''
+
+        self.set_theme(snapshot)
 
     def set_theme(self, theme) -> None:
         resolved = getattr(theme, 'resolved', theme)
@@ -201,33 +283,55 @@ class PetBubble(QWidget):
         self._detail.setStyleSheet(f'color: {text_color}; background: transparent;')
         self._countdown.setStyleSheet(f'color: {title_color}; background: transparent;')
         self._close.setStyleSheet(
-            'QToolButton { border: none; border-radius: 12px; background: transparent; '
+            'QToolButton { border: 1px solid transparent; border-radius: 12px; background: transparent; '
             f'color: {text_color}; font-size: 17px; }} '
-            f'QToolButton:hover {{ background: {button_color}; }}'
+            f'QToolButton:hover {{ background: {button_color}; }} '
+            f'QToolButton:focus {{ border: 2px solid {hover_color}; }}'
         )
         button_style = (
-            'QPushButton { border: none; border-radius: 8px; padding: 6px 8px; '
-            f'background: {button_color}; color: {title_color}; }} '
-            f'QPushButton:hover, QPushButton:focus {{ background: {hover_color}; }}'
+            'QPushButton, QToolButton { border: 1px solid transparent; border-radius: 8px; '
+            f'padding: 6px 8px; background: {button_color}; color: {title_color}; }} '
+            f'QPushButton:hover, QToolButton:hover {{ background: {hover_color}; }} '
+            f'QPushButton:focus, QToolButton:focus {{ border: 2px solid {hover_color}; }}'
         )
-        for button in (*self._tool_buttons.values(), *self._item_buttons.values()):
+        for button in (
+            *self._tool_buttons.values(),
+            *self._item_buttons.values(),
+            self._start_due_button,
+            self._snooze_button,
+            self._skip_button,
+        ):
             button.setStyleSheet(button_style)
+        self._snooze_menu.setStyleSheet(
+            f'QMenu {{ background: {palette["card"]}; color: {title_color}; '
+            f'border: 1px solid {palette["border"]}; }} '
+            f'QMenu::item:selected {{ background: {hover_color}; }}'
+        )
         self.update()
 
-    def show_for(self, anchor) -> None:
+    def show_for(self, anchor, *, focusable: bool = False) -> None:
         '''Show next to a widget, rectangle or global point and keep it on-screen.'''
 
+        self._focusable = bool(focusable)
+        self.setAttribute(Qt.WA_ShowWithoutActivating, not self._focusable)
         self._anchor_target = anchor
         self._anchor_rect = self._resolve_anchor(anchor)
         self._position_for_anchor(self._anchor_rect)
         self.show()
         self.raise_()
+        if self._focusable:
+            self.activateWindow()
+            self._first_focus_target().setFocus(Qt.TabFocusReason)
 
-    def toggle_for(self, anchor) -> None:
+    def toggle_for(self, anchor, *, focusable: bool = False) -> None:
         if self.isVisible():
-            self.hide()
+            if self.is_rest_prompt_active:
+                self._request_snooze(5)
+            else:
+                self.hide()
         else:
-            self.show_for(anchor)
+            self._set_mode('quick')
+            self.show_for(anchor, focusable=focusable)
 
     def reposition(self) -> None:
         if self._anchor_target is not None:
@@ -241,7 +345,10 @@ class PetBubble(QWidget):
 
     def keyPressEvent(self, event) -> None:
         if event.key() == Qt.Key_Escape:
-            self.hide()
+            if self.is_rest_prompt_active:
+                self._request_snooze(5)
+            else:
+                self.hide()
             event.accept()
             return
         super().keyPressEvent(event)
@@ -284,3 +391,41 @@ class PetBubble(QWidget):
         y = anchor.bottom() - self.height()
         y = max(area.top(), min(y, area.bottom() - self.height() + 1))
         self.move(x, y)
+
+    def _set_mode(self, mode: str) -> None:
+        mode = 'rest_prompt' if str(mode) == 'rest_prompt' else 'quick'
+        if mode == self._mode:
+            return
+        self._mode = mode
+        is_rest_prompt = mode == 'rest_prompt'
+        self._tools_widget.setVisible(not is_rest_prompt)
+        self._rest_actions_widget.setVisible(is_rest_prompt)
+
+    def _first_focus_target(self) -> QWidget:
+        if self.is_rest_prompt_active:
+            return self._start_due_button
+        for button in self._tool_buttons.values():
+            if not button.isHidden() and button.isEnabled():
+                return button
+        return self._close
+
+    def _request_start_due(self) -> None:
+        self.start_due_requested.emit()
+        self._set_mode('quick')
+        self.hide()
+
+    def _request_snooze(self, minutes: int) -> None:
+        self.snooze_requested.emit(max(1, int(minutes)))
+        self._set_mode('quick')
+        self.hide()
+
+    def _request_skip(self) -> None:
+        self.skip_requested.emit()
+        self._set_mode('quick')
+        self.hide()
+
+    def _close_requested(self) -> None:
+        if self.is_rest_prompt_active:
+            self._request_snooze(5)
+        else:
+            self.hide()

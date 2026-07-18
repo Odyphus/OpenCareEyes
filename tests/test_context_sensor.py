@@ -1,6 +1,5 @@
 """Fake-backend tests for queued context sensing."""
 
-import ctypes
 from datetime import datetime, timezone
 from types import SimpleNamespace
 
@@ -9,12 +8,7 @@ from PySide6.QtTest import QSignalSpy
 
 from opencareyes.domain.context import ContextSnapshot
 from opencareyes.platform import context_sensor as context_sensor_module
-from opencareyes.platform import win32_api as api
-from opencareyes.platform.context_sensor import (
-    ContextSensor,
-    Win32ContextBackend,
-    WindowsSessionEventFilter,
-)
+from opencareyes.platform.context_sensor import ContextSensor, Win32ContextBackend
 
 
 class FakeClock:
@@ -222,43 +216,3 @@ def test_stopping_sensor_disables_timer_and_unhooks_backend():
 
     assert not sensor._timer.isActive()
     assert backend.hook_stopped == 1
-
-
-def test_native_message_parser_covers_lock_suspend_and_resume():
-    interpret = WindowsSessionEventFilter.interpret_message
-
-    assert interpret(api.WM_WTSSESSION_CHANGE, api.WTS_SESSION_LOCK) == (
-        "session_locked",
-        True,
-    )
-    assert interpret(api.WM_WTSSESSION_CHANGE, api.WTS_SESSION_UNLOCK) == (
-        "session_locked",
-        False,
-    )
-    assert interpret(api.WM_POWERBROADCAST, api.PBT_APMSUSPEND) == (
-        "system_suspended",
-        True,
-    )
-    assert interpret(api.WM_POWERBROADCAST, api.PBT_APMRESUMEAUTOMATIC) == (
-        "system_suspended",
-        False,
-    )
-    assert interpret(0, 0) is None
-
-
-def test_native_event_filter_dispatches_matching_window_via_queued_setter(qtbot):
-    sensor = make_sensor(FakeBackend())
-    event_filter = WindowsSessionEventFilter(sensor)
-    event_filter._hwnd = 1234
-    message = api.MSG()
-    message.hwnd = 1234
-    message.message = api.WM_WTSSESSION_CHANGE
-    message.wParam = api.WTS_SESSION_LOCK
-
-    handled = event_filter.nativeEventFilter(
-        b"windows_generic_MSG",
-        ctypes.addressof(message),
-    )
-
-    assert handled == (False, 0)
-    qtbot.waitUntil(lambda: sensor.current_snapshot.session == "locked")

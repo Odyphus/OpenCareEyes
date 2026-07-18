@@ -31,22 +31,71 @@ from opencareyes.ui.widgets import Card, PageHeader, ScrollPage, first_state_val
 class FerretPreview(QWidget):
     """Pet-pack preview stage with a species-neutral painted fallback."""
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, *, asset_repository=None):
         super().__init__(parent)
+        self._asset_repository = asset_repository
         self.setMinimumSize(240, 220)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.setAccessibleName('桌面伙伴预览')
         self._preview_path = ''
+        self._preview_pet_id = ''
         self._preview_image = QImage()
+        if asset_repository is not None:
+            resource_ready = getattr(asset_repository, 'resource_ready', None)
+            resource_failed = getattr(asset_repository, 'resource_failed', None)
+            if resource_ready is not None:
+                resource_ready.connect(self._on_preview_ready)
+            if resource_failed is not None:
+                resource_failed.connect(self._on_preview_failed)
 
-    def set_preview(self, path: str, display_name: str) -> None:
+    def set_preview(
+        self,
+        path: str,
+        display_name: str,
+        *,
+        pet_id: str = '',
+    ) -> None:
         path = str(path or '')
-        if path != self._preview_path:
+        pet_id = str(pet_id or '')
+        if (pet_id, path) != (self._preview_pet_id, self._preview_path):
+            self._preview_pet_id = pet_id
             self._preview_path = path
-            image = QImage(path) if path else QImage()
-            self._preview_image = image if not image.isNull() else QImage()
+            self._preview_image = QImage()
+            self._load_preview()
             self.update()
         self.setAccessibleName(f'{display_name or "桌面伙伴"}预览')
+
+    def _load_preview(self) -> None:
+        if (
+            self._asset_repository is None
+            or not self._preview_pet_id
+            or not self._preview_path
+        ):
+            return
+        image = self._asset_repository.load_frame(
+            self._preview_pet_id,
+            self._preview_path,
+        )
+        if isinstance(image, QImage) and not image.isNull():
+            self._preview_image = QImage(image)
+
+    def _on_preview_ready(self, pet_id: str, resource_path: str) -> None:
+        if (str(pet_id), str(resource_path)) != (
+            self._preview_pet_id,
+            self._preview_path,
+        ):
+            return
+        self._load_preview()
+        self.update()
+
+    def _on_preview_failed(self, pet_id: str, resource_path: str) -> None:
+        if (str(pet_id), str(resource_path)) != (
+            self._preview_pet_id,
+            self._preview_path,
+        ):
+            return
+        self._preview_image = QImage()
+        self.update()
 
     def paintEvent(self, _event) -> None:
         painter = QPainter(self)
@@ -97,7 +146,7 @@ class FerretPreview(QWidget):
 class CompanionHomePage(ScrollPage):
     """The companion is the primary product surface, not a break add-on."""
 
-    def __init__(self, controller, parent=None):
+    def __init__(self, controller, parent=None, *, asset_repository=None):
         super().__init__(parent)
         self._controller = controller
         self.layout.addWidget(
@@ -112,7 +161,7 @@ class CompanionHomePage(ScrollPage):
         hero.setObjectName('companionHeroCard')
         self._hero_layout = QBoxLayout(QBoxLayout.LeftToRight)
         self._hero_layout.setSpacing(24)
-        self._preview = FerretPreview()
+        self._preview = FerretPreview(asset_repository=asset_repository)
         self._preview.setObjectName('companionStage')
         self._hero_layout.addWidget(self._preview, 58)
         copy = QVBoxLayout()
@@ -241,7 +290,11 @@ class CompanionHomePage(ScrollPage):
             ),
             '',
         )
-        self._preview.set_preview(preview_path, pet_name)
+        self._preview.set_preview(
+            preview_path,
+            pet_name,
+            pet_id=active_pet_id,
+        )
         presentation = StatusPresenter.project(state)
         status_text = presentation.headline
         if self._status.text() != status_text:
@@ -275,9 +328,10 @@ class CompanionHomePage(ScrollPage):
 class PetCatalogPage(ScrollPage):
     """Pet selection, appearance automation, and motion preferences."""
 
-    def __init__(self, controller, parent=None):
+    def __init__(self, controller, parent=None, *, asset_repository=None):
         super().__init__(parent)
         self._controller = controller
+        self._asset_repository = asset_repository
         self._rendering = False
         self._catalog_signature = None
         self._compact = None
@@ -340,6 +394,7 @@ class PetCatalogPage(ScrollPage):
         wardrobe_row = QBoxLayout(QBoxLayout.LeftToRight)
         self._wardrobe_layout = wardrobe_row
         self._accessory_buttons: dict[tuple[str, str], QPushButton] = {}
+        self._accessory_labels: dict[tuple[str, str], str] = {}
         for label, slot, item_id in (
             ('墨镜', 'headwear', 'sunglasses'),
             ('蓝围巾', 'neckwear', 'scarf'),
@@ -353,7 +408,9 @@ class PetCatalogPage(ScrollPage):
                     self._set_accessory(selected_slot, selected_item, checked)
                 )
             )
-            self._accessory_buttons[(slot, item_id)] = button
+            key = (slot, item_id)
+            self._accessory_buttons[key] = button
+            self._accessory_labels[key] = label
             wardrobe_row.addWidget(button)
         clear_wardrobe = QPushButton('恢复自动搭配')
         clear_wardrobe.clicked.connect(self._clear_manual_accessories)
@@ -404,6 +461,12 @@ class PetCatalogPage(ScrollPage):
         )
         self._weather.toggled.connect(self._toggle_weather)
         controller.state_changed.connect(self.render)
+        loader = getattr(controller, 'ensure_pet_catalog_loaded', None)
+        if (
+            callable(loader)
+            and hasattr(type(controller), 'ensure_pet_catalog_loaded')
+        ):
+            loader()
         self.render(controller.state)
         self._apply_compact_layout(self.viewport().width() < 640)
 
@@ -565,8 +628,19 @@ class PetCatalogPage(ScrollPage):
                 first_state_value(state, f'companion.appearance.{slot}', default='')
             ).replace('\\', '/').lower()
             selected = selected.rsplit('/', 1)[-1].removesuffix('.png')
+            is_selected = selected == item_id
             with QSignalBlocker(button):
-                button.setChecked(selected == item_id)
+                button.setChecked(is_selected)
+            label = self._accessory_labels[(slot, item_id)]
+            button.setText(f'✓ {label} · 已佩戴' if is_selected else label)
+            button.setAccessibleName(
+                f'装扮：{label}，{"已佩戴" if is_selected else "未佩戴"}'
+            )
+            object_name = 'secondaryButton' if is_selected else ''
+            if button.objectName() != object_name:
+                button.setObjectName(object_name)
+                button.style().unpolish(button)
+                button.style().polish(button)
         self._rendering = False
 
 
@@ -645,25 +719,9 @@ class CompanionBreakPage(BreakPage):
 
     def __init__(self, controller, parent=None):
         super().__init__(controller, parent)
-        cards = {}
-        for card in self.content.findChildren(Card):
-            heading = next(
-                (
-                    label.text()
-                    for label in card.findChildren(QLabel)
-                    if label.objectName() == 'cardTitle'
-                ),
-                '',
-            )
-            if heading:
-                cards[heading] = card
-        reminder = cards.get('提醒方式')
-        if reminder is not None:
-            reminder.body.addWidget(self._force_toggle)
-        for title in ('桌面伙伴与倒计时', '高级设置'):
-            card = cards.get(title)
-            if card is not None:
-                card.hide()
+        self._reminder_card.body.addWidget(self._force_toggle)
+        self._pet_card.hide()
+        self._advanced_card.hide()
 
 
 class StudyDeskPage(QWidget):

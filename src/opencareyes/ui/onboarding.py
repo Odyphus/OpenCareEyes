@@ -2,16 +2,21 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QRect, Qt
 from PySide6.QtWidgets import (
+    QApplication,
+    QBoxLayout,
     QButtonGroup,
     QCheckBox,
     QComboBox,
     QDialog,
+    QFrame,
     QHBoxLayout,
     QLabel,
     QPushButton,
     QRadioButton,
+    QScrollArea,
+    QSizePolicy,
     QStackedWidget,
     QVBoxLayout,
     QWidget,
@@ -30,10 +35,12 @@ class OnboardingDialog(QDialog):
         self.setObjectName("onboardingDialog")
         self.setWindowTitle("欢迎使用 OpenCareEyes")
         self.setModal(True)
-        self.setMinimumSize(640, 480)
+        self.setMinimumSize(360, 320)
         self.resize(720, 520)
         self.setWindowFlag(Qt.WindowContextHelpButtonHint, False)
         self._build_ui()
+        self._fit_to_available_geometry()
+        self._update_responsive_layout()
         failed = getattr(self._controller, "operation_failed", None)
         if failed is not None:
             failed.connect(self._show_error)
@@ -41,6 +48,7 @@ class OnboardingDialog(QDialog):
 
     def _build_ui(self) -> None:
         root = QVBoxLayout(self)
+        self._root_layout = root
         root.setContentsMargins(32, 28, 32, 24)
         root.setSpacing(18)
 
@@ -56,8 +64,16 @@ class OnboardingDialog(QDialog):
         self._stack.addWidget(self._display_step())
         self._stack.addWidget(self._break_step())
         self._stack.addWidget(self._automation_step())
+        self._stack.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
         self._stack.currentChanged.connect(self._update_navigation)
-        root.addWidget(self._stack, 1)
+        self._content_scroll = QScrollArea()
+        self._content_scroll.setObjectName("onboardingContentScroll")
+        self._content_scroll.setFrameShape(QFrame.NoFrame)
+        self._content_scroll.setWidgetResizable(True)
+        self._content_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self._content_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self._content_scroll.setWidget(self._stack)
+        root.addWidget(self._content_scroll, 1)
 
         navigation = QHBoxLayout()
         self._back_button = QPushButton("上一步")
@@ -83,6 +99,20 @@ class OnboardingDialog(QDialog):
         root.addWidget(self._error_label)
         root.addLayout(navigation)
 
+    def apply_theme(self, snapshot) -> None:
+        """Apply the shared presentation snapshot without owning theme policy."""
+
+        if snapshot is None:
+            return
+        self.setProperty("resolvedTheme", str(snapshot.resolved))
+        self.setProperty("highContrast", bool(snapshot.high_contrast))
+        if snapshot.high_contrast:
+            self.setPalette(QApplication.palette())
+        style = self.style()
+        style.unpolish(self)
+        style.polish(self)
+        self.update()
+
     def _companion_step(self) -> QWidget:
         page = QWidget()
         layout = QVBoxLayout(page)
@@ -91,12 +121,15 @@ class OnboardingDialog(QDialog):
         title.setObjectName("onboardingTitle")
         description = QLabel("鼬鼬会在桌面陪伴、提示休息，并帮你打开常用工具。")
         description.setObjectName("pageDescription")
+        description.setWordWrap(True)
         layout.addWidget(title)
         layout.addWidget(description)
 
         card = Card()
         row = QHBoxLayout()
+        self._companion_layout = row
         preview = FerretPreview()
+        self._companion_preview = preview
         preview.setMinimumSize(220, 180)
         row.addWidget(preview, 3)
         copy = QVBoxLayout()
@@ -130,12 +163,14 @@ class OnboardingDialog(QDialog):
         title.setObjectName("onboardingTitle")
         description = QLabel("稍后可随时调整。方案只影响色温与调暗强度。")
         description.setObjectName("pageDescription")
+        description.setWordWrap(True)
         layout.addWidget(title)
         layout.addWidget(description)
 
         card = Card()
         self._profile_group = QButtonGroup(self)
         options = QHBoxLayout()
+        self._profile_layout = options
         for key, label, detail in (
             ("office", "办公", "自然清晰"),
             ("reading", "阅读", "柔和偏暖"),
@@ -164,12 +199,14 @@ class OnboardingDialog(QDialog):
         title.setObjectName("onboardingTitle")
         description = QLabel("默认使用温和提醒，不会突然锁定屏幕。")
         description.setObjectName("pageDescription")
+        description.setWordWrap(True)
         layout.addWidget(title)
         layout.addWidget(description)
 
         card = Card()
         self._break_group = QButtonGroup(self)
         options = QHBoxLayout()
+        self._break_layout = options
         for key, label, detail in (
             ("20-20-20", "20-20-20", "每 20 分钟远眺 20 秒"),
             ("pomodoro", "番茄钟", "专注 25 分钟，休息 5 分钟"),
@@ -198,6 +235,7 @@ class OnboardingDialog(QDialog):
         title.setObjectName("onboardingTitle")
         description = QLabel("这些选项都可稍后修改。位置只保存在本机。")
         description.setObjectName("pageDescription")
+        description.setWordWrap(True)
         layout.addWidget(title)
         layout.addWidget(description)
 
@@ -227,6 +265,61 @@ class OnboardingDialog(QDialog):
         layout.addWidget(card)
         layout.addStretch()
         return page
+
+    def _available_geometry(self) -> QRect:
+        screen = self.screen() or QApplication.primaryScreen()
+        if screen is None:
+            return QRect(0, 0, self.width(), self.height())
+        return screen.availableGeometry()
+
+    def _fit_to_available_geometry(self) -> None:
+        geometry = self._available_geometry()
+        inset = 16
+        usable_width = max(1, geometry.width() - inset * 2)
+        usable_height = max(1, geometry.height() - inset * 2)
+        minimum_width = min(360, usable_width)
+        minimum_height = min(320, usable_height)
+        self.setMinimumSize(minimum_width, minimum_height)
+        self.resize(
+            max(minimum_width, min(self.width(), usable_width)),
+            max(minimum_height, min(self.height(), usable_height)),
+        )
+
+    def _update_responsive_layout(self) -> None:
+        if not hasattr(self, "_content_scroll"):
+            return
+        content_width = self._content_scroll.viewport().width()
+        if content_width <= 0:
+            content_width = max(0, self.width() - 64)
+        narrow = content_width < 640
+        direction = QBoxLayout.TopToBottom if narrow else QBoxLayout.LeftToRight
+        for layout in (
+            self._companion_layout,
+            self._profile_layout,
+            self._break_layout,
+        ):
+            layout.setDirection(direction)
+            layout.invalidate()
+        self._companion_preview.setMinimumSize(
+            160 if narrow else 220,
+            120 if narrow else 180,
+        )
+        self._root_layout.setContentsMargins(
+            16 if narrow else 32,
+            16 if narrow else 28,
+            16 if narrow else 32,
+            16 if narrow else 24,
+        )
+        self._stack.updateGeometry()
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self._update_responsive_layout()
+
+    def showEvent(self, event) -> None:
+        self._fit_to_available_geometry()
+        super().showEvent(event)
+        self._update_responsive_layout()
 
     def _update_navigation(self, *_args) -> None:
         index = self._stack.currentIndex()

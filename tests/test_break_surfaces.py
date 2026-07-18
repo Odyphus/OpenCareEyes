@@ -1,8 +1,11 @@
 """Regression tests for the full-screen reminder and countdown pet."""
 
 from dataclasses import replace
+from types import SimpleNamespace
 
 from PySide6.QtCore import QObject, Qt, Signal
+from PySide6.QtGui import QPalette
+from PySide6.QtWidgets import QApplication
 
 from opencareyes.state import AppState, BreakState
 from opencareyes.ui.break_overlay import BreakOverlay
@@ -203,3 +206,24 @@ def test_standalone_overlay_escape_is_always_safe(qtbot):
 
     qtbot.keyClick(overlay, Qt.Key_Escape)
     assert not overlay.isVisible()
+
+
+def test_overlay_applies_light_dark_and_system_high_contrast_themes(qtbot):
+    overlay = BreakOverlay()
+    qtbot.addWidget(overlay)
+
+    overlay.apply_theme(SimpleNamespace(resolved="light", high_contrast=False))
+    assert overlay._theme_signature == ("light", False)
+    assert overlay._theme_colors["background"] == "#EDF3FC"
+
+    overlay.apply_theme(SimpleNamespace(resolved="dark", high_contrast=False))
+    assert overlay._theme_signature == ("dark", False)
+    assert overlay._theme_colors["title"] == "#FFFFFF"
+
+    overlay.apply_theme(SimpleNamespace(resolved="dark", high_contrast=True))
+    native = QApplication.palette()
+    assert overlay.property("highContrast") is True
+    assert overlay._theme_colors["background"] == native.color(QPalette.Window).name()
+    assert overlay._theme_colors["title"] == native.color(QPalette.WindowText).name()
+    assert overlay._skip_button.focusPolicy() == Qt.StrongFocus
+    assert overlay._skip_button.accessibleName()

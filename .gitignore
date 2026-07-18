@@ -32,6 +32,8 @@ ENV/
 *.dll
 SHA256SUMS.txt
 /OpenCareEyes_Source_*.zip
+/OpenCareEyes_Portable_*.zip
+/OpenCareEyes_WinGet_*.zip
 
 # Editors and operating systems
 .vscode/

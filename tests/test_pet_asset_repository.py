@@ -30,6 +30,7 @@ def test_async_decode_returns_fallback_then_publishes_cached_frame(qtbot, tmp_pa
     ready = QSignalSpy(repository.resource_ready)
 
     assert repository.load_frame('snow_ferret', 'sprites/atlas.png') is None
+    assert repository.load_frame('snow_ferret', 'sprites/atlas.png') is None
     qtbot.waitUntil(lambda: ready.count() == 1, timeout=2000)
     loaded = repository.load_frame('snow_ferret', 'sprites/atlas.png')
 
@@ -59,4 +60,24 @@ def test_manifest_preload_deduplicates_shared_atlas(qtbot, tmp_path):
 
     assert registry.calls == [('snow_ferret', 'sprites/atlas.png')]
     assert repository.cache_bytes > 0
+    assert repository.shutdown()
+
+
+def test_lru_cache_honours_entry_limit(qtbot, tmp_path):
+    first = tmp_path / 'first.png'
+    second = tmp_path / 'second.png'
+    _write_image(first)
+    _write_image(second, '#F2A65A')
+    registry = _Registry(first)
+    repository = PetAssetRepository(registry, cache_limit=1)
+    ready = QSignalSpy(repository.resource_ready)
+
+    repository.load_frame('snow_ferret', 'sprites/first.png')
+    qtbot.waitUntil(lambda: ready.count() == 1, timeout=2000)
+    registry.path = second
+    repository.load_frame('snow_ferret', 'sprites/second.png')
+    qtbot.waitUntil(lambda: ready.count() == 2, timeout=2000)
+
+    assert repository.cache_entry_count == 1
+    assert repository.load_frame('snow_ferret', 'sprites/second.png') is not None
     assert repository.shutdown()

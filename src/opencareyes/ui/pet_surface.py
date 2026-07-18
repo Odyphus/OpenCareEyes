@@ -48,7 +48,6 @@ class PetSurface(QWidget):
         self._frame: QImage | None = None
         self._appearance_paths: tuple[str, ...] = ()
         self._appearance_images: tuple[QImage, ...] = ()
-        self._appearance_cache: dict[str, QImage] = {}
         self._facing_direction = 0
         self._scale_percent = 100
         self._reduced_motion = False
@@ -82,6 +81,13 @@ class PetSurface(QWidget):
 
         self.animator = PetAnimator(repository, self)
         self.animator.frame_changed.connect(self._set_frame)
+        if repository is not None:
+            resource_ready = getattr(repository, 'resource_ready', None)
+            resource_failed = getattr(repository, 'resource_failed', None)
+            if resource_ready is not None:
+                resource_ready.connect(self._on_appearance_resource_ready)
+            if resource_failed is not None:
+                resource_failed.connect(self._on_appearance_resource_failed)
 
         self._switch_animation = QPropertyAnimation(
             self,
@@ -307,22 +313,47 @@ class PetSurface(QWidget):
         paths = tuple(path for path in paths if path)
         if paths == self._appearance_paths:
             return
-        images: list[QImage] = []
-        for path in paths:
-            image = self._appearance_cache.get(path)
-            if image is None and self._repository is not None:
-                try:
-                    resolved = self._repository.resolve_resource(self._pet_id, path)
-                    loaded = QImage(str(resolved))
-                except (FileNotFoundError, KeyError, OSError, TypeError, ValueError):
-                    loaded = QImage()
-                if not loaded.isNull():
-                    image = loaded
-                    self._appearance_cache[path] = QImage(loaded)
-            if image is not None and not image.isNull():
-                images.append(QImage(image))
         self._appearance_paths = paths
-        self._appearance_images = tuple(images)
+        self._reload_appearance_images(force=True)
+
+    def _reload_appearance_images(self, *, force: bool = False) -> None:
+        images: list[QImage] = []
+        if self._repository is not None and self._pet_id:
+            for path in self._appearance_paths:
+                image = self._repository.load_frame(self._pet_id, path)
+                if isinstance(image, QImage) and not image.isNull():
+                    images.append(QImage(image))
+        candidate = tuple(images)
+        unchanged = tuple(image.cacheKey() for image in candidate) == tuple(
+            image.cacheKey() for image in self._appearance_images
+        )
+        if unchanged and not force:
+            return
+        self._appearance_images = candidate
+        self.update()
+
+    def _on_appearance_resource_ready(
+        self,
+        pet_id: str,
+        resource_path: str,
+    ) -> None:
+        if (
+            str(pet_id) != self._pet_id
+            or str(resource_path) not in self._appearance_paths
+        ):
+            return
+        self._reload_appearance_images()
+
+    def _on_appearance_resource_failed(
+        self,
+        pet_id: str,
+        resource_path: str,
+    ) -> None:
+        if (
+            str(pet_id) != self._pet_id
+            or str(resource_path) not in self._appearance_paths
+        ):
+            return
         self.update()
 
     def move_to_default(self) -> None:
@@ -498,7 +529,6 @@ class PetSurface(QWidget):
         self._manifest = manifest
         self._appearance_paths = ()
         self._appearance_images = ()
-        self._appearance_cache.clear()
         self._set_fixed_size_if_changed(
             max(48, round(width * scale)),
             max(48, round(height * scale)),
@@ -517,7 +547,6 @@ class PetSurface(QWidget):
             self.animator.action_id or 'idle',
             self._appearance_paths,
             tuple(QImage(image) for image in self._appearance_images),
-            dict(self._appearance_cache),
         )
 
     def _restore_pack_snapshot(self) -> None:
@@ -532,14 +561,12 @@ class PetSurface(QWidget):
             action_id,
             appearance_paths,
             appearance_images,
-            appearance_cache,
         ) = snapshot
         self._pet_id = pet_id
         self._manifest = manifest
         self._set_fixed_size_if_changed(size.width(), size.height())
         self._appearance_paths = appearance_paths
         self._appearance_images = tuple(QImage(image) for image in appearance_images)
-        self._appearance_cache = dict(appearance_cache)
         self.animator.set_pack(pet_id, manifest)
         if not self.play_action(action_id):
             self.play_action('idle')
@@ -550,7 +577,6 @@ class PetSurface(QWidget):
         self._frame = None
         self._appearance_paths = ()
         self._appearance_images = ()
-        self._appearance_cache.clear()
         self.animator.stop(clear_frame=True)
         self.update()
 

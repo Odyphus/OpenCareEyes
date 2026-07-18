@@ -2,11 +2,40 @@
 
 from types import SimpleNamespace
 
-from PySide6.QtCore import QAbstractAnimation, QPoint, QPointF, Qt
-from PySide6.QtGui import QImage
+from PySide6.QtCore import (
+    QAbstractAnimation,
+    QObject,
+    QPoint,
+    QPointF,
+    Signal,
+    Qt,
+)
+from PySide6.QtGui import QColor, QImage
 from PySide6.QtTest import QSignalSpy
 
 from opencareyes.ui.pet_surface import PetSurface
+
+
+class _DeferredRepository(QObject):
+    resource_ready = Signal(str, str)
+    resource_failed = Signal(str, str)
+
+    def __init__(self):
+        super().__init__()
+        self.frames = {}
+        self.calls = []
+
+    def load_frame(self, pet_id, resource_path):
+        key = (str(pet_id), str(resource_path))
+        self.calls.append(key)
+        image = self.frames.get(key)
+        return QImage(image) if isinstance(image, QImage) else None
+
+
+def _color_image(color: str) -> QImage:
+    image = QImage(8, 8, QImage.Format_ARGB32_Premultiplied)
+    image.fill(QColor(color))
+    return image
 
 
 def _manifest():
@@ -321,6 +350,31 @@ def test_repeated_appearance_and_frame_are_paint_noops(qtbot, monkeypatch):
     surface._set_frame(image)
     surface._set_frame(image)
     assert updates == [True, True]
+
+
+def test_appearance_uses_shared_repository_and_ignores_stale_pet_result(qtbot):
+    repository = _DeferredRepository()
+    surface = PetSurface(repository)
+    qtbot.addWidget(surface)
+    surface.set_pack('first_pet', _pack())
+    appearance = SimpleNamespace(headwear='accessories/shared.png')
+    surface.set_appearance(appearance)
+    assert ('first_pet', 'accessories/shared.png') in repository.calls
+
+    surface.set_pack('second_pet', _pack())
+    surface.set_appearance(appearance)
+    repository.frames[('first_pet', 'accessories/shared.png')] = _color_image(
+        '#FF0000'
+    )
+    repository.resource_ready.emit('first_pet', 'accessories/shared.png')
+    assert surface._appearance_images == ()
+
+    repository.frames[('second_pet', 'accessories/shared.png')] = _color_image(
+        '#0000FF'
+    )
+    repository.resource_ready.emit('second_pet', 'accessories/shared.png')
+    assert len(surface._appearance_images) == 1
+    assert surface._appearance_images[0].pixelColor(0, 0) == QColor('#0000FF')
 
 
 def test_presentation_visibility_and_suppression_are_idempotent(qtbot):

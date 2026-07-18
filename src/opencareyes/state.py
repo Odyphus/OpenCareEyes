@@ -162,6 +162,10 @@ class DisplayHealthState:
     ] = "unavailable"
     hdr_active: bool = False
     pending: bool = False
+    transaction_phase: Literal[
+        "idle", "applying", "compensating", "completed"
+    ] = "idle"
+    request_id: int | None = None
     reason_code: str = ""
     message: str = ""
 

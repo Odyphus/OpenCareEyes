@@ -6,6 +6,7 @@ from types import SimpleNamespace
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 
 from PySide6.QtCore import QObject, Signal  # noqa: E402
+from PySide6.QtGui import QColor, QImage  # noqa: E402
 from PySide6.QtWidgets import (  # noqa: E402
     QApplication,
     QBoxLayout,
@@ -19,6 +20,7 @@ from opencareyes.ui.companion_pages import (  # noqa: E402
     CompanionAutomationPage,
     CompanionBreakPage,
     CompanionHomePage,
+    FerretPreview,
     PetCatalogPage,
     StudyDeskPage,
 )
@@ -148,6 +150,22 @@ class _Controller(QObject):
         return command
 
 
+class _PreviewRepository(QObject):
+    resource_ready = Signal(str, str)
+    resource_failed = Signal(str, str)
+
+    def __init__(self):
+        super().__init__()
+        self.frames = {}
+        self.calls = []
+
+    def load_frame(self, pet_id, resource_path):
+        key = (str(pet_id), str(resource_path))
+        self.calls.append(key)
+        image = self.frames.get(key)
+        return QImage(image) if isinstance(image, QImage) else None
+
+
 def _app():
     return QApplication.instance() or QApplication([])
 
@@ -168,11 +186,38 @@ def test_companion_home_reflows_below_640_pixels():
     page.close()
 
 
+def test_preview_uses_repository_and_ignores_late_previous_pet():
+    _app()
+    repository = _PreviewRepository()
+    preview = FerretPreview(asset_repository=repository)
+    preview.set_preview('preview.png', '伙伴甲', pet_id='pet_a')
+    preview.set_preview('preview.png', '伙伴乙', pet_id='pet_b')
+
+    old = QImage(8, 8, QImage.Format_ARGB32_Premultiplied)
+    old.fill(QColor('#FF0000'))
+    repository.frames[('pet_a', 'preview.png')] = old
+    repository.resource_ready.emit('pet_a', 'preview.png')
+    assert preview._preview_image.isNull()
+
+    current = QImage(8, 8, QImage.Format_ARGB32_Premultiplied)
+    current.fill(QColor('#0000FF'))
+    repository.frames[('pet_b', 'preview.png')] = current
+    repository.resource_ready.emit('pet_b', 'preview.png')
+    assert preview._preview_image.pixelColor(0, 0) == QColor('#0000FF')
+    assert ('pet_b', 'preview.png') in repository.calls
+    preview.close()
+
+
 def test_catalog_render_is_differential_and_reflects_accessory_selection():
     controller = _Controller()
     page = PetCatalogPage(controller)
     assert page._pet_combo.count() == 2
-    assert page._accessory_buttons[('neckwear', 'red_scarf')].isChecked()
+    selected = page._accessory_buttons[('neckwear', 'red_scarf')]
+    assert selected.isChecked()
+    assert selected.objectName() == 'secondaryButton'
+    assert '✓' in selected.text()
+    assert '已佩戴' in selected.text()
+    assert '已佩戴' in selected.accessibleName()
     assert page._countdown_display.currentData() == 'floating'
     assert not page.findChildren(AppPropRulesCard)
     assert controller.calls == []
@@ -224,6 +269,9 @@ def test_app_prop_rules_live_under_automation_and_break_page_is_focused():
         and label.parentWidget().isHidden()
     }
     assert {'桌面伙伴与倒计时', '高级设置'} <= hidden_titles
+    assert rest._pet_card.isHidden()
+    assert rest._advanced_card.isHidden()
+    assert rest._force_toggle.parentWidget() is not rest._advanced_card
 
 
 def test_main_panel_uses_top_navigation_and_overlay_toast(monkeypatch):
@@ -240,7 +288,6 @@ def test_main_panel_uses_top_navigation_and_overlay_toast(monkeypatch):
     app.processEvents()
     assert panel._root_layout.direction() == QBoxLayout.TopToBottom
     assert panel._content_area.layout().indexOf(panel._message) == -1
-
     panel._show_error('test', '需要保留')
     assert panel._message.isVisible()
     assert not panel._message_timer.isActive()
@@ -249,6 +296,21 @@ def test_main_panel_uses_top_navigation_and_overlay_toast(monkeypatch):
     panel._show_notification('完成', '普通消息')
     assert panel._message_timer.isActive()
     panel.hide()
+
+
+def test_main_panel_injects_shared_pet_assets_into_lazy_pet_pages():
+    _app()
+    repository = _PreviewRepository()
+    panel = main_panel_module.MainPanel(
+        _Controller(),
+        asset_repository=repository,
+    )
+
+    assert panel._pages[0]._preview._asset_repository is repository
+    catalog = panel._ensure_page(1)
+    assert catalog._asset_repository is repository
+    panel.close()
+
 
 
 def test_onboarding_starts_with_the_companion_and_tray_is_grouped():
@@ -264,3 +326,18 @@ def test_onboarding_starts_with_the_companion_and_tray_is_grouped():
     assert '现在休息' in top_level
     assert '色温调节' not in top_level
     assert '屏幕舒适与专注' in top_level
+
+
+def test_tray_opens_companion_bubble_with_keyboard_focus():
+    controller = _Controller()
+    panel = SimpleNamespace(show_page=lambda _name: None, show=lambda: None)
+    requests = []
+    runtime = SimpleNamespace(
+        show_bubble=lambda **options: requests.append(options)
+    )
+    tray = TrayIcon(controller, panel, companion_runtime=runtime)
+
+    assert tray._open_pet_bubble_action.isEnabled()
+    tray._open_pet_bubble_action.trigger()
+
+    assert requests == [{'focusable': True}]

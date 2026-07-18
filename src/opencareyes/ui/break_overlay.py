@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QFont, QKeyEvent, QPainter
+from PySide6.QtGui import QColor, QFont, QKeyEvent, QPainter, QPalette
 from PySide6.QtWidgets import QApplication, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
 
 from opencareyes.ui.widgets import first_state_value
@@ -57,10 +57,14 @@ class BreakOverlay(QWidget):
         self._kind = "short"
         self._scene = 'gaze'
         self._tip_index = 0
+        self._theme_signature = None
+        self._theme_colors: dict[str, str] = {}
         self._fallback_timer = QTimer(self)
         self._fallback_timer.setInterval(1000)
         self._fallback_timer.timeout.connect(self._fallback_tick)
         self._build_ui()
+        app = QApplication.instance()
+        self.apply_theme(getattr(app, "theme_snapshot", None))
 
         if controller is not None:
             controller.state_changed.connect(self.render)
@@ -80,14 +84,17 @@ class BreakOverlay(QWidget):
     def _build_ui(self) -> None:
         self._title_label = QLabel("该休息一下眼睛了")
         self._title_label.setAlignment(Qt.AlignCenter)
+        self._title_label.setAccessibleName("休息标题")
         self._title_label.setFont(QFont("Segoe UI", 28, QFont.DemiBold))
         self._title_label.setStyleSheet("color: white; background: transparent;")
         self._countdown_label = QLabel("0:00")
         self._countdown_label.setAlignment(Qt.AlignCenter)
+        self._countdown_label.setAccessibleName("休息剩余时间")
         self._countdown_label.setFont(QFont("Segoe UI", 64, QFont.DemiBold))
         self._countdown_label.setStyleSheet("color: white; background: transparent;")
         self._tip_label = QLabel("")
         self._tip_label.setAlignment(Qt.AlignCenter)
+        self._tip_label.setAccessibleName("休息建议")
         self._tip_label.setFont(QFont("Segoe UI", 15))
         self._tip_label.setStyleSheet("color: rgba(255,255,255,190); background: transparent;")
         self._tip_label.setWordWrap(True)
@@ -97,12 +104,7 @@ class BreakOverlay(QWidget):
         self._skip_button = QPushButton("结束本次休息")
         for button in (self._snooze_button, self._resume_button, self._skip_button):
             button.setMinimumSize(136, 42)
-            button.setStyleSheet(
-                "QPushButton { color: white; background: rgba(255,255,255,28); "
-                "border: 1px solid rgba(255,255,255,70); border-radius: 10px; padding: 8px 16px; }"
-                "QPushButton:hover, QPushButton:focus { background: rgba(255,255,255,48); "
-                "border-color: rgba(255,255,255,150); }"
-            )
+            button.setFocusPolicy(Qt.StrongFocus)
         self._snooze_button.setAccessibleName("5 分钟后再次提醒")
         self._resume_button.setAccessibleName("继续休息倒计时")
         self._skip_button.setAccessibleName("安全结束本次休息")
@@ -127,6 +129,56 @@ class BreakOverlay(QWidget):
         layout.addSpacing(30)
         layout.addLayout(actions)
         layout.addStretch()
+
+    def apply_theme(self, snapshot) -> None:
+        """Apply presentation colors without changing the rest state."""
+
+        resolved = str(getattr(snapshot, "resolved", "dark"))
+        resolved = resolved if resolved in {"light", "dark"} else "dark"
+        high_contrast = bool(getattr(snapshot, "high_contrast", False))
+        signature = (resolved, high_contrast)
+        if signature == self._theme_signature:
+            return
+        self._theme_signature = signature
+        self.setProperty("highContrast", high_contrast)
+
+        if high_contrast:
+            palette = QApplication.palette()
+            colors = {
+                "background": palette.color(QPalette.Window).name(),
+                "title": palette.color(QPalette.WindowText).name(),
+                "text": palette.color(QPalette.Text).name(),
+                "button": palette.color(QPalette.Button).name(),
+                "button_text": palette.color(QPalette.ButtonText).name(),
+                "border": palette.color(QPalette.Mid).name(),
+                "focus": palette.color(QPalette.Highlight).name(),
+            }
+        elif resolved == "light":
+            colors = {
+                "background": "#EDF3FC", "title": "#172033", "text": "#44536B",
+                "button": "#FFFFFF", "button_text": "#172033",
+                "border": "#AAB9CF", "focus": "#365FBD",
+            }
+        else:
+            colors = {
+                "background": _REST_SCENES[self._scene][2].name(),
+                "title": "#FFFFFF", "text": "#D5DEEC", "button": "#253149",
+                "button_text": "#FFFFFF", "border": "#667792", "focus": "#8FB2FF",
+            }
+        self._theme_colors = colors
+        self._title_label.setStyleSheet(f"color: {colors['title']}; background: transparent;")
+        self._countdown_label.setStyleSheet(f"color: {colors['title']}; background: transparent;")
+        self._tip_label.setStyleSheet(f"color: {colors['text']}; background: transparent;")
+        button_style = (
+            "QPushButton { border-radius: 10px; padding: 8px 16px; "
+            f"color: {colors['button_text']}; background: {colors['button']}; "
+            f"border: 1px solid {colors['border']}; }} "
+            f"QPushButton:hover {{ border-color: {colors['focus']}; }} "
+            f"QPushButton:focus {{ border: 2px solid {colors['focus']}; }}"
+        )
+        for button in (self._snooze_button, self._resume_button, self._skip_button):
+            button.setStyleSheet(button_style)
+        self.update()
 
     def start_break(self, duration_seconds: int, force: bool = False) -> None:
         """Compatibility entry point for integrations without a controller."""
@@ -186,6 +238,8 @@ class BreakOverlay(QWidget):
         ))
         scene = str(first_state_value(state, 'breaks.rest_scene', default='gaze'))
         self._scene = scene if scene in _REST_SCENES else 'gaze'
+        if self._theme_signature == ("dark", False):
+            self._theme_colors["background"] = _REST_SCENES[self._scene][2].name()
         suppressed = tuple(first_state_value(
             state, "effective_policy.breaks.suppressed_by", default=()
         ))
@@ -238,7 +292,11 @@ class BreakOverlay(QWidget):
 
     def paintEvent(self, event) -> None:
         painter = QPainter(self)
-        painter.fillRect(self.rect(), _REST_SCENES[self._scene][2])
+        background = self._theme_colors.get("background")
+        painter.fillRect(
+            self.rect(),
+            QColor(background) if background else _REST_SCENES[self._scene][2],
+        )
         painter.end()
 
     def keyPressEvent(self, event: QKeyEvent) -> None:

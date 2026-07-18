@@ -5,22 +5,28 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass, field, replace
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable
 
 from PySide6.QtCore import (
     QObject,
-    QRunnable,
-    QThreadPool,
     QTimer,
     Qt,
     Signal,
     Slot,
 )
 
+from .application.command_handlers import (
+    AutomationCommands,
+    BreakFocusCommands,
+    CompanionToolCommands,
+    DisplayCommands,
+)
+
 from opencareyes.application.effect_coordinator import EffectCoordinator
 from opencareyes.application.state_projector import StateProjector
+from opencareyes.application.update_checker import UpdateChecker
 from opencareyes.constants import (
     DIM_MAX,
     DIM_MIN,
@@ -63,23 +69,6 @@ if TYPE_CHECKING:
     from opencareyes.platform.hotkeys import HotkeyManager
 
 log = logging.getLogger(__name__)
-
-_SCHEDULE_SETTING_KEYS = (
-    "filter/schedule_enabled",
-    "automation/mode",
-    "automation/on_time",
-    "automation/off_time",
-    "automation/days",
-    "automation/day_profile",
-    "automation/night_profile",
-    "automation/sunrise_offset",
-    "automation/sunset_offset",
-    "location/latitude",
-    "location/longitude",
-    "location/configured",
-    "location/city",
-)
-
 
 def _user_failure_message(code: str) -> str:
     """Return a fixed Chinese message without exposing backend details."""
@@ -164,6 +153,11 @@ class _RuntimeTransaction:
     baseline: DisplayState
     proposal: DisplayState
     desired: DesiredEffectState
+    phase: str = "applying"
+    primary_error: str = ""
+    rollback_errors: list[str] = field(default_factory=list)
+    compensation_revision: int | None = None
+    compensation_request_ids: set[int] = field(default_factory=set)
     baseline_pause_mode: str = "none"
     baseline_pause_until: float | None = None
     proposal_pause_mode: str = "none"
@@ -182,26 +176,6 @@ class _RuntimeTransaction:
     settings_proposal: object | None = None
     scheduler_proposal: object | None = None
     owned_configuration_restored: bool = False
-
-
-class _UpdateWorkerSignals(QObject):
-    finished = Signal(object)
-
-
-class _UpdateWorker(QRunnable):
-    def __init__(self, service):
-        super().__init__()
-        self._service = service
-        self.signals = _UpdateWorkerSignals()
-
-    @Slot()
-    def run(self) -> None:
-        try:
-            state = self._service.check_for_updates()
-        except Exception:
-            current = str(getattr(self._service.state, "current_version", ""))
-            state = UpdateState("failed", current)
-        self.signals.finished.emit(state)
 
 
 class AppController(QObject):
@@ -228,6 +202,7 @@ class AppController(QObject):
         effect_coordinator: EffectCoordinator | None = None,
         update_service=None,
         companion=None,
+        pet_asset_repository=None,
         weather_service=None,
         utility_timer=None,
         note_repository=None,
@@ -249,17 +224,25 @@ class AppController(QObject):
             break_reminder=break_reminder,
             focus_mode=focus_mode,
         )
-        self._update_service = update_service
+        self._update_checker = (
+            update_service
+            if isinstance(update_service, UpdateChecker)
+            else UpdateChecker(update_service, parent=self)
+        )
         self._companion = companion
+        self._pet_asset_repository = pet_asset_repository
+        self._pet_catalog_entries = None
+        self._pet_catalog_loading = False
+        self._pet_catalog_loaded = False
         self._weather_service = weather_service
         self._utility_timer = utility_timer
         self._note_repository = note_repository
         self._system_metrics = system_metrics
-        self._update_state = (
-            update_service.state
-            if update_service is not None
-            else UpdateState("idle", APP_VERSION)
-        )
+        self._display_commands = DisplayCommands(self)
+        self._break_focus_commands = BreakFocusCommands(self)
+        self._automation_commands = AutomationCommands(self)
+        self._companion_commands = CompanionToolCommands(self)
+        self._update_state = self._update_checker.state
         self._weather_state = WeatherState(
             status=(
                 'idle'
@@ -267,13 +250,13 @@ class AppController(QObject):
                 else 'disabled'
             )
         )
-        self._update_workers: dict[QObject, QRunnable] = {}
         self._context_runtime = None
         self._restored = False
         self._in_transaction = False
         self._runtime_revision = 0
         self._runtime_transaction: _RuntimeTransaction | None = None
-        self._runtime_compensation_ids: dict[int, str] = {}
+        self._last_display_transaction_phase = "idle"
+        self._last_display_request_id: int | None = None
         self._last_display_hdr_active = bool(
             getattr(blue_filter, "hdr_active", False)
         )
@@ -338,6 +321,22 @@ class AppController(QObject):
             if failed is not None:
                 failed.connect(self._on_weather_failed)
 
+        if self._pet_asset_repository is not None:
+            catalog_ready = getattr(
+                self._pet_asset_repository,
+                'catalog_ready',
+                None,
+            )
+            catalog_failed = getattr(
+                self._pet_asset_repository,
+                'catalog_failed',
+                None,
+            )
+            if catalog_ready is not None:
+                catalog_ready.connect(self._on_pet_catalog_ready)
+            if catalog_failed is not None:
+                catalog_failed.connect(self._on_pet_catalog_failed)
+
         if self._utility_timer is not None:
             timer_state_changed = getattr(
                 self._utility_timer,
@@ -351,6 +350,8 @@ class AppController(QObject):
                 timer_tick.connect(self.utility_timer_tick)
 
         self._effects.state_changed.connect(self._on_effective_policy_changed)
+        self._update_checker.state_changed.connect(self._on_update_finished)
+        self._update_checker.operation_failed.connect(self.operation_failed)
         if self._blue_filter is not None:
             request_finished = getattr(
                 self._blue_filter, "request_finished", None
@@ -462,6 +463,26 @@ class AppController(QObject):
             self.companion_presentation_changed.emit(snapshot)
         return self._companion_presentation
 
+    def ensure_pet_catalog_loaded(self) -> bool:
+        '''Validate bundled sibling packs once, when the catalog is opened.'''
+
+        if self._pet_catalog_loaded or self._pet_catalog_loading:
+            return False
+        repository = self._pet_asset_repository
+        if repository is None:
+            return False
+        cached = getattr(repository, 'catalog_entries', None)
+        if cached is not None:
+            self._on_pet_catalog_ready(cached)
+            return False
+        request = getattr(repository, 'request_catalog', None)
+        if not callable(request) or not bool(request()):
+            return False
+        self._pet_catalog_loading = True
+        if hasattr(self, '_state'):
+            self.refresh_state(force=True)
+        return True
+
     def update_runtime_state(
         self,
         context: ContextState,
@@ -526,136 +547,35 @@ class AppController(QObject):
         return handler(bool(enabled))
 
     def set_filter_enabled(self, enabled: bool) -> bool:
-        enabled = bool(enabled)
-        proposal = replace(
-            self._current_display_state(),
-            filter_enabled=enabled,
-        )
-        return self._start_display_transaction(
-            "filter_toggle",
-            proposal,
-            mark_manual_override=True,
-        )
+        return self._display_commands.set_filter_enabled(enabled)
 
     def set_dimmer_enabled(self, enabled: bool) -> bool:
-        enabled = bool(enabled)
-        proposal = replace(
-            self._current_display_state(),
-            dimmer_enabled=enabled,
-        )
-        return self._start_display_transaction("dimmer_toggle", proposal)
+        return self._display_commands.set_dimmer_enabled(enabled)
 
     def set_break_enabled(self, enabled: bool) -> bool:
-        enabled = bool(enabled)
-
-        def operation() -> None:
-            self._require_service(self._break_reminder, "break reminder")
-            self._settings.break_enabled = enabled
-
-        return self._run("break_toggle", operation)
+        return self._break_focus_commands.set_break_enabled(enabled)
 
     def set_focus_enabled(self, enabled: bool) -> bool:
-        enabled = bool(enabled)
-        transaction = self._runtime_transaction
-        previous_disable_focus = bool(
-            transaction is not None and transaction.disable_focus
-        )
-
-        def operation() -> None:
-            self._require_service(self._focus_mode, "focus mode")
-            if self._runtime_transaction is transaction and transaction is not None:
-                transaction.disable_focus = False
-            self._settings.focus_enabled = enabled
-            if not enabled:
-                self._focus_timer.stop()
-                self._focus_session_ends_at = None
-
-        return self._run(
-            "focus_toggle",
-            operation,
-            rollback=(
-                None
-                if transaction is None
-                else lambda: setattr(
-                    transaction,
-                    "disable_focus",
-                    previous_disable_focus,
-                )
-            ),
-        )
+        return self._break_focus_commands.set_focus_enabled(enabled)
 
     # ---- Display and break configuration ----
 
     def set_color_temperature(self, kelvin: int, persist: bool = True) -> bool:
-        kelvin = max(TEMP_MIN, min(TEMP_MAX, int(kelvin)))
-        try:
-            self._require_service(self._blue_filter, "blue-light filter")
-        except Exception as exc:
-            self._fail("filter_temperature", exc)
-            return False
-        proposal = replace(
-            self._current_display_state(),
-            color_temperature=kelvin,
-            preset="custom",
-        )
-        if not persist:
-            return self._preview_display(
-                "filter_temperature",
-                DisplayPreview(color_temperature=kelvin),
-            )
-        return self._start_display_transaction(
-            "filter_temperature",
-            proposal,
-        )
+        return self._display_commands.set_color_temperature(kelvin, persist)
 
     def set_dim_level(self, level: int, persist: bool = True) -> bool:
-        level = max(DIM_MIN, min(DIM_MAX, int(level)))
-        try:
-            self._require_service(self._dimmer, "screen dimmer")
-        except Exception as exc:
-            self._fail("dimmer_level", exc)
-            return False
-        proposal = replace(
-            self._current_display_state(),
-            dim_level=level,
-            preset="custom",
-        )
-        if not persist:
-            return self._preview_display(
-                "dimmer_level",
-                DisplayPreview(dim_level=level),
-            )
-        return self._start_display_transaction("dimmer_level", proposal)
+        return self._display_commands.set_dim_level(level, persist)
 
     def set_focus_dim_level(self, level: int) -> bool:
-        level = max(0, min(255, int(level)))
-
-        def operation() -> None:
-            self._require_service(self._focus_mode, "focus mode")
-            self._settings.focus_dim_level = level
-
-        return self._run("focus_dim_level", operation)
+        return self._break_focus_commands.set_focus_dim_level(level)
 
     def set_break_mode(self, mode: str) -> bool:
-        def operation() -> None:
-            self._require_service(self._break_reminder, "break reminder")
-            self._break_reminder.set_mode(mode)
-            self._settings.break_mode = mode
-            if hasattr(self._settings, "cadence_mode"):
-                self._settings.cadence_mode = mode
-            self._settings.work_duration = self._break_reminder.work_duration
-            self._settings.break_duration = self._break_reminder.break_duration
-            self._persist_break_configuration()
-
-        return self._run("break_mode", operation)
+        return self._break_focus_commands.set_break_mode(mode)
 
     def set_break_durations(self, work_seconds: int, break_seconds: int) -> bool:
-        return self.set_break_cadence(
-            max(1, int(work_seconds)),
-            max(1, int(break_seconds)),
-            bool(getattr(self._settings, "cadence_long_enabled", False)),
-            int(getattr(self._settings, "cadence_long_interval", 60 * 60)),
-            int(getattr(self._settings, "cadence_long_duration", 5 * 60)),
+        return self._break_focus_commands.set_break_durations(
+            work_seconds,
+            break_seconds,
         )
 
     def set_break_cadence(
@@ -666,136 +586,40 @@ class AppController(QObject):
         long_interval: int,
         long_duration: int,
     ) -> bool:
-        values = (
-            max(1, int(short_interval)),
-            max(1, int(short_duration)),
-            bool(long_enabled),
-            max(1, int(long_interval)),
-            max(1, int(long_duration)),
+        return self._break_focus_commands.set_break_cadence(
+            short_interval,
+            short_duration,
+            long_enabled,
+            long_interval,
+            long_duration,
         )
-        if values[2] and values[3] <= values[0]:
-            self.operation_failed.emit(
-                "break_cadence", "长休息周期必须大于短休息周期"
-            )
-            return False
-
-        def operation() -> None:
-            self._require_service(self._break_reminder, "break reminder")
-            configure = getattr(self._break_reminder, "configure_cadence", None)
-            if callable(configure):
-                configure(
-                    mode="custom",
-                    short_interval=values[0],
-                    short_duration=values[1],
-                    long_enabled=values[2],
-                    long_interval=values[3],
-                    long_duration=values[4],
-                )
-            else:
-                self._break_reminder.set_mode("custom")
-                self._break_reminder.set_work_duration(values[0])
-                self._break_reminder.set_break_duration(values[1])
-            self._settings.break_mode = "custom"
-            self._settings.work_duration = values[0]
-            self._settings.break_duration = values[1]
-            if hasattr(self._settings, "cadence_mode"):
-                self._settings.cadence_mode = "custom"
-                self._settings.cadence_short_interval = values[0]
-                self._settings.cadence_short_duration = values[1]
-                self._settings.cadence_long_enabled = values[2]
-                self._settings.cadence_long_interval = values[3]
-                self._settings.cadence_long_duration = values[4]
-
-        return self._run("break_cadence", operation)
 
     def set_break_reminder_style(self, style: str) -> bool:
-        if style not in {"progressive", "fullscreen"}:
-            self.operation_failed.emit(
-                "break_reminder_style", "不支持该休息提醒方式。"
-            )
-            return False
-
-        def operation() -> None:
-            self._require_and_call(
-                self._break_reminder,
-                "set_reminder_style",
-                style,
-            )
-            self._settings.break_reminder_style = style
-
-        return self._run("break_reminder_style", operation)
+        return self._break_focus_commands.set_break_reminder_style(style)
 
     def start_due_break(self) -> bool:
-        def operation() -> None:
-            self._require_service(self._break_reminder, "break reminder")
-            if not self._break_reminder.start_due_break():
-                raise RuntimeError("当前没有待开始的休息")
-
-        return self._run("break_start_due", operation, reconcile=False)
+        return self._break_focus_commands.start_due_break()
 
     def start_break_now(self, kind: str = "short") -> bool:
-        """Begin an immediate rest through the authoritative break service."""
-
-        def operation() -> None:
-            self._require_service(self._break_reminder, "break reminder")
-            if not self._break_reminder.start_break_now(str(kind)):
-                raise RuntimeError("当前无法开始休息")
-
-        return self._run("break_start_now", operation, reconcile=False)
+        return self._break_focus_commands.start_break_now(kind)
 
     def set_force_break(self, enabled: bool) -> bool:
-        def operation() -> None:
-            self._require_service(self._break_reminder, "break reminder")
-            self._break_reminder.force_break = bool(enabled)
-            self._settings.force_break = bool(enabled)
-
-        return self._run("force_break", operation)
+        return self._break_focus_commands.set_force_break(enabled)
 
     def set_break_countdown_display(self, mode: str) -> bool:
-        if mode not in {"floating", "tray", "hidden"}:
-            self.operation_failed.emit(
-                "break_display",
-                "不支持该倒计时显示方式。",
-            )
-            return False
-        return self._run(
-            "break_display",
-            lambda: setattr(self._settings, "break_countdown_display", mode),
-        )
+        return self._break_focus_commands.set_break_countdown_display(mode)
 
     def pause_break(self) -> bool:
-        return self._run(
-            "break_pause",
-            lambda: self._require_and_call(self._break_reminder, "pause"),
-        )
+        return self._break_focus_commands.pause_break()
 
     def resume_break(self) -> bool:
-        return self._run(
-            "break_resume",
-            lambda: self._require_and_call(self._break_reminder, "resume"),
-        )
+        return self._break_focus_commands.resume_break()
 
     def snooze_break(self, minutes: int = 5) -> bool:
-        minutes = max(1, int(minutes))
-
-        def operation() -> None:
-            self._require_service(self._break_reminder, "break reminder")
-            if self._break_reminder.force_break:
-                raise ValueError("严格休息模式下不能稍后提醒")
-            self._break_reminder.snooze(minutes * 60)
-
-        return self._run(
-            "break_snooze",
-            operation,
-        )
+        return self._break_focus_commands.snooze_break(minutes)
 
     def skip_break(self) -> bool:
-        return self._run(
-            "break_skip",
-            lambda: self._require_and_call(self._break_reminder, "skip_break"),
-            reconcile=False,
-            persist_settings=False,
-        )
+        return self._break_focus_commands.skip_break()
 
     def apply_display_profile(
         self,
@@ -803,21 +627,8 @@ class AppController(QObject):
         *,
         mark_manual_override: bool = True,
     ) -> bool:
-        try:
-            proposal = self._display_profile_state(name)
-        except (KeyError, ImportError, SyntaxError, ValueError) as exc:
-            self._fail("unknown_display_profile", exc)
-            return False
-        try:
-            self._require_service(self._blue_filter, "blue-light filter")
-            if proposal.dim_level > 0:
-                self._require_service(self._dimmer, "screen dimmer")
-        except Exception as exc:
-            self._fail("display_profile", exc)
-            return False
-        return self._start_display_transaction(
-            "display_profile",
-            proposal,
+        return self._display_commands.apply_display_profile(
+            name,
             mark_manual_override=mark_manual_override,
         )
 
@@ -839,153 +650,29 @@ class AppController(QObject):
         sunrise_offset: int | None = None,
         sunset_offset: int | None = None,
     ) -> bool:
-        enabled = bool(enabled)
-        selected_mode = mode or self._settings.schedule_mode
-        if selected_mode not in {"sun", "fixed"}:
-            self.operation_failed.emit(
-                "schedule_mode", "请选择固定时间或日出日落自动化。"
-            )
-            return False
-        if (latitude is None) != (longitude is None):
-            self.operation_failed.emit(
-                "schedule_location", "纬度和经度必须同时填写。"
-            )
-            return False
-        if latitude is not None and not (-90 <= float(latitude) <= 90):
-            self.operation_failed.emit(
-                "schedule_location", "纬度必须在 -90 到 90 之间。"
-            )
-            return False
-        if longitude is not None and not (-180 <= float(longitude) <= 180):
-            self.operation_failed.emit(
-                "schedule_location", "经度必须在 -180 到 180 之间。"
-            )
-            return False
-        if on_time is not None and not self._valid_clock_time(on_time):
-            self.operation_failed.emit(
-                "schedule_time", "开启时间格式无效，请使用 HH:MM。"
-            )
-            return False
-        if off_time is not None and not self._valid_clock_time(off_time):
-            self.operation_failed.emit(
-                "schedule_time", "关闭时间格式无效，请使用 HH:MM。"
-            )
-            return False
-        selected_days = None if days is None else tuple(sorted(set(days)))
-        if selected_days is not None and (
-            not selected_days
-            or any(not isinstance(day, int) or day < 0 or day > 6 for day in selected_days)
-        ):
-            self.operation_failed.emit(
-                "schedule_days", "请至少选择一个有效执行日。"
-            )
-            return False
-        location_configured = self._settings.location_configured or latitude is not None
-        if enabled and selected_mode == "sun" and not location_configured:
-            self.operation_failed.emit(
-                "schedule_location", "请先设置自动化位置。"
-            )
-            return False
-
-        from opencareyes.config.presets import PRESETS
-
-        selected_day_profile = day_profile or getattr(
-            self._settings, "schedule_day_profile", "office"
-        )
-        selected_night_profile = night_profile or getattr(
-            self._settings, "schedule_night_profile", "night"
-        )
-        if selected_day_profile not in PRESETS or selected_night_profile not in PRESETS:
-            self.operation_failed.emit(
-                "schedule_profile", "请选择有效的日间和夜间显示方案。"
-            )
-            return False
-        for name, value in (
-            ("sunrise", sunrise_offset),
-            ("sunset", sunset_offset),
-        ):
-            if value is not None and not -120 <= int(value) <= 120:
-                self.operation_failed.emit(
-                    "schedule_offset",
-                    "日出和日落偏移必须在 -120 到 120 分钟之间。",
-                )
-                return False
-
-        def operation() -> None:
-            self._require_service(self._scheduler, "scheduler")
-            self._settings.schedule_mode = selected_mode
-            if latitude is not None:
-                self._settings.latitude = float(latitude)
-                self._settings.longitude = float(longitude)
-                if city is not None:
-                    self._settings.city = str(city).strip()
-                self._settings.location_configured = True
-            if on_time is not None:
-                self._settings.schedule_on_time = on_time
-            if off_time is not None:
-                self._settings.schedule_off_time = off_time
-            if selected_days is not None:
-                self._settings.schedule_days = selected_days
-            if hasattr(self._settings, "schedule_day_profile"):
-                self._settings.schedule_day_profile = selected_day_profile
-            if hasattr(self._settings, "schedule_night_profile"):
-                self._settings.schedule_night_profile = selected_night_profile
-            if sunrise_offset is not None and hasattr(self._settings, "sunrise_offset"):
-                self._settings.sunrise_offset = int(sunrise_offset)
-            if sunset_offset is not None and hasattr(self._settings, "sunset_offset"):
-                self._settings.sunset_offset = int(sunset_offset)
-            self._settings.filter_schedule_enabled = enabled
-            if enabled:
-                self._scheduler.start(defer_apply=True)
-            else:
-                self._scheduler.stop()
-
-        return self._run_schedule_update(
-            "schedule",
-            operation,
-            apply_current_profile=enabled,
+        return self._automation_commands.set_schedule(
+            enabled,
+            mode=mode,
+            latitude=latitude,
+            longitude=longitude,
+            city=city,
+            on_time=on_time,
+            off_time=off_time,
+            days=days,
+            day_profile=day_profile,
+            night_profile=night_profile,
+            sunrise_offset=sunrise_offset,
+            sunset_offset=sunset_offset,
         )
 
     def undo_break_snooze(self) -> bool:
-        def operation() -> None:
-            self._require_service(self._break_reminder, "break reminder")
-            undo = getattr(self._break_reminder, "undo_snooze", None)
-            if not callable(undo) or not undo():
-                raise RuntimeError("当前没有可撤销的稍后提醒")
-
-        return self._run(
-            "break_snooze_undo",
-            operation,
-            reconcile=False,
-        )
+        return self._break_focus_commands.undo_break_snooze()
 
     def recheck_display_capabilities(self) -> bool:
-        """Request a non-blocking display capability refresh."""
-
-        return self._run(
-            "display_recheck",
-            lambda: self._require_and_call(
-                self._blue_filter,
-                "refresh_screens",
-            ),
-            reconcile=False,
-            persist_settings=False,
-        )
+        return self._display_commands.recheck_display_capabilities()
 
     def restore_display_effects(self) -> bool:
-        """Restore the original display and disable related preferences."""
-        proposal = replace(
-            self._current_display_state(),
-            filter_enabled=False,
-            dimmer_enabled=False,
-            preset="custom",
-        )
-        return self._start_display_transaction(
-            "display_restore_original",
-            proposal,
-            disable_focus=True,
-            mark_manual_override=True,
-        )
+        return self._display_commands.restore_display_effects()
 
     def pause_all(
         self,
@@ -993,61 +680,18 @@ class AppController(QObject):
         *,
         until_next_schedule: bool = False,
     ) -> bool:
-        if minutes is not None and until_next_schedule:
-            self.operation_failed.emit(
-                "global_pause", "暂停方式只能选择时长或直到下次自动切换。"
-            )
-            return False
-        if minutes is not None and int(minutes) <= 0:
-            self.operation_failed.emit(
-                "global_pause", "暂停时长必须大于 0 分钟。"
-            )
-            return False
-        if until_next_schedule and (
-            self._scheduler is None or not self._scheduler.running
-        ):
-            self.operation_failed.emit(
-                "global_pause", "自动化未运行，无法暂停到下次自动切换。"
-            )
-            return False
-
-        mode = "next_schedule" if until_next_schedule else (
-            "timed" if minutes is not None else "manual"
-        )
-        until_timestamp: float | None = None
-        if minutes is not None:
-            until_timestamp = time.time() + int(minutes) * 60
-
-        return self._start_pause_transaction(
-            "global_pause",
-            mode,
-            until_timestamp,
+        return self._display_commands.pause_all(
+            minutes,
+            until_next_schedule=until_next_schedule,
         )
 
     def resume_all(self) -> bool:
-        return self._start_pause_transaction(
-            "global_resume",
-            "none",
-            None,
-        )
+        return self._display_commands.resume_all()
 
     # ---- Focus session and general settings ----
 
     def start_focus_session(self, minutes: int) -> bool:
-        minutes = int(minutes)
-        if minutes <= 0:
-            self.operation_failed.emit(
-                "focus_session", "专注时长必须大于 0 分钟。"
-            )
-            return False
-        if not self.set_focus_enabled(True):
-            return False
-        self._focus_session_ends_at = datetime.now().astimezone() + timedelta(
-            minutes=minutes
-        )
-        self._focus_timer.start(min(minutes * 60_000, 2_147_483_647))
-        self.refresh_state()
-        return True
+        return self._break_focus_commands.start_focus_session(minutes)
 
     def set_theme(self, theme: str) -> bool:
         if theme not in {"system", "light", "dark"}:
@@ -1085,84 +729,13 @@ class AppController(QObject):
         return self._run("pet_position", operation, reconcile=False)
 
     def set_companion_enabled(self, enabled: bool) -> bool:
-        enabled = bool(enabled)
-        previous = bool(getattr(self._settings, 'companion_enabled', True))
-
-        def apply_runtime(value: bool) -> None:
-            setter = getattr(self._companion, 'set_enabled', None)
-            if callable(setter):
-                result = setter(value)
-                if result is False:
-                    raise RuntimeError('Companion visibility could not be changed')
-
-        def operation() -> None:
-            self._settings.companion_enabled = enabled
-            apply_runtime(enabled)
-
-        return self._run(
-            'companion_enabled',
-            operation,
-            reconcile=False,
-            rollback=lambda: apply_runtime(previous),
-        )
+        return self._companion_commands.set_companion_enabled(enabled)
 
     def set_active_pet(self, pet_id: str) -> bool:
-        normalized = str(pet_id).strip().lower()
-        previous = str(getattr(self._settings, 'active_pet_id', 'snow_ferret'))
-
-        def select(value: str) -> None:
-            selector = getattr(self._companion, 'set_active_pet', None)
-            if not callable(selector):
-                selector = getattr(self._companion, 'select_pet', None)
-            if callable(selector):
-                result = selector(value)
-                if result is False:
-                    raise RuntimeError('Pet pack could not be loaded')
-            preferences = getattr(self._settings, 'pet_preferences', {})
-            selected = (
-                preferences.get(value, {})
-                if isinstance(preferences, dict)
-                else {}
-            )
-            accessory_setter = getattr(
-                self._companion, 'set_manual_accessory', None
-            )
-            if callable(accessory_setter) and isinstance(selected, dict):
-                for slot, item_id in selected.items():
-                    accessory_setter(str(slot), str(item_id))
-
-        def operation() -> None:
-            self._settings.active_pet_id = normalized
-            if hasattr(self._settings, 'recovery_pet_id'):
-                self._settings.recovery_pet_id = ''
-            select(normalized)
-
-        return self._run(
-            'active_pet',
-            operation,
-            reconcile=False,
-            rollback=lambda: select(previous),
-        )
+        return self._companion_commands.set_active_pet(pet_id)
 
     def set_pet_scale(self, percent: int) -> bool:
-        value = int(percent)
-        previous = int(getattr(self._settings, 'pet_scale_percent', 100))
-
-        def apply_runtime(scale: int) -> None:
-            setter = getattr(self._companion, 'set_scale', None)
-            if callable(setter):
-                setter(scale)
-
-        def operation() -> None:
-            self._settings.pet_scale_percent = value
-            apply_runtime(value)
-
-        return self._run(
-            'pet_scale',
-            operation,
-            reconcile=False,
-            rollback=lambda: apply_runtime(previous),
-        )
+        return self._companion_commands.set_pet_scale(percent)
 
     def set_pet_anchor(
         self,
@@ -1171,229 +744,64 @@ class AppController(QObject):
         x: int | None = None,
         y: int | None = None,
     ) -> bool:
-        def operation() -> None:
-            self._settings.pet_anchor_edge = edge
-            self._settings.pet_anchor_offset = int(offset)
-            if edge == 'free':
-                if x is None or y is None:
-                    raise ValueError('Free pet anchors require x and y coordinates')
-                self._settings.pet_x = int(x)
-                self._settings.pet_y = int(y)
-
-        return self._run('pet_anchor', operation, reconcile=False)
+        return self._companion_commands.set_pet_anchor(edge, offset, x, y)
 
     def set_pet_accessory(self, slot: str, item_id: str | None) -> bool:
-        pet_id = str(getattr(self._settings, 'active_pet_id', 'snow_ferret'))
-
-        def operation() -> None:
-            preferences = dict(getattr(self._settings, 'pet_preferences', {}))
-            slots = dict(preferences.get(pet_id, {}))
-            if item_id in {None, ''}:
-                slots.pop(str(slot), None)
-            else:
-                slots[str(slot)] = str(item_id)
-            preferences[pet_id] = slots
-            self._settings.pet_preferences = preferences
-            setter = getattr(self._companion, 'set_manual_accessory', None)
-            if not callable(setter):
-                setter = getattr(self._companion, 'set_appearance', None)
-            if callable(setter):
-                setter(str(slot), item_id)
-
-        return self._run('pet_accessory', operation, reconcile=False)
+        return self._companion_commands.set_pet_accessory(slot, item_id)
 
     def upsert_app_prop_rule(self, app_id: str, prop_id: str) -> bool:
-        app = str(app_id).strip().lower()
-        prop = str(prop_id).strip().lower()
-
-        def operation() -> None:
-            rules = [
-                dict(rule)
-                for rule in getattr(self._settings, 'app_prop_rules', ())
-                if str(rule.get('app_id', '')).lower() != app
-            ]
-            rules.append({'app_id': app, 'prop_id': prop})
-            self._settings.app_prop_rules = rules
-
-        return self._run('app_prop_rule', operation, reconcile=False)
+        return self._companion_commands.upsert_app_prop_rule(app_id, prop_id)
 
     def remove_app_prop_rule(self, app_id: str) -> bool:
-        app = str(app_id).strip().lower()
-
-        def operation() -> None:
-            self._settings.app_prop_rules = [
-                dict(rule)
-                for rule in getattr(self._settings, 'app_prop_rules', ())
-                if str(rule.get('app_id', '')).lower() != app
-            ]
-
-        return self._run('app_prop_rule', operation, reconcile=False)
+        return self._companion_commands.remove_app_prop_rule(app_id)
 
     def set_follow_active_monitor(self, enabled: bool) -> bool:
-        return self._run(
-            'follow_active_monitor',
-            lambda: setattr(self._settings, 'follow_active_monitor', bool(enabled)),
-            reconcile=False,
-        )
+        return self._companion_commands.set_follow_active_monitor(enabled)
 
     def set_window_avoidance_enabled(self, enabled: bool) -> bool:
-        return self._run(
-            'window_avoidance',
-            lambda: setattr(
-                self._settings, 'window_avoidance_enabled', bool(enabled)
-            ),
-            reconcile=False,
-        )
+        return self._companion_commands.set_window_avoidance_enabled(enabled)
 
     def set_companion_sound_enabled(self, enabled: bool) -> bool:
-        return self._run(
-            'companion_sound',
-            lambda: setattr(
-                self._settings, 'companion_sound_enabled', bool(enabled)
-            ),
-            reconcile=False,
-        )
+        return self._companion_commands.set_companion_sound_enabled(enabled)
 
     def set_hourly_chime_enabled(self, enabled: bool) -> bool:
-        return self._run(
-            'hourly_chime',
-            lambda: setattr(self._settings, 'hourly_chime_enabled', bool(enabled)),
-            reconcile=False,
-        )
+        return self._companion_commands.set_hourly_chime_enabled(enabled)
 
     def set_weather_enabled(self, enabled: bool, consent: bool = False) -> bool:
-        enabled = bool(enabled)
-        if enabled and not consent:
-            self.operation_failed.emit(
-                'weather_consent',
-                '开启天气前需要确认会向 Open-Meteo 发送经纬度和网络 IP。',
-            )
-            return False
-        if enabled and not bool(getattr(self._settings, 'location_configured', False)):
-            self.operation_failed.emit(
-                'weather_location',
-                '请先在自动日程中选择城市或填写位置。',
-            )
-            return False
-        previous = bool(getattr(self._settings, 'weather_enabled', False))
-
-        def apply_runtime(value: bool) -> None:
-            if self._weather_service is None:
-                if value:
-                    raise RuntimeError('Weather service is unavailable')
-                return
-            if value:
-                self._weather_state = WeatherState(status='loading')
-                refresh = getattr(self._weather_service, 'refresh', None)
-                if callable(refresh):
-                    refresh(
-                        float(self._settings.latitude),
-                        float(self._settings.longitude),
-                        consent=True,
-                        force=True,
-                    )
-                else:
-                    self._weather_service.start(
-                        float(self._settings.latitude),
-                        float(self._settings.longitude),
-                    )
-            else:
-                cancel = getattr(self._weather_service, 'cancel', None)
-                if callable(cancel):
-                    cancel()
-                else:
-                    stop = getattr(self._weather_service, 'stop', None)
-                    if callable(stop):
-                        stop()
-                self._weather_state = WeatherState(status='disabled')
-
-        def operation() -> None:
-            self._settings.weather_enabled = enabled
-            apply_runtime(enabled)
-
-        return self._run(
-            'weather',
-            operation,
-            reconcile=False,
-            rollback=lambda: apply_runtime(previous),
-        )
+        return self._companion_commands.set_weather_enabled(enabled, consent)
 
     def show_quick_tool(self, tool_id: str) -> bool:
-        tool = str(tool_id).strip().lower()
-        if tool not in {'timer', 'notes', 'system', 'wardrobe', 'more'}:
-            self.operation_failed.emit('quick_tool', '不支持这个快捷工具。')
-            return False
-        self.quick_tool_requested.emit(tool)
-        return True
+        return self._companion_commands.show_quick_tool(tool_id)
 
     def set_quick_actions(self, actions) -> bool:
-        return self._run(
-            'quick_actions',
-            lambda: setattr(self._settings, 'quick_actions', tuple(actions)),
-            reconcile=False,
-        )
+        return self._companion_commands.set_quick_actions(actions)
 
     def offer_pet_item(self, item_id: str) -> bool:
-        item = str(item_id).strip().lower()
-        if item not in {'yarn_ball', 'hot_cocoa', 'pine_cone'}:
-            self.operation_failed.emit('pet_item', '不支持这个互动道具。')
-            return False
-        handler = getattr(self._companion, 'offer_item', None)
-        if callable(handler) and handler(item) is False:
-            self.operation_failed.emit('pet_item', '伙伴现在无法接住这个道具。')
-            return False
-        self.refresh_companion_presentation(force=True)
-        return True
+        return self._companion_commands.offer_pet_item(item_id)
 
     def select_rest_scene(self, scene_id: str) -> bool:
-        return self._run(
-            'rest_scene',
-            lambda: setattr(self._settings, 'break_rest_scene', scene_id),
-            reconcile=False,
-        )
+        return self._companion_commands.select_rest_scene(scene_id)
 
     def set_smart_pause_enabled(self, enabled: bool) -> bool:
-        return self._set_context_preference("smart_pause_enabled", bool(enabled))
+        return self._automation_commands.set_smart_pause_enabled(enabled)
 
     def set_fullscreen_pause_enabled(self, enabled: bool) -> bool:
-        return self._set_context_preference(
-            "fullscreen_pause_enabled", bool(enabled)
-        )
+        return self._automation_commands.set_fullscreen_pause_enabled(enabled)
 
     def set_natural_rest_enabled(self, enabled: bool) -> bool:
-        return self._set_context_preference("natural_rest_enabled", bool(enabled))
+        return self._automation_commands.set_natural_rest_enabled(enabled)
 
     def upsert_app_rule(self, rule) -> bool:
-        def operation() -> None:
-            updater = getattr(self._settings, "upsert_app_rule", None)
-            if not callable(updater):
-                raise RuntimeError("Application rules are unavailable")
-            updater(rule)
-
-        return self._run("app_rule", operation)
+        return self._automation_commands.upsert_app_rule(rule)
 
     def remove_app_rule(self, app_id: str) -> bool:
-        def operation() -> None:
-            remover = getattr(self._settings, "remove_app_rule", None)
-            if not callable(remover):
-                raise RuntimeError("Application rules are unavailable")
-            remover(app_id)
-
-        return self._run("app_rule", operation)
+        return self._automation_commands.remove_app_rule(app_id)
 
     def resume_breaks_for_current_context(self) -> bool:
-        if self._context_runtime is None:
-            self.operation_failed.emit(
-                "context_override", "智能免打扰当前不可用。"
-            )
-            return False
-        return bool(self._context_runtime.resume_breaks_for_current_context())
+        return self._automation_commands.resume_breaks_for_current_context()
 
     def _set_context_preference(self, name: str, value: bool) -> bool:
-        return self._run(
-            name,
-            lambda: setattr(self._settings, name, value),
-        )
+        return self._automation_commands.set_context_preference(name, value)
 
     def set_autostart(self, enabled: bool) -> bool:
         enabled = bool(enabled)
@@ -1415,26 +823,10 @@ class AppController(QObject):
     def set_location(
         self, latitude: float, longitude: float, city: str = ""
     ) -> bool:
-        latitude = float(latitude)
-        longitude = float(longitude)
-        if not (-90 <= latitude <= 90) or not (-180 <= longitude <= 180):
-            self.operation_failed.emit(
-                "location", "纬度或经度超出有效范围。"
-            )
-            return False
-
-        def operation() -> None:
-            self._settings.latitude = latitude
-            self._settings.longitude = longitude
-            self._settings.city = city.strip()
-            self._settings.location_configured = True
-            if self._scheduler is not None and self._scheduler.running:
-                self._scheduler.reschedule(defer_apply=True)
-
-        return self._run_schedule_update(
-            "location",
-            operation,
-            apply_current_profile=self._scheduler is not None,
+        return self._automation_commands.set_location(
+            latitude,
+            longitude,
+            city,
         )
 
     def set_hotkey(self, action: str, sequence: str) -> bool:
@@ -1525,28 +917,10 @@ class AppController(QObject):
     def check_for_updates(self) -> bool:
         """Start the explicit GitHub check off the UI thread."""
 
-        if self._update_state.status == "checking":
-            return False
-        if self._update_service is None:
-            from opencareyes.application.update_service import ManualUpdateService
-
-            self._update_service = ManualUpdateService()
-        self._update_state = UpdateState("checking", APP_VERSION)
-        self.refresh_state()
-        worker = _UpdateWorker(self._update_service)
-        self._update_workers[worker.signals] = worker
-        worker.signals.finished.connect(
-            self._on_update_finished,
-            Qt.QueuedConnection,
-        )
-        QThreadPool.globalInstance().start(worker)
-        return True
+        return self._update_checker.check()
 
     @Slot(object)
     def _on_update_finished(self, state) -> None:
-        sender = self.sender()
-        if sender is not None:
-            self._update_workers.pop(sender, None)
         if not isinstance(state, UpdateState):
             state = UpdateState("failed", APP_VERSION)
         self._update_state = state
@@ -1577,29 +951,13 @@ class AppController(QObject):
     # ---- Internal service orchestration ----
 
     def _on_scheduled_filter_state_requested(self, enabled: bool) -> None:
-        self._clear_next_schedule_pause()
-        profile = (
-            getattr(self._settings, "schedule_night_profile", "night")
-            if enabled
-            else getattr(self._settings, "schedule_day_profile", "office")
-        )
-        self.apply_display_profile(profile, mark_manual_override=False)
+        self._automation_commands.on_scheduled_filter_state_requested(enabled)
 
     def _on_scheduled_profile_requested(self, profile: str) -> None:
-        self._clear_next_schedule_pause()
-        self.apply_display_profile(str(profile), mark_manual_override=False)
+        self._automation_commands.on_scheduled_profile_requested(profile)
 
     def _clear_next_schedule_pause(self) -> None:
-        mode, _until = self._current_pause_values()
-        if (
-            self._is_globally_paused()
-            and mode == "next_schedule"
-        ):
-            self._start_pause_transaction(
-                "global_resume",
-                "none",
-                None,
-            )
+        self._automation_commands.clear_next_schedule_pause()
 
     def _restore_configured_services(self, raise_errors: bool = False) -> bool:
         result = self._reconcile_effects()
@@ -1684,8 +1042,12 @@ class AppController(QObject):
         self,
         transaction: _RuntimeTransaction,
     ) -> GlobalPauseState:
-        mode = transaction.proposal_pause_mode
-        until = transaction.proposal_pause_until
+        if transaction.phase == "compensating":
+            mode = transaction.baseline_pause_mode
+            until = transaction.baseline_pause_until
+        else:
+            mode = transaction.proposal_pause_mode
+            until = transaction.proposal_pause_until
         active = self._pause_values_active(mode, until)
         until_datetime = (
             datetime.fromtimestamp(until).astimezone()
@@ -1701,6 +1063,8 @@ class AppController(QObject):
     def _current_display_state(self) -> DisplayState:
         transaction = self._runtime_transaction
         if transaction is not None:
+            if transaction.phase == "compensating":
+                return transaction.baseline
             return transaction.proposal
         return self._settings_display_state()
 
@@ -1781,6 +1145,9 @@ class AppController(QObject):
         baseline = self._settings_display_state()
         desired = self._desired_for_display(proposal)
         previous = self._runtime_transaction
+        if previous is not None and previous.phase == "compensating":
+            self._fail(code, "显示效果正在安全恢复，请稍候再试。")
+            return False
         if settings_snapshot is None and previous is not None:
             settings_snapshot = previous.settings_snapshot
             scheduler_snapshot = previous.scheduler_snapshot
@@ -1868,6 +1235,9 @@ class AppController(QObject):
         until: float | None,
     ) -> bool:
         previous = self._runtime_transaction
+        if previous is not None and previous.phase == "compensating":
+            self._fail(code, "显示效果正在安全恢复，请稍候再试。")
+            return False
         settings_display = self._settings_display_state()
         settings_pause_mode, settings_pause_until = (
             self._settings_pause_values()
@@ -1957,6 +1327,8 @@ class AppController(QObject):
         # Replacing the staged transaction is intentional. Its native request
         # remains serialized, but only this latest revision may commit settings.
         self._runtime_transaction = transaction
+        transaction.phase = "applying"
+        self._last_display_transaction_phase = "applying"
         self._in_transaction = True
         try:
             if (
@@ -2086,6 +1458,8 @@ class AppController(QObject):
         if transaction.owns_pause:
             self._pause_timer.stop()
             self._restore_pause_deadline()
+        transaction.phase = "completed"
+        self._last_display_transaction_phase = "completed"
         self._runtime_transaction = None
         self._clear_runtime_override()
         try:
@@ -2112,8 +1486,14 @@ class AppController(QObject):
         errors = list(rollback_errors or ())
         if self._runtime_transaction is not transaction:
             return False
+        if transaction.phase == "compensating":
+            return False
+
         self._in_transaction = True
-        self._runtime_transaction = None
+        transaction.phase = "compensating"
+        transaction.primary_error = str(error)
+        transaction.request_ids.clear()
+        self._last_display_transaction_phase = "compensating"
         self._clear_runtime_override()
         if (
             transaction.settings_snapshot is not None
@@ -2136,17 +1516,15 @@ class AppController(QObject):
                 )
             except Exception as exc:
                 errors.append(str(exc))
-        compensation = self._compensate_runtime(transaction)
-        if compensation:
-            errors.extend(compensation)
+
+        errors.extend(self._compensate_runtime(transaction))
+        transaction.rollback_errors.extend(errors)
         self._in_transaction = False
         self._fail(transaction.code, error)
-        if errors:
-            self._fail(
-                f"{transaction.code}_rollback",
-                "设置或效果回滚不完整：" + "; ".join(errors),
-            )
-        self.refresh_state(force=True)
+        if transaction.compensation_request_ids:
+            self.refresh_state(force=True)
+            return False
+        self._finish_runtime_compensation(transaction)
         return False
 
     def _compensate_runtime(
@@ -2155,6 +1533,8 @@ class AppController(QObject):
     ) -> list[str]:
         errors: list[str] = []
         self._runtime_revision += 1
+        transaction.compensation_revision = self._runtime_revision
+        transaction.compensation_request_ids.clear()
         try:
             result = self._reconcile_effects(
                 desired=self._desired_for_display(transaction.baseline),
@@ -2162,29 +1542,58 @@ class AppController(QObject):
                     transaction.baseline_pause_mode,
                     transaction.baseline_pause_until,
                 ),
-                display_revision=self._runtime_revision,
+                display_revision=transaction.compensation_revision,
                 display_purpose="compensation",
                 force_display_commit=True,
             )
             if not result.succeeded:
                 errors.append(self._reconcile_error_message(result))
             for request in result.pending_requests:
+                if (
+                    int(getattr(request, "revision", -1))
+                    != transaction.compensation_revision
+                    or str(getattr(request, "purpose", ""))
+                    != "compensation"
+                ):
+                    continue
                 request_id = getattr(request, "request_id", None)
-                if request_id is not None:
-                    self._runtime_compensation_ids[int(request_id)] = (
-                        transaction.code
-                    )
+                if request_id is None:
+                    continue
+                identifier = int(request_id)
+                transaction.compensation_request_ids.add(identifier)
+                self._last_display_request_id = identifier
         except Exception as exc:
             errors.append(str(exc))
         finally:
             self._clear_runtime_override()
+        return errors
+
+    def _finish_runtime_compensation(
+        self,
+        transaction: _RuntimeTransaction,
+    ) -> None:
+        if self._runtime_transaction is not transaction:
+            return
+        transaction.phase = "completed"
+        self._last_display_transaction_phase = "completed"
+        self._runtime_transaction = None
+        self._clear_runtime_override()
         try:
             follow_up = self._reconcile_effects()
-            if not follow_up.succeeded:
-                errors.append(self._reconcile_error_message(follow_up))
         except Exception as exc:
-            errors.append(str(exc))
-        return errors
+            transaction.rollback_errors.append(str(exc))
+        else:
+            if not follow_up.succeeded:
+                transaction.rollback_errors.append(
+                    self._reconcile_error_message(follow_up)
+                )
+        if transaction.rollback_errors:
+            self._fail(
+                f"{transaction.code}_rollback",
+                "设置或效果回滚不完整："
+                + "; ".join(transaction.rollback_errors),
+            )
+        self.refresh_state(force=True)
 
     def _write_display_settings(self, display: DisplayState) -> None:
         self._settings.filter_enabled = bool(display.filter_enabled)
@@ -2258,155 +1667,10 @@ class AppController(QObject):
         *,
         apply_current_profile: bool,
     ) -> bool:
-        """Stage automation outside QSettings until its display is verified."""
-
-        previous = self._runtime_transaction
-        settings_snapshot = (
-            previous.settings_snapshot
-            if previous is not None and previous.settings_snapshot is not None
-            else self._snapshot_owned_settings(_SCHEDULE_SETTING_KEYS)
-        )
-        scheduler_snapshot = (
-            previous.scheduler_snapshot
-            if previous is not None and previous.scheduler_snapshot is not None
-            else self._snapshot_scheduler_runtime()
-        )
-        settings_base = (
-            previous.settings_proposal
-            if previous is not None
-            and isinstance(
-                previous.settings_proposal,
-                _OwnedSettingsSnapshot,
-            )
-            else settings_snapshot
-        )
-        scheduler_base = (
-            previous.scheduler_proposal
-            if previous is not None
-            and previous.scheduler_proposal is not None
-            else scheduler_snapshot
-        )
-        self._apply_owned_settings_unchecked(settings_base)
-        if scheduler_base is not None:
-            self._restore_scheduler_runtime(scheduler_base)
-
-        operation_error: Exception | None = None
-        restore_errors: list[str] = []
-        settings_proposal = None
-        scheduler_proposal = None
-        profile = ""
-        self._in_transaction = True
-        try:
-            operation()
-            settings_proposal = self._snapshot_owned_settings(
-                _SCHEDULE_SETTING_KEYS
-            )
-            scheduler_proposal = self._snapshot_scheduler_runtime()
-            if (
-                apply_current_profile
-                and self._scheduler is not None
-                and bool(getattr(self._scheduler, "running", False))
-            ):
-                profile = str(
-                    getattr(self._scheduler, "current_profile", "") or ""
-                )
-        except Exception as exc:
-            operation_error = exc
-        finally:
-            try:
-                self._apply_owned_settings_unchecked(settings_snapshot)
-            except Exception as exc:
-                restore_errors.append(str(exc))
-            try:
-                if scheduler_snapshot is not None:
-                    self._restore_scheduler_runtime(scheduler_snapshot)
-            except Exception as exc:
-                restore_errors.append(str(exc))
-            self._in_transaction = False
-        if operation_error is not None or restore_errors:
-            self._fail(
-                code,
-                operation_error or "自动化暂存状态恢复失败",
-            )
-            if restore_errors:
-                self._fail(
-                    f"{code}_rollback",
-                    "自动化设置或运行状态回滚不完整："
-                    + "; ".join(restore_errors),
-                )
-            self.refresh_state(force=True)
-            return False
-        if not isinstance(settings_proposal, _OwnedSettingsSnapshot):
-            self._fail(code, "无法暂存自动化设置")
-            self.refresh_state(force=True)
-            return False
-
-        if not profile:
-            if (
-                previous is not None
-                and previous.settings_proposal is not None
-                and previous.owns_display
-            ):
-                return self._start_display_transaction(
-                    code,
-                    previous.baseline,
-                    mark_manual_override=False,
-                    settings_snapshot=settings_snapshot,
-                    scheduler_snapshot=scheduler_snapshot,
-                    settings_proposal=settings_proposal,
-                    scheduler_proposal=scheduler_proposal,
-                )
-            self._in_transaction = True
-            try:
-                self._apply_owned_settings_unchecked(settings_proposal)
-                if scheduler_proposal is not None:
-                    self._restore_scheduler_runtime(scheduler_proposal)
-                self._sync_settings_checked()
-            except Exception as exc:
-                rollback_errors = self._restore_owned_configuration(
-                    settings_snapshot,
-                    scheduler_snapshot,
-                )
-                self._in_transaction = False
-                self._fail(code, exc)
-                if rollback_errors:
-                    self._fail(
-                        f"{code}_rollback",
-                        "自动化设置或运行状态回滚不完整："
-                        + "; ".join(rollback_errors),
-                    )
-                self.refresh_state(force=True)
-                return False
-            self._in_transaction = False
-            self.refresh_state()
-            return True
-        try:
-            proposal = self._display_profile_state(profile)
-            self._require_service(self._blue_filter, "blue-light filter")
-            if proposal.dim_level > 0:
-                self._require_service(self._dimmer, "screen dimmer")
-        except Exception as exc:
-            rollback_errors = self._restore_owned_configuration(
-                settings_snapshot,
-                scheduler_snapshot,
-            )
-            self._fail(code, exc)
-            if rollback_errors:
-                self._fail(
-                    f"{code}_rollback",
-                    "自动化设置或运行状态回滚不完整："
-                    + "; ".join(rollback_errors),
-                )
-            self.refresh_state(force=True)
-            return False
-        return self._start_display_transaction(
+        return self._automation_commands.run_schedule_update(
             code,
-            proposal,
-            mark_manual_override=False,
-            settings_snapshot=settings_snapshot,
-            scheduler_snapshot=scheduler_snapshot,
-            settings_proposal=settings_proposal,
-            scheduler_proposal=scheduler_proposal,
+            operation,
+            apply_current_profile=apply_current_profile,
         )
 
     def _snapshot_scheduler_runtime(self):
@@ -2606,6 +1870,7 @@ class AppController(QObject):
                 if request_id is not None:
                     identifier = int(request_id)
                     transaction.request_ids.add(identifier)
+                    self._last_display_request_id = identifier
                     key = (
                         str(getattr(request, "feature", "filter")),
                         str(getattr(request, "purpose", "commit")),
@@ -2859,28 +2124,40 @@ class AppController(QObject):
     @Slot(object)
     def _on_display_request_finished(self, result) -> None:
         request_id = int(getattr(result, "request_id", 0) or 0)
-        compensation_code = self._runtime_compensation_ids.pop(
-            request_id,
-            None,
-        )
-        if compensation_code is not None:
-            if (
+        transaction = self._runtime_transaction
+        if (
+            transaction is not None
+            and transaction.phase == "compensating"
+            and int(getattr(result, "revision", -1))
+            == transaction.compensation_revision
+            and request_id in transaction.compensation_request_ids
+        ):
+            hdr_suppressed = (
+                str(getattr(result, "code", "")) == "hdr_active"
+                and bool(getattr(result, "hdr_active", False))
+            )
+            if bool(getattr(result, "superseded", False)):
+                transaction.rollback_errors.append(
+                    "显示效果补偿被更新的原生请求替代"
+                )
+            elif (
                 not bool(getattr(result, "success", False))
-                and not bool(getattr(result, "superseded", False))
-                and request_id >= int(
-                    getattr(self._blue_filter, "last_request_id", 0) or 0
-                )
+                and not hdr_suppressed
             ):
-                self._fail(
-                    f"{compensation_code}_rollback",
-                    getattr(result, "message", "显示效果补偿失败"),
+                transaction.rollback_errors.append(
+                    str(getattr(result, "message", "显示效果补偿失败"))
                 )
-            self.refresh_state()
+            transaction.compensation_request_ids.discard(request_id)
+            if transaction.compensation_request_ids:
+                self.refresh_state()
+            else:
+                self._finish_runtime_compensation(transaction)
             return
 
         transaction = self._runtime_transaction
         if (
             transaction is not None
+            and transaction.phase == "applying"
             and int(getattr(result, "revision", -1))
             == transaction.revision
             and request_id in transaction.request_ids
@@ -2991,8 +2268,6 @@ class AppController(QObject):
             self._clear_runtime_override()
 
     def _on_break_tick(self, remaining: int, total: int) -> None:
-        if hasattr(self, "_state"):
-            self._state = self._build_state()
         self.break_tick.emit(int(remaining), int(total))
 
     def _on_break_service_state_changed(self) -> None:
@@ -3024,7 +2299,11 @@ class AppController(QObject):
             effective_policy=self._effective_policy,
             update=self._update_state,
             display_override=(
-                transaction.proposal
+                (
+                    transaction.baseline
+                    if transaction.phase == "compensating"
+                    else transaction.proposal
+                )
                 if transaction is not None and transaction.owns_display
                 else None
             ),
@@ -3037,6 +2316,12 @@ class AppController(QObject):
             companion=self._project_companion(),
             weather=self._weather_state,
             quick_tools=self._project_quick_tools(),
+            display_transaction_phase=(
+                transaction.phase
+                if transaction is not None
+                else self._last_display_transaction_phase
+            ),
+            display_request_id=self._last_display_request_id,
         )
 
     def _project_quick_tools(self) -> QuickToolsState:
@@ -3147,37 +2432,71 @@ class AppController(QObject):
         if hasattr(self, '_state'):
             self.refresh_state()
 
+    def _on_pet_catalog_ready(self, items) -> None:
+        projected = tuple(
+            PetCatalogEntryState(
+                pet_id=str(getattr(item, 'pet_id', '')),
+                display_name=str(getattr(item, 'display_name', '伙伴')),
+                pack_version=str(getattr(item, 'pack_version', '1.0.0')),
+                preview_path=str(getattr(item, 'preview_path', '')),
+            )
+            for item in tuple(items or ())
+            if str(getattr(item, 'pet_id', ''))
+        )
+        active_entry = self._active_pet_catalog_entry()
+        if active_entry is not None and all(
+            item.pet_id != active_entry.pet_id for item in projected
+        ):
+            projected = (active_entry, *projected)
+        self._pet_catalog_entries = projected
+        self._pet_catalog_loading = False
+        self._pet_catalog_loaded = True
+        if hasattr(self, '_state'):
+            self.refresh_state(force=True)
+
+    def _on_pet_catalog_failed(self, message: str) -> None:
+        del message
+        self._pet_catalog_loading = False
+        self.operation_failed.emit(
+            'pet_catalog',
+            '宠物图鉴暂时无法加载，请稍后重试。',
+        )
+        log.warning('Bundled pet catalog validation failed')
+        if hasattr(self, '_state'):
+            self.refresh_state(force=True)
+
+    def _active_pet_catalog_entry(self) -> PetCatalogEntryState | None:
+        manifest = getattr(self._companion, 'manifest', None)
+        if manifest is None:
+            return None
+        pet_id = str(getattr(manifest, 'pet_id', ''))
+        if not pet_id:
+            return None
+        return PetCatalogEntryState(
+            pet_id=pet_id,
+            display_name=str(getattr(manifest, 'display_name', '伙伴')),
+            pack_version=str(getattr(manifest, 'pack_version', '1.0.0')),
+            preview_path=str(getattr(manifest, 'preview_path', '')),
+        )
+
     def _project_pet_catalog(self) -> PetCatalogState | None:
         companion = self._companion
         registry = getattr(companion, 'registry', None)
         if registry is None:
             return None
-        entries = getattr(self, '_pet_catalog_entries', None)
+        entries = self._pet_catalog_entries
         if entries is None:
-            try:
-                projected_entries = []
-                for item in registry.available_pets():
-                    try:
-                        preview_path = str(
-                            registry.resolve_resource(item.pet_id, item.preview_path)
-                        )
-                    except Exception:
-                        preview_path = ''
-                    projected_entries.append(PetCatalogEntryState(
-                        pet_id=item.pet_id,
-                        display_name=item.display_name,
-                        pack_version=item.pack_version,
-                        preview_path=preview_path,
-                    ))
-                entries = tuple(projected_entries)
-            except Exception:
-                log.exception('Bundled pet catalog could not be projected')
-                entries = ()
+            active_entry = self._active_pet_catalog_entry()
+            entries = () if active_entry is None else (active_entry,)
             self._pet_catalog_entries = entries
+        active_pet_id = str(
+            getattr(self._settings, 'active_pet_id', 'snow_ferret')
+        )
         return PetCatalogState(
             available_pets=entries,
-            active_pet_id=str(
-                getattr(self._settings, 'active_pet_id', 'snow_ferret')
+            active_pet_id=active_pet_id,
+            loading_pet_id=(
+                active_pet_id if self._pet_catalog_loading else ''
             ),
         )
 

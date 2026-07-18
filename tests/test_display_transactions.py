@@ -935,6 +935,40 @@ def test_compensation_failure_is_visible(qtbot):
     ]
 
 
+def test_compensation_stays_pending_until_native_restore_finishes(qtbot):
+    controller, _settings, _store, gamma, _dimmer, _reminder, _focus = (
+        _controller()
+    )
+
+    assert controller.apply_display_profile("reading") is True
+    apply_request = gamma.requests[-1]
+    gamma.complete(
+        apply_request,
+        success=False,
+        code="gamma_apply_failed",
+        message="apply failed",
+    )
+
+    qtbot.waitUntil(
+        lambda: controller.state.display_health.transaction_phase
+        == "compensating"
+    )
+    compensation = gamma.requests[-1]
+    assert compensation.purpose == "compensation"
+    assert controller.state.display_health.pending is True
+    assert controller.state.display_health.request_id == compensation.request_id
+    assert controller._runtime_transaction is not None
+
+    gamma.complete(compensation, success=True)
+
+    qtbot.waitUntil(
+        lambda: controller.state.display_health.transaction_phase
+        == "completed"
+    )
+    assert controller.state.display_health.pending is False
+    assert controller._runtime_transaction is None
+
+
 def test_manual_override_is_claimed_while_pending_and_restored_on_failure(
     qtbot,
 ):

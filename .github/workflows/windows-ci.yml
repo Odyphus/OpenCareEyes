@@ -7,9 +7,17 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      stability_minutes:
+        description: Stability smoke duration in minutes
+        required: false
+        default: 10
+        type: number
+  schedule:
+    - cron: "17 18 * * *"
 
 concurrency:
-  group: windows-ci-${{ github.ref }}
+  group: windows-ci-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -24,7 +32,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.10", "3.12"]
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -102,13 +110,11 @@ jobs:
           path: dist/OpenCareEyes.exe
           if-no-files-found: error
 
-  release:
-    name: Package release
-    if: startsWith(github.ref, 'refs/tags/v')
+  installer:
+    name: Installer install, upgrade, and uninstall smoke
+    if: github.event_name != 'schedule'
     needs: build
     runs-on: windows-latest
-    permissions:
-      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -129,6 +135,233 @@ jobs:
           if (-not (Test-Path $iscc)) { throw "Inno Setup 6 was not found" }
           & $iscc "/DMyAppVersion=$version" installer.iss
           if ($LASTEXITCODE -ne 0) { throw "ISCC failed with exit code $LASTEXITCODE" }
+      - name: Smoke-test per-user install and tag upgrade
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $currentVersion = python -c "import pathlib, tomllib; print(tomllib.loads(pathlib.Path('pyproject.toml').read_text(encoding='utf-8'))['project']['version'])"
+          $currentInstaller = (
+            Get-Item ".\installer_output\OpenCareEyes_Setup_$currentVersion.exe"
+          ).FullName
+          $installDir = Join-Path $env:RUNNER_TEMP 'OpenCareEyes-installer-smoke'
+          $settingsPath = Join-Path $env:RUNNER_TEMP 'opencareeyes-installer-smoke.ini'
+          $localAppData = Join-Path $env:RUNNER_TEMP 'opencareeyes-installer-localappdata'
+          $marker = "upgrade-$([guid]::NewGuid().ToString('N'))"
+
+          function Install-Package([string]$Installer, [string]$Label) {
+            & $Installer /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP- `
+              /MERGETASKS=!desktopicon,!autostart "/DIR=$installDir"
+            if ($LASTEXITCODE -ne 0) {
+              throw "$Label installer exited with code $LASTEXITCODE"
+            }
+          }
+
+          function Assert-Installed([string]$ExpectedVersion, [string]$Label) {
+            $exe = Join-Path $installDir 'OpenCareEyes.exe'
+            $deadline = [DateTime]::UtcNow.AddSeconds(60)
+            $actualVersion = $null
+            do {
+              $uninstaller = Get-Item (Join-Path $installDir 'unins*.exe') `
+                -ErrorAction SilentlyContinue | Select-Object -First 1
+              if ((Test-Path $exe) -and $uninstaller) {
+                try {
+                  $actualVersion = (Get-Item $exe).VersionInfo.ProductVersion.Trim()
+                } catch {
+                  $actualVersion = $null
+                }
+                if ($actualVersion -eq $ExpectedVersion) { break }
+              }
+              Start-Sleep -Milliseconds 500
+            } while ([DateTime]::UtcNow -lt $deadline)
+            if (-not (Test-Path $exe) -or -not $uninstaller) {
+              throw "$Label did not install the executable and uninstaller into $installDir"
+            }
+            if ($actualVersion -ne $ExpectedVersion) {
+              throw "$Label installed version $actualVersion; expected $ExpectedVersion"
+            }
+            return $exe
+          }
+
+          function Assert-AppStarts([string]$Exe, [string]$Label) {
+            $env:OPENCAREYES_SETTINGS_PATH = $settingsPath
+            $env:OPENCAREYES_INSTANCE_KEY = "OpenCareEyes-Installer-CI-$PID"
+            $env:LOCALAPPDATA = $localAppData
+            $env:QT_QPA_PLATFORM = 'offscreen'
+            $first = Start-Process -FilePath $Exe -WindowStyle Hidden -PassThru
+            try {
+              Start-Sleep -Seconds 15
+              $owned = @(
+                Get-Process OpenCareEyes -ErrorAction SilentlyContinue |
+                  Where-Object Path -eq $Exe
+              )
+              if ($first.HasExited -or $owned.Count -ne 2) {
+                throw "$Label did not reach a stable onefile parent/child state"
+              }
+            } finally {
+              @(
+                Get-Process OpenCareEyes -ErrorAction SilentlyContinue |
+                  Where-Object Path -eq $Exe
+              ) | Stop-Process -Force -ErrorAction SilentlyContinue
+              Start-Sleep -Seconds 2
+            }
+          }
+
+          function Uninstall-Package {
+            $uninstaller = Get-Item (Join-Path $installDir 'unins*.exe') |
+              Select-Object -First 1
+            & $uninstaller.FullName /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
+            if ($LASTEXITCODE -ne 0) {
+              throw "uninstaller exited with code $LASTEXITCODE"
+            }
+            $deadline = [DateTime]::UtcNow.AddSeconds(30)
+            while ((Test-Path $installDir) -and [DateTime]::UtcNow -lt $deadline) {
+              Start-Sleep -Milliseconds 500
+            }
+            if (Test-Path $installDir) {
+              throw "uninstall left files in $installDir"
+            }
+          }
+
+          try {
+            $settingsLines = @(
+              '[meta]'
+              'schema_version=4'
+              ''
+              '[%General]'
+              'onboarding_completed=true'
+              'first_run_complete=true'
+              'autostart=false'
+              ''
+              '[weather]'
+              'enabled=false'
+              ''
+              '[ci]'
+              "upgrade_marker=$marker"
+            )
+            [IO.File]::WriteAllLines(
+              $settingsPath, $settingsLines, [Text.UTF8Encoding]::new($false)
+            )
+
+            if ($env:GITHUB_REF -like 'refs/tags/v*') {
+              # v0.6.1 was never published as a tag or Release. v0.4.1 is the
+              # nearest formally published installer with a SHA-256 manifest.
+              $baselineVersion = '0.4.1'
+              $baselineName = "OpenCareEyes_Setup_$baselineVersion.exe"
+              $baselineInstaller = Join-Path $env:RUNNER_TEMP $baselineName
+              $baselineSums = Join-Path $env:RUNNER_TEMP "v$baselineVersion-SHA256SUMS.txt"
+              $releaseBase = "https://github.com/Odyphus/OpenCareEyes/releases/download/v$baselineVersion"
+              Write-Output (
+                "Upgrade baseline: v$baselineVersion; v0.6.1 was never published " +
+                'as a Git tag or GitHub Release.'
+              )
+              try {
+                Invoke-WebRequest "$releaseBase/$baselineName" -OutFile $baselineInstaller
+                Invoke-WebRequest "$releaseBase/SHA256SUMS.txt" -OutFile $baselineSums
+              } catch {
+                throw "Unable to download the audited v$baselineVersion upgrade baseline: " +
+                  "$($_.Exception.Message)"
+              }
+              $hashLine = Get-Content $baselineSums |
+                Where-Object { $_ -match "^[0-9a-fA-F]{64}  $([regex]::Escape($baselineName))$" } |
+                Select-Object -First 1
+              if (-not $hashLine) {
+                throw "v$baselineVersion SHA256SUMS.txt has no entry for $baselineName"
+              }
+              $expectedHash = ($hashLine -split '\s+', 2)[0].ToLowerInvariant()
+              $actualHash = (Get-FileHash $baselineInstaller -Algorithm SHA256).Hash.ToLowerInvariant()
+              if ($actualHash -ne $expectedHash) {
+                throw "v$baselineVersion baseline installer SHA-256 mismatch"
+              }
+
+              Install-Package $baselineInstaller "v$baselineVersion baseline"
+              $baselineExe = Assert-Installed $baselineVersion "v$baselineVersion baseline"
+              Assert-AppStarts $baselineExe "v$baselineVersion baseline"
+              if (-not (Select-String -LiteralPath $settingsPath -SimpleMatch $marker -Quiet)) {
+                throw 'baseline launch did not preserve the isolated configuration marker'
+              }
+            }
+
+            Install-Package $currentInstaller "v$currentVersion current"
+            $currentExe = Assert-Installed $currentVersion "v$currentVersion current"
+            Assert-AppStarts $currentExe "v$currentVersion current"
+            if (-not (Select-String -LiteralPath $settingsPath -SimpleMatch $marker -Quiet)) {
+              throw 'install or upgrade did not preserve the isolated configuration marker'
+            }
+            Uninstall-Package
+          } finally {
+            @(
+              Get-Process OpenCareEyes -ErrorAction SilentlyContinue |
+                Where-Object Path -like "$installDir*"
+            ) | Stop-Process -Force -ErrorAction SilentlyContinue
+            $leftoverUninstaller = Get-Item (Join-Path $installDir 'unins*.exe') `
+              -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($leftoverUninstaller) {
+              & $leftoverUninstaller.FullName /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
+            }
+          }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OpenCareEyes-installer
+          path: installer_output/OpenCareEyes_Setup_*.exe
+          if-no-files-found: error
+
+  stability:
+    name: Scheduled stability smoke
+    if: >-
+      github.event_name == 'schedule' ||
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    needs: build
+    runs-on: windows-latest
+    env:
+      QT_QPA_PLATFORM: offscreen
+      STABILITY_MINUTES: ${{ inputs.stability_minutes || '10' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: python -m pip install -e ".[dev]" psutil
+      - uses: actions/download-artifact@v4
+        with:
+          name: OpenCareEyes-portable
+          path: dist
+      - name: Run bounded stability and zero-network smoke
+        shell: pwsh
+        run: |
+          $minutes = [double]::Parse(
+            $env:STABILITY_MINUTES,
+            [Globalization.CultureInfo]::InvariantCulture
+          )
+          if ($minutes -lt 1 -or $minutes -gt 60) {
+            throw "stability_minutes must be between 1 and 60"
+          }
+          $seconds = [int][Math]::Ceiling($minutes * 60)
+          python scripts\ci_stability_smoke.py `
+            --executable .\dist\OpenCareEyes.exe `
+            --duration-seconds $seconds
+
+  release:
+    name: Package release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [build, installer]
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/download-artifact@v4
+        with:
+          name: OpenCareEyes-portable
+          path: dist
+      - uses: actions/download-artifact@v4
+        with:
+          name: OpenCareEyes-installer
+          path: installer_output
       - name: Write SHA-256 manifest
         shell: pwsh
         run: |
@@ -142,7 +375,8 @@ jobs:
             '.\README.md',
             '.\使用说明.md',
             '.\LICENSE',
-            '.\THIRD_PARTY_NOTICES.md'
+            '.\THIRD_PARTY_NOTICES.md',
+            '.\licenses'
           ) -DestinationPath ".\OpenCareEyes_Portable_$version.zip"
           $files = @(
             Get-Item .\dist\OpenCareEyes.exe
@@ -160,6 +394,35 @@ jobs:
             $lines,
             [Text.UTF8Encoding]::new($false)
           )
+      - name: Verify SHA-256 manifest
+        shell: pwsh
+        run: |
+          $releaseFiles = @(
+            Get-Item .\dist\OpenCareEyes.exe
+            Get-Item .\installer_output\OpenCareEyes_Setup_*.exe
+            Get-Item .\OpenCareEyes_Portable_*.zip
+            Get-Item .\OpenCareEyes_WinGet_*.zip
+            Get-Item .\THIRD_PARTY_NOTICES.md
+          )
+          $pathsByName = @{}
+          foreach ($file in $releaseFiles) {
+            $pathsByName[$file.Name] = $file.FullName
+          }
+          foreach ($line in Get-Content .\SHA256SUMS.txt) {
+            if ($line -notmatch '^([0-9a-f]{64})  (.+)$') {
+              throw "Invalid SHA256SUMS.txt entry: $line"
+            }
+            $expected = $Matches[1]
+            $name = $Matches[2]
+            if (-not $pathsByName.ContainsKey($name)) {
+              throw "Missing release attachment: $name"
+            }
+            $path = $pathsByName[$name]
+            $actual = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($actual -ne $expected) {
+              throw "SHA-256 mismatch for $name"
+            }
+          }
       - name: Create GitHub Release
         shell: pwsh
         env:

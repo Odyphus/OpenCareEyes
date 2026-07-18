@@ -46,10 +46,11 @@ _PAGES = (
 class MainPanel(QWidget):
     """Top-level settings window; every page observes one ``AppState``."""
 
-    def __init__(self, controller, parent=None):
+    def __init__(self, controller, parent=None, *, asset_repository=None):
         super().__init__(parent)
         self.setAttribute(Qt.WA_StyledBackground, True)
         self._controller = controller
+        self._asset_repository = asset_repository
         self._applied_theme = ""
         self.setObjectName("mainPanel")
         self.setWindowTitle('OpenCareEyes · 桌面伙伴')
@@ -160,7 +161,13 @@ class MainPanel(QWidget):
 
         placeholder = self._stack.widget(index)
         _, page_class, _ = _PAGES[index]
-        page = page_class(self._controller)
+        if page_class in {CompanionHomePage, PetCatalogPage}:
+            page = page_class(
+                self._controller,
+                asset_repository=self._asset_repository,
+            )
+        else:
+            page = page_class(self._controller)
         self._stack.removeWidget(placeholder)
         placeholder.deleteLater()
         self._stack.insertWidget(index, page)
@@ -325,14 +332,21 @@ class MainPanel(QWidget):
 class DeferredMainPanel:
     """Create the settings window only when the user asks to see it."""
 
-    def __init__(self, controller):
+    def __init__(self, controller, *, asset_repository=None):
         self._controller = controller
+        self._asset_repository = asset_repository
         self._panel: MainPanel | None = None
 
     @property
     def widget(self) -> MainPanel:
         if self._panel is None:
-            self._panel = MainPanel(self._controller)
+            if self._asset_repository is None:
+                self._panel = MainPanel(self._controller)
+            else:
+                self._panel = MainPanel(
+                    self._controller,
+                    asset_repository=self._asset_repository,
+                )
         return self._panel
 
     @property

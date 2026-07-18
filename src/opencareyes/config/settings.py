@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 from collections.abc import Iterable, Iterator, Mapping
@@ -18,6 +19,17 @@ from opencareyes.constants import APP_NAME, ORG_NAME
 
 
 SCHEMA_VERSION = 6
+
+logger = logging.getLogger(__name__)
+
+_PENDING_SETTINGS_KEY = "meta/pending_settings"
+_PENDING_SNAPSHOT_KEY = "meta/pending_settings_snapshot"
+_PENDING_OPERATION_KEY = "meta/pending_settings_operation"
+_RECOVERY_KEYS = {
+    _PENDING_SETTINGS_KEY,
+    _PENDING_SNAPSHOT_KEY,
+    _PENDING_OPERATION_KEY,
+}
 
 _PET_ID_PATTERN = re.compile(r'^[a-z0-9_]{1,64}$')
 _ITEM_ID_PATTERN = re.compile(r'^[a-z0-9_.-]{1,64}$')
@@ -122,6 +134,72 @@ def _restore_store(store: Any, snapshot: Mapping[str, object]) -> None:
         store.setValue(key, value)
 
 
+def _settings_snapshot(store: Any) -> dict[str, object]:
+    """Return all user settings without the internal recovery journal."""
+    return {
+        key: value
+        for key, value in _snapshot_store(store).items()
+        if key not in _RECOVERY_KEYS
+    }
+
+
+def _encode_snapshot(snapshot: Mapping[str, object]) -> str:
+    try:
+        return json.dumps(
+            dict(snapshot),
+            ensure_ascii=True,
+            separators=(",", ":"),
+            sort_keys=True,
+        )
+    except (TypeError, ValueError) as exc:
+        raise ValueError("Settings snapshot contains an unsupported value") from exc
+
+
+def _decode_snapshot(value: object) -> dict[str, object]:
+    if not isinstance(value, str) or not value:
+        raise ValueError("Pending settings snapshot is missing")
+    decoded = json.loads(value)
+    if not isinstance(decoded, dict) or not all(
+        isinstance(key, str) for key in decoded
+    ):
+        raise ValueError("Pending settings snapshot is invalid")
+    return decoded
+
+
+def _remove_store_key(store: Any, key: str) -> None:
+    remove = getattr(store, "remove", None)
+    if callable(remove):
+        remove(key)
+        return
+    values = getattr(store, "values", None)
+    if isinstance(values, dict):
+        values.pop(key, None)
+        return
+    raise OSError("Settings backend cannot remove recovery metadata")
+
+
+def _persist_pending_snapshot(
+    store: Any,
+    snapshot: Mapping[str, object],
+    operation: str,
+) -> None:
+    store.setValue(_PENDING_SNAPSHOT_KEY, _encode_snapshot(snapshot))
+    store.setValue(_PENDING_OPERATION_KEY, operation)
+    store.setValue(_PENDING_SETTINGS_KEY, True)
+    _sync_store_checked(store)
+
+
+def _clear_pending_snapshot(store: Any) -> None:
+    for key in _RECOVERY_KEYS:
+        _remove_store_key(store, key)
+    _sync_store_checked(store)
+
+
+def _restore_store_checked(store: Any, snapshot: Mapping[str, object]) -> None:
+    _restore_store(store, snapshot)
+    _sync_store_checked(store)
+
+
 def _validated_profile(value: object) -> str:
     profile = str(value).strip().lower()
     if profile not in PRESETS:
@@ -179,6 +257,9 @@ class SettingsMigrator:
         version = _schema_version(self._store.value("meta/schema_version", 1))
         if version > SCHEMA_VERSION:
             return version, True
+        if not self._recover_pending():
+            return version, True
+        version = _schema_version(self._store.value("meta/schema_version", 1))
         if version == SCHEMA_VERSION:
             return version, False
 
@@ -187,7 +268,14 @@ class SettingsMigrator:
             "meta/schema_version" in snapshot
             or bool(set(snapshot) - {"meta/schema_version"})
         )
+        starting_version = version
+        logger.info(
+            "Starting settings migration from schema v%d to v%d",
+            starting_version,
+            SCHEMA_VERSION,
+        )
         try:
+            _persist_pending_snapshot(self._store, snapshot, "migration")
             if version < 2:
                 self._migrate_v1_to_v2(existing_profile)
                 version = 2
@@ -204,16 +292,51 @@ class SettingsMigrator:
                 self._migrate_v5_to_v6(existing_profile)
                 version = 6
             self._sync_checked()
+            _clear_pending_snapshot(self._store)
         except Exception as exc:
-            self._restore(snapshot)
+            try:
+                self._restore(snapshot)
+            except Exception:
+                logger.exception(
+                    "Settings migration rollback could not be persisted; "
+                    "starting read-only"
+                )
+                return _schema_version(snapshot.get("meta/schema_version", 1)), True
             raise SettingsMigrationError(
                 f"Unable to migrate settings to schema v{SCHEMA_VERSION}; "
                 "the previous settings were restored"
             ) from exc
+        logger.info(
+            "Completed settings migration from schema v%d to v%d",
+            starting_version,
+            version,
+        )
         return version, False
 
     def _snapshot(self) -> dict[str, object]:
-        return _snapshot_store(self._store)
+        return _settings_snapshot(self._store)
+
+    def _recover_pending(self) -> bool:
+        pending = self._store.value(_PENDING_SETTINGS_KEY, False)
+        if pending not in (True, 1, "1", "true", "True"):
+            return True
+        operation = str(
+            self._store.value(_PENDING_OPERATION_KEY, "unknown") or "unknown"
+        )
+        logger.warning("Recovering interrupted settings %s", operation)
+        try:
+            snapshot = _decode_snapshot(
+                self._store.value(_PENDING_SNAPSHOT_KEY, None)
+            )
+            _restore_store_checked(self._store, snapshot)
+        except Exception:
+            logger.exception(
+                "Interrupted settings recovery could not be persisted; "
+                "starting read-only"
+            )
+            return False
+        logger.info("Recovered interrupted settings %s", operation)
+        return True
 
     def _migrate_v1_to_v2(self, existing_profile: bool) -> None:
         latitude = self._store.value("location/latitude", None)
@@ -359,16 +482,7 @@ class SettingsMigrator:
         _sync_store_checked(self._store)
 
     def _restore(self, snapshot: Mapping[str, object]) -> None:
-        _restore_store(self._store, snapshot)
-        sync = getattr(self._store, "sync", None)
-        if callable(sync):
-            try:
-                sync()
-            except Exception:
-                # The original backend error remains the useful failure.  A
-                # failed sync cannot overwrite the pre-migration persisted
-                # data, while the in-process store has still been restored.
-                pass
+        _restore_store_checked(self._store, snapshot)
 
 
 class Settings:
@@ -391,6 +505,11 @@ class Settings:
         self._stored_schema_version, self._read_only = SettingsMigrator(
             self._s
         ).migrate()
+        self._read_only_reason = (
+            "future_schema"
+            if self._stored_schema_version > SCHEMA_VERSION
+            else "recovery"
+        )
 
     @property
     def schema_version(self) -> int:
@@ -407,11 +526,19 @@ class Settings:
 
     def _set_value(self, key: str, value: object) -> None:
         if self._read_only:
+            self._raise_read_only("update settings")
+        self._s.setValue(key, value)
+
+    def _raise_read_only(self, action: str) -> None:
+        if self._read_only_reason == "future_schema":
             raise SettingsReadOnlyError(
                 f"Settings schema v{self._stored_schema_version} is newer than "
                 f"the supported schema v{SCHEMA_VERSION}; settings are read-only"
             )
-        self._s.setValue(key, value)
+        raise SettingsReadOnlyError(
+            f"Cannot {action}; settings recovery could not be safely persisted "
+            "and settings are read-only"
+        )
 
     # ---- Blue light filter ----
     @property
@@ -1431,23 +1558,18 @@ class Settings:
 
     def snapshot(self) -> dict[str, object]:
         """Return a complete in-process snapshot for command rollback."""
-        return _snapshot_store(self._s)
+        return _settings_snapshot(self._s)
 
     def restore_snapshot(self, snapshot: Mapping[str, object]) -> None:
         """Restore and persist a snapshot, checking the backend result."""
         if self._read_only:
-            raise SettingsReadOnlyError(
-                f"Cannot restore newer settings schema v{self._stored_schema_version}"
-            )
-        _restore_store(self._s, snapshot)
-        _sync_store_checked(self._s)
+            self._raise_read_only("restore settings")
+        _restore_store_checked(self._s, snapshot)
 
     def sync_checked(self) -> None:
         """Persist pending writes and raise when QSettings reports an error."""
         if self._read_only:
-            raise SettingsReadOnlyError(
-                f"Cannot sync newer settings schema v{self._stored_schema_version}"
-            )
+            self._raise_read_only("sync settings")
         _sync_store_checked(self._s)
 
     def sync(self) -> None:
@@ -1458,17 +1580,23 @@ class Settings:
     def transaction(self) -> Iterator[Settings]:
         """Commit preference writes atomically or restore the prior snapshot."""
         if self._read_only:
-            raise SettingsReadOnlyError(
-                f"Cannot update newer settings schema v{self._stored_schema_version}"
-            )
+            self._raise_read_only("update settings")
         snapshot = self.snapshot()
         try:
+            _persist_pending_snapshot(self._s, snapshot, "transaction")
             yield self
             self.sync_checked()
+            _clear_pending_snapshot(self._s)
         except Exception:
             try:
                 self.restore_snapshot(snapshot)
             except Exception as rollback_error:
+                self._read_only = True
+                self._read_only_reason = "recovery"
+                logger.exception(
+                    "Settings transaction rollback could not be persisted; "
+                    "switching to read-only"
+                )
                 raise SettingsTransactionError(
                     "Settings transaction failed and rollback could not be persisted"
                 ) from rollback_error
@@ -1477,9 +1605,7 @@ class Settings:
     def reset(self) -> None:
         """Clear user settings and recreate a fresh schema-v6 marker."""
         if self._read_only:
-            raise SettingsReadOnlyError(
-                f"Cannot reset newer settings schema v{self._stored_schema_version}"
-            )
+            self._raise_read_only("reset settings")
         with self.transaction():
             self._s.clear()
             self._set_value("meta/schema_version", SCHEMA_VERSION)

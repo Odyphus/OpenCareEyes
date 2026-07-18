@@ -1,4 +1,4 @@
-# OpenCareEyes v0.6.1 发布检查表
+# OpenCareEyes v0.7.0 发布检查表
 
 ## 代码与自动测试
 
@@ -87,20 +87,20 @@
 
 ## GitHub 发布物
 
-- [ ] `pyproject.toml` 版本为 `0.6.1`，Tag 为 `v0.6.1`。
+- [ ] `pyproject.toml` 版本为 `0.7.0`，Tag 为 `v0.7.0`。
 - [ ] `dist\OpenCareEyes.exe` 可在干净系统上启动，第二次启动能唤起现有实例。
-- [ ] `OpenCareEyes_Setup_0.6.1.exe` 可安装、从 v0.5.0 升级及卸载，AppId、应用名和用户数据升级路径保持不变。
+- [ ] `OpenCareEyes_Setup_0.7.0.exe` 可安装、从正式发布的 v0.4.1 升级及卸载，AppId、应用名和用户数据升级路径保持不变。
 - [ ] `SHA256SUMS.txt` 与便携版、安装版和 WinGet 清单压缩包匹配。
 - [ ] 便携版与安装版均包含 `THIRD_PARTY_NOTICES.md` 和 `licenses/`，Release notice 同时纳入校验值。
-- [ ] README 的白鼬预览与发行包资源一致；v0.4 历史 GIF 明确标为旧界面，任何 v0.6 截图都来自最终 Qt 构建。
+- [ ] README 的白鼬预览与发行包资源一致；v0.4 历史 GIF 明确标为旧界面，任何 v0.7 截图都来自最终 Qt 构建。
 - [ ] README、PRODUCT、DESIGN、使用说明、隐私说明、医疗边界与 Release Notes 均和真实实现一致。
 - [ ] GitHub Release 资产 URL 已固定且可匿名下载，Release Notes 来自 `CHANGELOG.md` 与真实提交。
 
 ## WinGet（GitHub Release 完成后）
 
-- [ ] 使用最终安装包运行 `python scripts\generate_winget_manifest.py .\installer_output\OpenCareEyes_Setup_0.6.1.exe --version 0.6.1`。
-- [ ] 清单中的安装包 URL 指向已发布且版本固定的 `v0.6.1` 资产，SHA-256 与在线资产完全一致。
-- [ ] 对 `winget_output\manifests\o\Odyphus\OpenCareEyes\0.6.1` 执行 `winget validate` 并通过。
+- [ ] 使用最终安装包运行 `python scripts\generate_winget_manifest.py .\installer_output\OpenCareEyes_Setup_0.7.0.exe --version 0.7.0`。
+- [ ] 清单中的安装包 URL 指向已发布且版本固定的 `v0.7.0` 资产，SHA-256 与在线资产完全一致。
+- [ ] 对 `winget_output\manifests\o\Odyphus\OpenCareEyes\0.7.0` 执行 `winget validate` 并通过。
 - [ ] 在全新 Windows Sandbox 中验证静默安装、启动、升级和卸载；无残留自启动项，用户数据保留/清理行为符合说明。
 - [ ] 完成上述验证后再向 `microsoft/winget-pkgs` 提交；未合并前不得声称已经被 WinGet 官方源收录。
 - [ ] Release Notes 与 README 明确：WinGet、SHA-256 不等同于代码签名，也不能保证消除 SmartScreen。

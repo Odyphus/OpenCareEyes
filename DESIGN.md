@@ -1,4 +1,4 @@
-# OpenCareEyes v0.6 设计规范
+# OpenCareEyes v0.7 设计规范
 
 本文件是“伙伴小屋 × Windows Soft Fluent”界面与宠物表现的实现约束。它描述可验证规则，不替代业务状态机或平台安全规则。
 

@@ -43,8 +43,33 @@ class OverviewPage(ScrollPage):
             break_tick.connect(self._render_break_tick)
         self.render(controller.state)
 
-    def _render_break_tick(self, *_args) -> None:
-        self.render(self._controller.state)
+    def _render_break_tick(self, remaining: int, _total: int) -> None:
+        state = self._controller.state
+        enabled = bool(first_state_value(state, "breaks.enabled", default=False))
+        phase = str(first_state_value(state, "breaks.phase", default="stopped"))
+        paused = bool(first_state_value(state, "breaks.paused", default=False))
+        suppressed = tuple(first_state_value(
+            state,
+            "effective_policy.breaks.suppressed_by",
+            default=(),
+        ))
+        if not enabled or phase == "stopped" or suppressed:
+            return
+        remaining = max(0, int(remaining))
+        if phase == "resting":
+            value = f"正在休息 · 剩余 {format_duration(remaining)}"
+        elif phase == "prompting":
+            value = "该休息一下了"
+        elif phase == "snoozed":
+            value = f"已延后 · {format_duration(remaining)} 后再次提醒"
+        elif paused:
+            value = f"计时已暂停 · 剩余 {format_duration(remaining)}"
+        else:
+            value = f"{format_duration(remaining)} 后休息"
+        self._break_card.value.setText(value)
+        self._break_card.setAccessibleName(
+            f"{value}，{self._break_card.badge.text()}"
+        )
 
     def _build_ui(self) -> None:
         header_row = QHBoxLayout()

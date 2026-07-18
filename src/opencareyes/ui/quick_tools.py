@@ -4,10 +4,11 @@ from __future__ import annotations
 
 from typing import Any
 
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import QRect, Qt, QTimer
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
+    QBoxLayout,
     QFormLayout,
     QFrame,
     QHBoxLayout,
@@ -16,6 +17,8 @@ from PySide6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QPushButton,
+    QScrollArea,
+    QSizePolicy,
     QSpinBox,
     QTabWidget,
     QTextEdit,
@@ -49,7 +52,7 @@ class QuickToolsWindow(QWidget):
         self.setObjectName('quickToolsWindow')
         self.setWindowTitle('OpenCareEyes 快捷工具')
         self.setAttribute(Qt.WA_DeleteOnClose, False)
-        self.setMinimumSize(520, 430)
+        self.setMinimumSize(360, 300)
         self.resize(620, 480)
 
         self._timer_service = timer_service
@@ -57,8 +60,10 @@ class QuickToolsWindow(QWidget):
         self._metrics_service = metrics_service
         self._recycle_bin_service = recycle_bin_service
         self._selected_note_id: str | None = None
+        self._page_scrolls: list[QScrollArea] = []
 
         root = QVBoxLayout(self)
+        self._root_layout = root
         root.setContentsMargins(20, 18, 20, 18)
         root.setSpacing(12)
 
@@ -76,10 +81,10 @@ class QuickToolsWindow(QWidget):
 
         self.tabs = QTabWidget()
         self.tabs.setAccessibleName('快捷工具分类')
-        self.tabs.addTab(self._build_timer_page(), '倒计时')
-        self.tabs.addTab(self._build_notes_page(), '便签')
-        self.tabs.addTab(self._build_system_page(), '系统状态')
-        self.tabs.addTab(self._build_more_page(), '更多')
+        self.tabs.addTab(self._scrollable_page(self._build_timer_page()), '倒计时')
+        self.tabs.addTab(self._scrollable_page(self._build_notes_page()), '便签')
+        self.tabs.addTab(self._scrollable_page(self._build_system_page()), '系统状态')
+        self.tabs.addTab(self._scrollable_page(self._build_more_page()), '更多')
         self.tabs.currentChanged.connect(self._on_tab_changed)
         root.addWidget(self.tabs, 1)
 
@@ -92,6 +97,8 @@ class QuickToolsWindow(QWidget):
         self._metrics_service.updated.connect(self._on_metrics_updated)
         self._on_timer_state(self._timer_service.state)
         self._set_style()
+        self._fit_to_available_geometry()
+        self._update_responsive_layout()
 
     @property
     def active_tool(self) -> str:
@@ -113,6 +120,19 @@ class QuickToolsWindow(QWidget):
         self.activateWindow()
         self._sync_metrics_sampling()
 
+    def _scrollable_page(self, content: QWidget) -> QScrollArea:
+        content.setMinimumWidth(0)
+        content.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        scroll = QScrollArea()
+        scroll.setAccessibleName(content.accessibleName())
+        scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        scroll.setWidget(content)
+        self._page_scrolls.append(scroll)
+        return scroll
+
     def _build_timer_page(self) -> QWidget:
         page = QWidget()
         page.setAccessibleName('用户倒计时')
@@ -127,6 +147,8 @@ class QuickToolsWindow(QWidget):
         layout.addWidget(self.timer_display)
 
         form = QFormLayout()
+        form.setRowWrapPolicy(QFormLayout.WrapLongRows)
+        form.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
         self.timer_label_input = QLineEdit()
         self.timer_label_input.setMaxLength(100)
         self.timer_label_input.setPlaceholderText('例如：背单词（可选）')
@@ -171,6 +193,7 @@ class QuickToolsWindow(QWidget):
         page = QWidget()
         page.setAccessibleName('本地便签')
         layout = QHBoxLayout(page)
+        self._notes_layout = layout
         layout.setContentsMargins(8, 16, 8, 8)
         layout.setSpacing(12)
 
@@ -178,6 +201,7 @@ class QuickToolsWindow(QWidget):
         self.notes_list = QListWidget()
         self.notes_list.setObjectName('notesList')
         self.notes_list.setAccessibleName('便签列表')
+        self.notes_list.setMinimumHeight(96)
         self.notes_list.setSelectionMode(QAbstractItemView.SingleSelection)
         self.notes_list.currentItemChanged.connect(self._load_selected_note)
         left.addWidget(self.notes_list, 1)
@@ -195,6 +219,7 @@ class QuickToolsWindow(QWidget):
         self.note_text_input = QTextEdit()
         self.note_text_input.setPlaceholderText('便签仅保存在本机，不进入诊断信息。')
         self.note_text_input.setAccessibleName('便签正文')
+        self.note_text_input.setMinimumHeight(120)
         editor.addWidget(self.note_title_input)
         editor.addWidget(self.note_text_input, 1)
         editor_buttons = QHBoxLayout()
@@ -508,8 +533,58 @@ class QuickToolsWindow(QWidget):
         self.notice_label.style().polish(self.notice_label)
         self.notice_label.show()
 
+    def _available_geometry(self) -> QRect:
+        screen = self.screen() or QApplication.primaryScreen()
+        if screen is None:
+            return QRect(0, 0, self.width(), self.height())
+        return screen.availableGeometry()
+
+    def _fit_to_available_geometry(self) -> None:
+        geometry = self._available_geometry()
+        inset = 16
+        usable_width = max(1, geometry.width() - inset * 2)
+        usable_height = max(1, geometry.height() - inset * 2)
+        minimum_width = min(360, usable_width)
+        minimum_height = min(300, usable_height)
+        self.setMinimumSize(minimum_width, minimum_height)
+        self.resize(
+            max(minimum_width, min(self.width(), usable_width)),
+            max(minimum_height, min(self.height(), usable_height)),
+        )
+
+    def _update_responsive_layout(self) -> None:
+        if not hasattr(self, '_notes_layout') or not hasattr(self, 'tabs'):
+            return
+        page = self.tabs.currentWidget()
+        content_width = page.viewport().width() if isinstance(page, QScrollArea) else 0
+        if content_width <= 0:
+            content_width = max(0, self.width() - 40)
+        self._notes_layout.setDirection(
+            QBoxLayout.TopToBottom
+            if content_width < 480
+            else QBoxLayout.LeftToRight
+        )
+        compact = self.width() < 520 or self.height() < 430
+        margin = 12 if compact else 20
+        self._root_layout.setContentsMargins(
+            margin,
+            12 if compact else 18,
+            margin,
+            12 if compact else 18,
+        )
+        for scroll in self._page_scrolls:
+            content = scroll.widget()
+            if content is not None:
+                content.updateGeometry()
+
+    def resizeEvent(self, event: Any) -> None:
+        super().resizeEvent(event)
+        self._update_responsive_layout()
+
     def showEvent(self, event: Any) -> None:
+        self._fit_to_available_geometry()
         super().showEvent(event)
+        self._update_responsive_layout()
         self._sync_metrics_sampling()
 
     def hideEvent(self, event: Any) -> None:

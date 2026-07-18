@@ -12,6 +12,11 @@ class _DecodeSignals(QObject):
     finished = Signal(str, str, object)
 
 
+class _CatalogSignals(QObject):
+    finished = Signal(object)
+    failed = Signal(str)
+
+
 class _DecodeTask(QRunnable):
     def __init__(self, pet_id: str, resource_path: str, resolved_path: str):
         super().__init__()
@@ -32,11 +37,29 @@ class _DecodeTask(QRunnable):
         )
 
 
+class _CatalogTask(QRunnable):
+    def __init__(self, registry):
+        super().__init__()
+        self.registry = registry
+        self.signals = _CatalogSignals()
+
+    @Slot()
+    def run(self) -> None:
+        try:
+            entries = tuple(self.registry.available_pets())
+        except Exception as exc:
+            self.signals.failed.emit(str(exc))
+            return
+        self.signals.finished.emit(entries)
+
+
 class PetAssetRepository(QObject):
     '''Decode pet images off the GUI thread and retain a small LRU cache.'''
 
     resource_ready = Signal(str, str)
     resource_failed = Signal(str, str)
+    catalog_ready = Signal(object)
+    catalog_failed = Signal(str)
 
     def __init__(
         self,
@@ -53,6 +76,8 @@ class PetAssetRepository(QObject):
         self._cache_bytes = 0
         self._cache: OrderedDict[tuple[str, str], QImage] = OrderedDict()
         self._tasks: dict[tuple[str, str], _DecodeTask] = {}
+        self._catalog_task: _CatalogTask | None = None
+        self._catalog_entries: tuple | None = None
         self._pool = QThreadPool(self)
         self._pool.setMaxThreadCount(1)
 
@@ -63,6 +88,14 @@ class PetAssetRepository(QObject):
     @property
     def cache_bytes(self) -> int:
         return self._cache_bytes
+
+    @property
+    def cache_entry_count(self) -> int:
+        return len(self._cache)
+
+    @property
+    def catalog_entries(self) -> tuple | None:
+        return self._catalog_entries
 
     def resolve_resource(self, pet_id: str, resource_path: str):
         return self._registry.resolve_resource(pet_id, resource_path)
@@ -86,6 +119,18 @@ class PetAssetRepository(QObject):
         }
         for resource_path in paths:
             self._schedule(pet_id, resource_path)
+
+    def request_catalog(self) -> bool:
+        '''Validate non-active bundled packs once, off the GUI thread.'''
+
+        if self._catalog_entries is not None or self._catalog_task is not None:
+            return False
+        task = _CatalogTask(self._registry)
+        task.signals.finished.connect(self._on_catalog_ready)
+        task.signals.failed.connect(self._on_catalog_failed)
+        self._catalog_task = task
+        self._pool.start(task)
+        return True
 
     def clear(self, pet_id: str | None = None) -> None:
         if pet_id is None:
@@ -133,3 +178,14 @@ class PetAssetRepository(QObject):
             _old_key, evicted = self._cache.popitem(last=False)
             self._cache_bytes = max(0, self._cache_bytes - evicted.sizeInBytes())
         self.resource_ready.emit(pet_id, resource_path)
+
+    @Slot(object)
+    def _on_catalog_ready(self, entries) -> None:
+        self._catalog_task = None
+        self._catalog_entries = tuple(entries or ())
+        self.catalog_ready.emit(self._catalog_entries)
+
+    @Slot(str)
+    def _on_catalog_failed(self, message: str) -> None:
+        self._catalog_task = None
+        self.catalog_failed.emit(str(message))
