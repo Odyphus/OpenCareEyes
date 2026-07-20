@@ -1,6 +1,6 @@
 '''Tests for deterministic desktop companion behaviour arbitration.'''
 
-from dataclasses import FrozenInstanceError
+from dataclasses import FrozenInstanceError, replace
 from pathlib import Path
 
 import pytest
@@ -8,7 +8,12 @@ import pytest
 from opencareyes.application.companion_coordinator import CompanionCoordinator
 from opencareyes.application.pet_pack_registry import PetPackNotFoundError, PetPackRegistry
 from opencareyes.constants import PETS_DIR
-from opencareyes.domain.pet import PetEventPriority
+from opencareyes.domain.pet import (
+    PetAction,
+    PetEventPriority,
+    PetFrame,
+    PetOutfitDefinition,
+)
 
 FIXTURE_ROOT = Path(__file__).parent / 'fixtures' / 'pets'
 
@@ -37,6 +42,24 @@ def coordinator(*, pet_id='snow_ferret', clock=None, random_source=None):
         clock=clock or FakeClock(),
         random_source=random_source,
     )
+
+
+def add_test_outfit(pet, *, outfit_id='still_outfit', actions=None):
+    frame = PetFrame('sprites/base.png', 120)
+    outfit = PetOutfitDefinition(
+        outfit_id=outfit_id,
+        display_name='测试造型',
+        description='用于验证业务代码不依赖白鼬动作。',
+        thumbnail_path='preview.png',
+        preview_path='preview.png',
+        actions=actions or {'idle': PetAction('idle', (frame,), loop=True)},
+    )
+    pet._manifest = replace(
+        pet.manifest,
+        schema_version=3,
+        outfits={outfit_id: outfit},
+    )
+    return outfit
 
 
 def test_dispatch_uses_pack_binding_and_injected_monotonic_clock():
@@ -123,6 +146,49 @@ def test_missing_optional_action_uses_idle_without_blocking_semantic_event():
     assert pet.dispatch_kind('weather.snow') is True
     assert pet.state.behavior.action_id == 'idle'
     assert pet.state.behavior.event_kind == 'weather.snow'
+
+
+def test_outfit_missing_action_falls_back_to_its_own_idle_and_stays_locked():
+    pet = coordinator()
+    outfit = add_test_outfit(pet)
+
+    state = pet.set_outfit(outfit.outfit_id)
+    assert state.outfit_id == outfit.outfit_id
+    assert pet.wardrobe_mode == 'outfit'
+    assert pet.dispatch_kind('click') is True
+    assert pet.current_action is outfit.actions['idle']
+
+    assert pet.complete_action() is True
+    assert pet.state.outfit_id == outfit.outfit_id
+    assert pet.current_action is outfit.actions['idle']
+
+
+def test_locked_outfit_pauses_automatic_layers_but_allows_interactive_props():
+    pet = coordinator()
+    outfit = add_test_outfit(pet)
+    pet.set_outfit(outfit.outfit_id)
+
+    automatic = pet.apply_appearance_conditions(('weather.snow',))
+    assert automatic.appearance.neckwear == ''
+
+    interactive = pet.apply_appearance_conditions(
+        ('weather.snow',),
+        interactive={'held_item': 'temporary.png'},
+    )
+    assert interactive.appearance.held_item == 'temporary.png'
+
+
+def test_accessory_command_exits_outfit_mode_without_deleting_outfit_choice():
+    pet = coordinator()
+    outfit = add_test_outfit(pet)
+    pet.set_outfit(outfit.outfit_id)
+
+    state = pet.set_manual_accessory('neckwear', 'scarf')
+
+    assert state.outfit_id == ''
+    assert pet.wardrobe_mode == 'accessories'
+    assert pet.selected_outfit_id == ''
+    assert state.appearance.neckwear == 'accessories/scarf.png'
 
 
 def test_switching_pet_preloads_before_change_and_preserves_runtime_visibility():

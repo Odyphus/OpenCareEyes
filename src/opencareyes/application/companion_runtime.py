@@ -67,6 +67,10 @@ class CompanionRuntime:
         self._window_avoidance = None
         self._window_avoidance_running = False
 
+        attach_surface = getattr(controller, 'attach_companion_surface', None)
+        if callable(attach_surface):
+            attach_surface(surface)
+
         bubble.start_due_requested.connect(controller.start_due_break)
         bubble.snooze_requested.connect(controller.snooze_break)
         bubble.skip_requested.connect(controller.skip_break)
@@ -172,6 +176,11 @@ class CompanionRuntime:
                 )
 
         self._surface.set_scale_percent(presentation.scale_percent)
+        set_outfit = getattr(self._surface, 'set_outfit', None)
+        if callable(set_outfit) and not set_outfit(
+            getattr(presentation, 'outfit_id', '')
+        ):
+            return
         self._surface.set_appearance(presentation.appearance)
         self._surface.set_suppressed(bool(presentation.suppressed_by))
         self._surface.set_presentation_visible(presentation.visible)
@@ -361,6 +370,9 @@ class CompanionRuntime:
             )
         )
         self._surface.pack_switch_failed.connect(self._handle_pack_switch_failure)
+        outfit_failed = getattr(self._surface, 'outfit_switch_failed', None)
+        if outfit_failed is not None:
+            outfit_failed.connect(self._handle_outfit_switch_failure)
         self._surface.animator.animation_finished.connect(self._finish_pet_action)
         self._surface.bubble_requested.connect(self._toggle_pet_bubble)
         self._bubble.dismissed.connect(self._dismiss_pet_bubble)
@@ -388,6 +400,24 @@ class CompanionRuntime:
         self._controller.operation_failed.emit(
             'pet_pack_surface',
             '新伙伴的画面无法加载，已恢复切换前的伙伴。',
+        )
+
+    def _handle_outfit_switch_failure(
+        self,
+        outfit_id: str,
+        detail: str,
+    ) -> None:
+        reporter = getattr(
+            self._controller,
+            'report_wardrobe_surface_failure',
+            None,
+        )
+        if callable(reporter):
+            reporter(str(outfit_id), str(detail))
+            return
+        self._controller.operation_failed.emit(
+            'pet_outfit_surface',
+            str(detail),
         )
 
     def _finish_pet_action(self, action_id: str) -> None:
@@ -434,6 +464,19 @@ class CompanionRuntime:
             return
         if self._companion.start_autonomous_action():
             action_id = self._companion.current_action.action_id
+            has_action = getattr(self._surface, 'has_action', None)
+            if (
+                action_id == 'move'
+                and callable(has_action)
+                and not has_action('move')
+            ):
+                if self._companion.complete_action(action_id):
+                    self._surface.play_action(
+                        self._companion.current_action.action_id
+                    )
+                    self._controller.refresh_companion_presentation(force=True)
+                self._schedule_autonomous_action()
+                return
             self._surface.play_action(action_id, restart=True)
             self._controller.refresh_companion_presentation(force=True)
             if action_id == 'move':
@@ -489,10 +532,18 @@ class CompanionRuntime:
         distance = (position - self._surface.geometry().center()).manhattanLength()
         if distance <= 180:
             self._set_cursor_interval(100)
-            self._surface.face_towards_cursor(position)
+            horizontal = position.x() - self._surface.geometry().center().x()
+            gaze = 'center'
+            if horizontal < -12:
+                gaze = 'left'
+            elif horizontal > 12:
+                gaze = 'right'
+            set_gaze = getattr(self._surface, 'set_gaze_direction', None)
+            if callable(set_gaze):
+                set_gaze(gaze)
             if now - self._last_cursor_reaction >= 2.0:
                 self._last_cursor_reaction = now
-                self.dispatch_pet_event('cursor.near')
+                self.dispatch_pet_event('cursor.near', {'gaze': gaze})
         elif (
             now - self._last_cursor_motion >= 45
             and self._companion.state.behavior.event_kind == 'autonomous.idle'

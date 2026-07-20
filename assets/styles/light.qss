@@ -114,6 +114,10 @@ QListWidget::item { min-height: 28px; padding: 5px 8px; border-radius: 6px; }
 QListWidget::item:hover { background: #EEF3FA; }
 QListWidget::item:selected { background: #DDE9FB; color: #123F79; }
 QListWidget::item:disabled { color: #98A2AF; }
+QListView#wardrobeGallery { background: transparent; border: none; outline: none; padding: 0; }
+QListView#wardrobeGallery:focus { border: none; }
+QToolButton#wardrobeAdvancedToggle { background: transparent; border-color: transparent; color: #245FB9; text-align: left; padding-left: 4px; }
+QToolButton#wardrobeAdvancedToggle:hover { background: #EEF3FA; }
 
 QGroupBox { background: #FFFFFF; border: 1px solid #DDE3EB; border-radius: 11px; margin-top: 12px; padding: 13px 10px 9px; font-weight: 650; }
 QGroupBox::title { subcontrol-origin: margin; left: 12px; padding: 0 5px; color: #364255; }

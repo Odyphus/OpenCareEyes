@@ -18,6 +18,7 @@ from opencareyes.domain.pet import (
     PetAction,
     PetCatalogEntry,
     PetFrame,
+    PetOutfitDefinition,
     PetPackManifest,
     PetPersonality,
     PetVisualTheme,
@@ -129,9 +130,15 @@ class PetPackRegistry:
         self._cache[normalised_id] = manifest
         return manifest
 
-    def resolve_action(self, pet: str | PetPackManifest, event_kind: str) -> PetAction:
+    def resolve_action(
+        self,
+        pet: str | PetPackManifest,
+        event_kind: str,
+        *,
+        outfit_id: str | None = None,
+    ) -> PetAction:
         manifest = self.load(pet) if isinstance(pet, str) else pet
-        return manifest.action_for_event(event_kind)
+        return manifest.action_for_event(event_kind, outfit_id=outfit_id)
 
     def resolve_resource(self, pet_id: str, resource_path: str) -> Path:
         manifest = self.load(pet_id)
@@ -171,7 +178,7 @@ class PetPackRegistry:
             'min_app_version', 'author', 'license', 'canvas_size',
             'default_scale', 'personality', 'actions', 'event_bindings',
             'attachment_points', 'appearance_rules', 'sound_rules', 'preview_path',
-            'visual_theme', 'asset_scale',
+            'visual_theme', 'asset_scale', 'outfits',
         }
         unknown = set(raw).difference(allowed)
         if unknown:
@@ -194,55 +201,54 @@ class PetPackRegistry:
             sociability=personality_raw.get('sociability', 50),
             walk_speed=personality_raw.get('walk_speed', 32.0),
         )
-        actions_raw = raw['actions']
-        if not isinstance(actions_raw, dict) or len(actions_raw) > 100:
-            raise TypeError('actions must be an object with no more than 100 entries')
-        actions: dict[str, PetAction] = {}
-        total_frames = 0
-        for action_id, action_raw in actions_raw.items():
-            if not isinstance(action_raw, dict):
-                raise TypeError(f'Action {action_id!r} must be an object')
-            if 'loop' in action_raw and not isinstance(action_raw['loop'], bool):
-                raise TypeError(f'Action {action_id!r} loop must be a boolean')
-            frames_raw = action_raw.get('frames')
-            if not isinstance(frames_raw, list):
-                raise TypeError(f'Action {action_id!r} frames must be a list')
-            frames = []
-            for frame_raw in frames_raw:
-                if not isinstance(frame_raw, dict):
-                    raise TypeError('Each frame must be an object')
-                allowed_frame_fields = {'path', 'duration_ms'}
-                if int(raw['schema_version']) >= 2:
-                    allowed_frame_fields.add('source_rect')
-                if not {'path', 'duration_ms'}.issubset(frame_raw) or set(
-                    frame_raw
-                ).difference(allowed_frame_fields):
-                    raise TypeError(
-                        'Each frame must contain path, duration_ms and optional source_rect'
-                    )
-                source_rect = frame_raw.get('source_rect')
-                if source_rect is not None and (
-                    not isinstance(source_rect, list) or len(source_rect) != 4
-                ):
-                    raise TypeError('source_rect must be a four-item list')
-                frames.append(
-                    PetFrame(
-                        frame_raw['path'],
-                        frame_raw['duration_ms'],
-                        tuple(source_rect) if source_rect is not None else None,
-                    )
-                )
-            total_frames += len(frames)
-            if int(raw['schema_version']) >= 2 and len(frames) > 60:
-                raise ValueError('A schema-v2 action cannot exceed 60 frames')
-            extra = set(action_raw).difference({'frames', 'loop'})
-            if extra:
-                raise ValueError(f'Action {action_id!r} contains unsupported fields')
-            actions[str(action_id)] = PetAction(
-                str(action_id), tuple(frames), bool(action_raw.get('loop', False))
+        schema_version = int(raw['schema_version'])
+        actions, total_frames = PetPackRegistry._parse_actions(
+            raw['actions'], schema_version=schema_version, context='pet pack'
+        )
+        if schema_version >= 2 and total_frames > 256:
+            raise ValueError('A schema-v2+ pet pack cannot exceed 256 base action frames')
+        outfits_raw = raw.get('outfits', {})
+        if not isinstance(outfits_raw, dict) or len(outfits_raw) > 100:
+            raise TypeError('outfits must be an object with no more than 100 entries')
+        outfits: dict[str, PetOutfitDefinition] = {}
+        outfit_frame_total = 0
+        for outfit_id, outfit_raw in outfits_raw.items():
+            if not isinstance(outfit_raw, dict):
+                raise TypeError(f'Outfit {outfit_id!r} must be an object')
+            allowed_outfit_fields = {
+                'display_name', 'description', 'thumbnail_path', 'preview_path',
+                'actions', 'ambient_layers',
+            }
+            unknown_outfit_fields = set(outfit_raw).difference(allowed_outfit_fields)
+            if unknown_outfit_fields:
+                raise ValueError(f'Outfit {outfit_id!r} contains unsupported fields')
+            required_outfit_fields = {
+                'display_name', 'description', 'thumbnail_path', 'preview_path', 'actions',
+            }
+            if not required_outfit_fields.issubset(outfit_raw):
+                raise ValueError(f'Outfit {outfit_id!r} is missing required fields')
+            outfit_actions, outfit_frames = PetPackRegistry._parse_actions(
+                outfit_raw['actions'],
+                schema_version=schema_version,
+                context=f'outfit {outfit_id!r}',
             )
-        if int(raw['schema_version']) >= 2 and total_frames > 256:
-            raise ValueError('A schema-v2 pet pack cannot exceed 256 action frames')
+            outfit_frame_total += outfit_frames
+            if outfit_frames > 60:
+                raise ValueError(f'Outfit {outfit_id!r} cannot exceed 60 frame descriptions')
+            ambient_layers = outfit_raw.get('ambient_layers', {})
+            if not isinstance(ambient_layers, dict):
+                raise TypeError(f'Outfit {outfit_id!r} ambient_layers must be an object')
+            outfits[str(outfit_id)] = PetOutfitDefinition(
+                outfit_id=str(outfit_id),
+                display_name=outfit_raw['display_name'],
+                description=outfit_raw['description'],
+                thumbnail_path=outfit_raw['thumbnail_path'],
+                preview_path=outfit_raw['preview_path'],
+                actions=outfit_actions,
+                ambient_layers=ambient_layers,
+            )
+        if outfit_frame_total > 512:
+            raise ValueError('A pet pack cannot exceed 512 outfit frame descriptions')
         bindings = raw.get('event_bindings', {})
         points = raw.get('attachment_points', {})
         appearance = raw.get('appearance_rules', {})
@@ -274,6 +280,7 @@ class PetPackRegistry:
             personality=personality,
             actions=actions,
             event_bindings=bindings,
+            outfits=outfits,
             attachment_points=points,
             appearance_rules=appearance,
             sound_rules=sounds,
@@ -281,6 +288,61 @@ class PetPackRegistry:
             visual_theme=visual_theme,
             asset_scale=raw.get('asset_scale', 1),
         )
+
+    @staticmethod
+    def _parse_actions(
+        actions_raw: Any,
+        *,
+        schema_version: int,
+        context: str,
+    ) -> tuple[dict[str, PetAction], int]:
+        if not isinstance(actions_raw, dict) or len(actions_raw) > 100:
+            raise TypeError(f'{context} actions must be an object with no more than 100 entries')
+        actions: dict[str, PetAction] = {}
+        total_frames = 0
+        for action_id, action_raw in actions_raw.items():
+            if not isinstance(action_raw, dict):
+                raise TypeError(f'Action {action_id!r} must be an object')
+            if 'loop' in action_raw and not isinstance(action_raw['loop'], bool):
+                raise TypeError(f'Action {action_id!r} loop must be a boolean')
+            frames_raw = action_raw.get('frames')
+            if not isinstance(frames_raw, list):
+                raise TypeError(f'Action {action_id!r} frames must be a list')
+            frames: list[PetFrame] = []
+            for frame_raw in frames_raw:
+                if not isinstance(frame_raw, dict):
+                    raise TypeError('Each frame must be an object')
+                allowed_frame_fields = {'path', 'duration_ms'}
+                if schema_version >= 2:
+                    allowed_frame_fields.add('source_rect')
+                if not {'path', 'duration_ms'}.issubset(frame_raw) or set(
+                    frame_raw
+                ).difference(allowed_frame_fields):
+                    raise TypeError(
+                        'Each frame must contain path, duration_ms and optional source_rect'
+                    )
+                source_rect = frame_raw.get('source_rect')
+                if source_rect is not None and (
+                    not isinstance(source_rect, list) or len(source_rect) != 4
+                ):
+                    raise TypeError('source_rect must be a four-item list')
+                frames.append(
+                    PetFrame(
+                        frame_raw['path'],
+                        frame_raw['duration_ms'],
+                        tuple(source_rect) if source_rect is not None else None,
+                    )
+                )
+            total_frames += len(frames)
+            if schema_version >= 2 and len(frames) > 60:
+                raise ValueError('A schema-v2+ action cannot exceed 60 frames')
+            extra = set(action_raw).difference({'frames', 'loop'})
+            if extra:
+                raise ValueError(f'Action {action_id!r} contains unsupported fields')
+            actions[str(action_id)] = PetAction(
+                str(action_id), tuple(frames), bool(action_raw.get('loop', False))
+            )
+        return actions, total_frames
 
     def _validate_versions(self, manifest: PetPackManifest) -> None:
         pack_version = self._version_tuple(manifest.pack_version, 'pack_version')
@@ -327,6 +389,14 @@ class PetPackRegistry:
 
         references = [manifest.preview_path]
         references.extend(frame.path for action in manifest.actions.values() for frame in action.frames)
+        for outfit in manifest.outfits.values():
+            references.extend((outfit.thumbnail_path, outfit.preview_path))
+            references.extend(outfit.ambient_layers.values())
+            references.extend(
+                frame.path
+                for action in outfit.actions.values()
+                for frame in action.frames
+            )
         references.extend(manifest.sound_rules.values())
         for condition, raw_slots in manifest.appearance_rules.items():
             if not isinstance(condition, str) or not isinstance(raw_slots, Mapping):
@@ -340,7 +410,13 @@ class PetPackRegistry:
                 references.append(path)
         for resource_path in references:
             self._resource_file(pack_dir, resource_path)
-        for action in manifest.actions.values():
+        all_actions = list(manifest.actions.values())
+        all_actions.extend(
+            action
+            for outfit in manifest.outfits.values()
+            for action in outfit.actions.values()
+        )
+        for action in all_actions:
             for frame in action.frames:
                 if frame.source_rect is None:
                     continue

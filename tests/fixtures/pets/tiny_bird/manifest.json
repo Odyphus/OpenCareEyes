@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 3,
   "pet_id": "tiny_bird",
   "display_name": "小团雀",
   "pack_version": "1.0.0",
@@ -37,5 +37,24 @@
     "effect": [48, 36]
   },
   "appearance_rules": {},
-  "sound_rules": {}
+  "sound_rules": {},
+  "outfits": {
+    "rain_cape": {
+      "display_name": "雨披小团雀",
+      "description": "给小团雀披上一件轻便雨披。",
+      "thumbnail_path": "preview.png",
+      "preview_path": "preview.png",
+      "actions": {
+        "idle": {
+          "loop": true,
+          "frames": [{"path": "sprites/bird.png", "duration_ms": 600}]
+        },
+        "move": {
+          "loop": true,
+          "frames": [{"path": "sprites/bird.png", "duration_ms": 90}]
+        }
+      },
+      "ambient_layers": {}
+    }
+  }
 }

@@ -6,7 +6,7 @@ import sys
 from dataclasses import replace
 from pathlib import Path
 
-from PySide6.QtCore import QObject, QPoint, Signal
+from PySide6.QtCore import QAbstractAnimation, QObject, QPoint, Signal
 from PySide6.QtWidgets import QApplication, QWidget
 
 from opencareyes.application.companion_coordinator import CompanionCoordinator
@@ -131,6 +131,10 @@ class RuntimeSurface(QWidget):
         self._action_id = 'idle'
         self._dragging = False
         self._reduced_motion = False
+        self.outfit_ids = []
+        self.face_cursor_calls = []
+        self.gaze_directions = []
+        self.move_supported = True
         self.setFixedSize(64, 64)
 
     @property
@@ -155,6 +159,13 @@ class RuntimeSurface(QWidget):
     def set_appearance(self, _appearance):
         return None
 
+    def set_outfit(self, outfit_id):
+        self.outfit_ids.append(str(outfit_id or ''))
+        return True
+
+    def has_action(self, action_id):
+        return str(action_id) != 'move' or self.move_supported
+
     def set_suppressed(self, _suppressed):
         return None
 
@@ -169,8 +180,13 @@ class RuntimeSurface(QWidget):
     def set_facing_direction(self, _direction):
         return True
 
-    def face_towards_cursor(self, _position):
+    def face_towards_cursor(self, position):
+        self.face_cursor_calls.append(QPoint(position))
         return False
+
+    def set_gaze_direction(self, direction):
+        self.gaze_directions.append(str(direction))
+        return True
 
     def move_to_default(self):
         self.move(10, 10)
@@ -398,3 +414,86 @@ def test_safety_suppression_clears_rest_visual_and_restores_active_rest():
         assert companion.state.behavior.event_kind == 'rest.sleep'
 
     runtime.shutdown()
+
+
+def test_presentation_applies_outfit_before_requested_action():
+    QApplication.instance() or QApplication(sys.argv)
+    settings = Settings(MemoryStore())
+    companion = CompanionCoordinator(
+        PetPackRegistry(FIXTURE_ROOT, app_version='0.8.0'),
+        'snow_ferret',
+    )
+    controller = AppController(settings, companion=companion)
+    surface = RuntimeSurface()
+    bubble = FakeBubble()
+    runtime = CompanionRuntime(controller, companion, surface, bubble)
+    presentation = replace(
+        controller.companion_presentation,
+        outfit_id='snow_slope_skier',
+        action_id='click_reaction',
+    )
+
+    runtime.sync_presentation(presentation)
+
+    assert surface.outfit_ids == ['snow_slope_skier']
+    assert surface.action_id == 'click_reaction'
+    runtime.shutdown()
+    surface.close()
+
+
+def test_near_cursor_dispatches_gaze_without_mirroring_whole_surface():
+    QApplication.instance() or QApplication(sys.argv)
+    settings = Settings(MemoryStore())
+    companion = CompanionCoordinator(
+        PetPackRegistry(FIXTURE_ROOT, app_version='0.8.0'),
+        'snow_ferret',
+    )
+    controller = AppController(settings, companion=companion)
+    surface = RuntimeSurface()
+    surface.move(100, 100)
+    surface.show()
+    cursor = surface.geometry().center() + QPoint(20, 0)
+    runtime = CompanionRuntime(
+        controller,
+        companion,
+        surface,
+        FakeBubble(),
+        cursor_position=lambda: QPoint(cursor),
+        monotonic=lambda: 10.0,
+    )
+    runtime._build_timers()
+    runtime._last_cursor_reaction = 0.0
+
+    runtime._probe_cursor()
+
+    assert surface.face_cursor_calls == []
+    assert surface.gaze_directions == ['right']
+    assert companion.state.behavior.event_kind == 'cursor.near'
+    runtime.shutdown()
+    surface.close()
+
+
+def test_missing_outfit_move_never_starts_window_motion(monkeypatch):
+    QApplication.instance() or QApplication(sys.argv)
+    settings = Settings(MemoryStore())
+    companion = CompanionCoordinator(
+        PetPackRegistry(FIXTURE_ROOT, app_version='0.8.0'),
+        'snow_ferret',
+    )
+    controller = AppController(settings, companion=companion)
+    surface = RuntimeSurface()
+    surface.move_supported = False
+    surface.move(100, 100)
+    surface.show()
+    bubble = FakeBubble()
+    runtime = CompanionRuntime(controller, companion, surface, bubble)
+    runtime._build_timers()
+    companion.dispatch_kind('autonomous.move')
+    monkeypatch.setattr(companion, 'start_autonomous_action', lambda: True)
+
+    runtime._run_autonomous_action()
+
+    assert not bool(surface.property('autonomousMoving'))
+    assert runtime._autonomous_motion.state() == QAbstractAnimation.Stopped
+    runtime.shutdown()
+    surface.close()

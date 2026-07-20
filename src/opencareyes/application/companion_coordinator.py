@@ -37,6 +37,8 @@ class CompanionCoordinator:
         self._manual_appearance: dict[str, str] = {}
         self._interactive_appearance: dict[str, str] = {}
         self._appearance_conditions: tuple[str, ...] = ()
+        self._wardrobe_mode = 'automatic'
+        self._selected_outfit_id = ''
         if active_pet_id is None:
             catalog = registry.available_pets()
             if not catalog:
@@ -62,10 +64,19 @@ class CompanionCoordinator:
 
     @property
     def current_action(self) -> PetAction:
-        return self._manifest.actions.get(
+        actions = self._effective_actions()
+        return actions.get(
             self._state.behavior.action_id,
-            self._manifest.actions['idle'],
+            actions['idle'],
         )
+
+    @property
+    def wardrobe_mode(self) -> str:
+        return self._wardrobe_mode
+
+    @property
+    def selected_outfit_id(self) -> str:
+        return self._selected_outfit_id
 
     def set_active_pet(self, pet_id: str) -> PetState:
         '''Validate and preload before replacing the current pet.'''
@@ -78,6 +89,8 @@ class CompanionCoordinator:
         self._manual_appearance.clear()
         self._interactive_appearance.clear()
         self._appearance_conditions = ()
+        self._wardrobe_mode = 'automatic'
+        self._selected_outfit_id = ''
         self._state = PetState(
             pet_id=candidate.pet_id,
             behavior=self._idle_behavior(),
@@ -88,6 +101,41 @@ class CompanionCoordinator:
             suppressed_by=previous.suppressed_by,
         )
         return self._state
+
+    def set_outfit(self, outfit_id: str | None) -> PetState:
+        '''Select one validated full replacement outfit or restore automation.'''
+
+        selected = '' if outfit_id in {None, ''} else str(outfit_id).strip().lower()
+        if selected and selected not in getattr(self._manifest, 'outfits', {}):
+            raise ValueError(f'Unknown pet outfit: {selected!r}')
+        self._wardrobe_mode = 'outfit' if selected else 'automatic'
+        self._selected_outfit_id = selected
+        self._interactive_appearance.clear()
+        self._state = replace(
+            self._state,
+            outfit_id=selected,
+            behavior=self._idle_behavior(),
+        )
+        return self.apply_appearance_conditions(self._appearance_conditions)
+
+    def set_wardrobe_mode(
+        self,
+        mode: str,
+        outfit_id: str | None = None,
+    ) -> PetState:
+        normalized = str(mode).strip().lower()
+        if normalized == 'outfit':
+            return self.set_outfit(outfit_id)
+        if normalized not in {'automatic', 'accessories'}:
+            raise ValueError(f'Unknown wardrobe mode: {mode!r}')
+        self._wardrobe_mode = normalized
+        self._selected_outfit_id = ''
+        self._state = replace(
+            self._state,
+            outfit_id='',
+            behavior=self._idle_behavior(),
+        )
+        return self.apply_appearance_conditions(self._appearance_conditions)
 
     def select_pet(self, pet_id: str) -> PetState:
         '''Compatibility command used by the application controller.'''
@@ -111,6 +159,9 @@ class CompanionCoordinator:
                     f'Accessory {item!r} is not declared for slot {slot!r}'
                 )
             self._manual_appearance[slot] = str(resource)
+        self._wardrobe_mode = 'accessories'
+        self._selected_outfit_id = ''
+        self._state = replace(self._state, outfit_id='')
         return self.apply_appearance_conditions(self._appearance_conditions)
 
     def offer_item(self, item_id: str) -> bool:
@@ -136,14 +187,16 @@ class CompanionCoordinator:
 
         self._appearance_conditions = tuple(str(value) for value in conditions)
         resolved: dict[str, str] = {}
-        for condition in self._appearance_conditions:
-            rule = self._manifest.appearance_rules.get(str(condition), {})
-            if not isinstance(rule, Mapping):
-                continue
-            for slot, resource in rule.items():
-                if slot in APPEARANCE_SLOTS and resource:
-                    resolved[str(slot)] = str(resource)
-        resolved.update(self._manual_appearance)
+        if self._wardrobe_mode != 'outfit':
+            for condition in self._appearance_conditions:
+                rule = self._manifest.appearance_rules.get(str(condition), {})
+                if not isinstance(rule, Mapping):
+                    continue
+                for slot, resource in rule.items():
+                    if slot in APPEARANCE_SLOTS and resource:
+                        resolved[str(slot)] = str(resource)
+            if self._wardrobe_mode == 'accessories':
+                resolved.update(self._manual_appearance)
         if interactive is not None:
             self._interactive_appearance = {
                 str(slot): str(resource)
@@ -177,7 +230,7 @@ class CompanionCoordinator:
 
         if not isinstance(event, PetEvent):
             raise TypeError('dispatch requires a PetEvent')
-        action = self._manifest.action_for_event(event.kind)
+        action = self._action_for_event(event.kind)
         current = self._state.behavior
         if (
             current.event_kind == 'autonomous.move'
@@ -234,11 +287,14 @@ class CompanionCoordinator:
         '''Choose a presentation action using injected, testable randomness.'''
 
         personality = self._manifest.personality
+        actions = self._effective_actions()
         weighted: list[tuple[str, float]] = [('idle', 100.0)]
-        weighted.append(('move', float(personality.activity)))
-        if 'play' in self._manifest.actions:
+        if 'move' in actions:
+            weighted.append(('move', float(personality.activity)))
+        if 'play' in actions:
             weighted.append(('play', float(personality.playfulness)))
-        weighted.append(('sleep', float(personality.sleepiness)))
+        if 'sleep' in actions:
+            weighted.append(('sleep', float(personality.sleepiness)))
         weighted = [(name, weight) for name, weight in weighted if weight > 0]
         total = sum(weight for _name, weight in weighted)
         cursor = self._random.random() * total
@@ -248,7 +304,7 @@ class CompanionCoordinator:
             if cursor <= 0:
                 selected = action_id
                 break
-        return self._manifest.actions[selected]
+        return actions[selected]
 
     def start_autonomous_action(self) -> bool:
         action = self.choose_autonomous_action()
@@ -284,3 +340,14 @@ class CompanionCoordinator:
 
     def _idle_behavior(self) -> PetBehavior:
         return PetBehavior(started_at=float(self._clock()))
+
+    def _effective_actions(self) -> Mapping[str, PetAction]:
+        outfit_id = str(getattr(self._state, 'outfit_id', ''))
+        outfit = getattr(self._manifest, 'outfits', {}).get(outfit_id)
+        actions = getattr(outfit, 'actions', None)
+        return actions if isinstance(actions, Mapping) and 'idle' in actions else self._manifest.actions
+
+    def _action_for_event(self, event_kind: str) -> PetAction:
+        base_action = self._manifest.action_for_event(event_kind)
+        actions = self._effective_actions()
+        return actions.get(base_action.action_id, actions['idle'])

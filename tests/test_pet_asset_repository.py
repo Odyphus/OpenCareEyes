@@ -63,6 +63,102 @@ def test_manifest_preload_deduplicates_shared_atlas(qtbot, tmp_path):
     assert repository.shutdown()
 
 
+def test_outfit_preload_only_decodes_selected_idle_atlas(qtbot, tmp_path):
+    path = tmp_path / 'atlas.png'
+    _write_image(path)
+    registry = _Registry(path)
+    repository = PetAssetRepository(registry)
+    ready = QSignalSpy(repository.resource_ready)
+    idle_frame = SimpleNamespace(path='outfits/skier/idle_atlas.png')
+    move_frame = SimpleNamespace(path='outfits/skier/move_atlas.png')
+    other_frame = SimpleNamespace(path='outfits/mage/idle_atlas.png')
+    manifest = SimpleNamespace(
+        pet_id='snow_ferret',
+        outfits={
+            'snow_slope_skier': SimpleNamespace(
+                actions={
+                    'idle': SimpleNamespace(frames=(idle_frame, idle_frame)),
+                    'move': SimpleNamespace(frames=(move_frame,)),
+                },
+            ),
+            'thunder_mage': SimpleNamespace(
+                actions={'idle': SimpleNamespace(frames=(other_frame,))},
+            ),
+        },
+    )
+
+    assert repository.preload_outfit(manifest, 'snow_slope_skier') is True
+    qtbot.waitUntil(lambda: ready.count() == 1, timeout=2000)
+
+    assert registry.calls == [
+        ('snow_ferret', 'outfits/skier/idle_atlas.png'),
+    ]
+    assert repository.shutdown()
+
+
+def test_outfit_request_completes_only_after_all_idle_resources_decode(
+    qtbot,
+    tmp_path,
+):
+    path = tmp_path / 'atlas.png'
+    _write_image(path)
+    repository = PetAssetRepository(_Registry(path))
+    ready = QSignalSpy(repository.outfit_preload_ready)
+    failed = QSignalSpy(repository.outfit_preload_failed)
+    manifest = SimpleNamespace(
+        pet_id='snow_ferret',
+        outfits={
+            'skier': SimpleNamespace(
+                actions={
+                    'idle': SimpleNamespace(
+                        frames=(
+                            SimpleNamespace(path='outfits/skier/idle_a.png'),
+                            SimpleNamespace(path='outfits/skier/idle_b.png'),
+                        )
+                    )
+                }
+            )
+        },
+    )
+
+    assert repository.request_outfit_preload(manifest, 'skier', 17) is True
+    assert ready.count() == 0
+    qtbot.waitUntil(lambda: ready.count() == 1, timeout=2000)
+
+    assert list(ready.at(0)) == [17, 'snow_ferret', 'skier']
+    assert failed.count() == 0
+    assert repository.shutdown()
+
+
+def test_outfit_request_reports_decode_failure_without_success(qtbot, tmp_path):
+    path = tmp_path / 'broken.png'
+    path.write_bytes(b'not a png')
+    repository = PetAssetRepository(_Registry(path))
+    ready = QSignalSpy(repository.outfit_preload_ready)
+    failed = QSignalSpy(repository.outfit_preload_failed)
+    frame = SimpleNamespace(path='outfits/skier/idle.png')
+    manifest = SimpleNamespace(
+        pet_id='snow_ferret',
+        outfits={
+            'skier': SimpleNamespace(
+                actions={'idle': SimpleNamespace(frames=(frame,))}
+            )
+        },
+    )
+
+    assert repository.request_outfit_preload(manifest, 'skier', 23) is True
+    qtbot.waitUntil(lambda: failed.count() == 1, timeout=2000)
+
+    assert list(failed.at(0)) == [
+        23,
+        'snow_ferret',
+        'skier',
+        'outfits/skier/idle.png',
+    ]
+    assert ready.count() == 0
+    assert repository.shutdown()
+
+
 def test_lru_cache_honours_entry_limit(qtbot, tmp_path):
     first = tmp_path / 'first.png'
     second = tmp_path / 'second.png'

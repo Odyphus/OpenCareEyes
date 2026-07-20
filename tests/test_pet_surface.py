@@ -59,6 +59,21 @@ def _pack(canvas=(96, 112)):
     )
 
 
+def _outfit(action_ids=('idle',)):
+    actions = {}
+    for action_id in action_ids:
+        frame = SimpleNamespace(
+            path=f'outfits/skier/{action_id}.png',
+            duration_ms=120,
+        )
+        actions[action_id] = SimpleNamespace(
+            action_id=action_id,
+            frames=(frame,),
+            loop=action_id in {'idle', 'move'},
+        )
+    return SimpleNamespace(actions=actions)
+
+
 def test_surface_is_stable_transparent_tool_with_static_fallback(qtbot):
     surface = PetSurface()
     qtbot.addWidget(surface)
@@ -438,3 +453,114 @@ def test_hiding_preview_stops_preview_timer(qtbot):
     surface.hide()
 
     assert not surface._preview_timer.isActive()
+
+
+def test_outfit_actions_replace_base_actions_and_fall_back_to_outfit_idle(qtbot):
+    base = _pack()
+    base_click = SimpleNamespace(
+        action_id='click_reaction',
+        frames=(SimpleNamespace(path='base-click.png', duration_ms=120),),
+        loop=False,
+    )
+    base.actions['click_reaction'] = base_click
+    skier = _outfit(('idle', 'click_reaction'))
+    base.outfits = {'snow_slope_skier': skier}
+    surface = PetSurface()
+    qtbot.addWidget(surface)
+
+    assert surface.set_pack('snow_ferret', base)
+    assert surface.set_outfit('snow_slope_skier')
+    assert surface.outfit_id == 'snow_slope_skier'
+
+    assert surface.play_action('click_reaction', restart=True)
+    assert surface.animator._action is skier.actions['click_reaction']
+    assert surface.play_action('play', restart=True)
+    assert surface.animator.action_id == 'idle'
+    assert surface.animator._action is skier.actions['idle']
+    assert surface.animator._action is not base.actions['idle']
+
+
+def test_outfit_reports_only_its_exact_move_capability(qtbot):
+    manifest = _pack()
+    manifest.outfits = {
+        'still': _outfit(('idle',)),
+        'walker': _outfit(('idle', 'move')),
+    }
+    surface = PetSurface()
+    qtbot.addWidget(surface)
+    surface.set_pack('snow_ferret', manifest)
+
+    assert surface.set_outfit('still')
+    assert surface.has_action('idle')
+    assert not surface.has_action('move')
+    assert surface.set_outfit('walker')
+    assert surface.has_action('move')
+
+
+def test_invalid_outfit_keeps_current_outfit_and_action(qtbot):
+    manifest = _pack()
+    manifest.outfits = {'skier': _outfit(('idle',))}
+    surface = PetSurface()
+    qtbot.addWidget(surface)
+    surface.set_pack('snow_ferret', manifest)
+    assert surface.set_outfit('skier')
+    current_action = surface.animator._action
+
+    assert not surface.set_outfit('missing')
+    assert surface.outfit_id == 'skier'
+    assert surface.animator._action is current_action
+
+
+def test_look_cursor_uses_requested_stable_gaze_frame(qtbot):
+    manifest = _pack()
+    gaze_frames = tuple(
+        SimpleNamespace(image=_color_image(color), duration_ms=120)
+        for color in ('#FF0000', '#00FF00', '#0000FF')
+    )
+    look = SimpleNamespace(
+        action_id='look_cursor',
+        frames=gaze_frames,
+        loop=True,
+    )
+    outfit = _outfit(('idle',))
+    outfit.actions['look_cursor'] = look
+    manifest.outfits = {'skier': outfit}
+    surface = PetSurface()
+    qtbot.addWidget(surface)
+    surface.set_pack('snow_ferret', manifest)
+    surface.set_outfit('skier')
+    surface.show()
+
+    assert surface.set_gaze_direction('left')
+    assert surface.play_action('look_cursor', restart=True)
+    assert surface._frame.pixelColor(0, 0) == QColor('#FF0000')
+    assert not surface.animator.is_running
+
+    assert surface.set_gaze_direction('right')
+    assert surface._frame.pixelColor(0, 0) == QColor('#0000FF')
+    assert not surface.animator.is_running
+
+
+def test_reduced_motion_keeps_requested_gaze_and_clamps_short_actions(qtbot):
+    manifest = _pack()
+    only_frame = SimpleNamespace(image=_color_image('#00AAFF'), duration_ms=120)
+    look = SimpleNamespace(
+        action_id='look_cursor',
+        frames=(only_frame,),
+        loop=True,
+    )
+    outfit = _outfit(('idle',))
+    outfit.actions['look_cursor'] = look
+    manifest.outfits = {'skier': outfit}
+    surface = PetSurface()
+    qtbot.addWidget(surface)
+    surface.set_pack('snow_ferret', manifest)
+    surface.set_outfit('skier')
+    surface.set_reduced_motion(True)
+    surface.show()
+
+    surface.set_gaze_direction('right')
+    assert surface.play_action('look_cursor', restart=True)
+
+    assert surface._frame.pixelColor(0, 0) == QColor('#00AAFF')
+    assert not surface.animator.is_running

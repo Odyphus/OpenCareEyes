@@ -9,8 +9,10 @@ from opencareyes.domain.pet import (
     PetEvent,
     PetEventPriority,
     PetFrame,
+    PetOutfitDefinition,
     PetPackManifest,
     PetPersonality,
+    PetState,
     PetVisualTheme,
     normalise_resource_path,
 )
@@ -42,6 +44,24 @@ def manifest(**overrides):
     }
     values.update(overrides)
     return PetPackManifest(**values)
+
+
+def outfit(**overrides):
+    frame = PetFrame('outfits/skier/atlas.png', 100, (0, 0, 64, 64))
+    values = {
+        'outfit_id': 'snow_slope_skier',
+        'display_name': '雪坡滑雪客',
+        'description': '薄荷绿滑雪外套与浅蓝护目镜。',
+        'thumbnail_path': 'outfits/skier/thumbnail.png',
+        'preview_path': 'outfits/skier/preview.png',
+        'actions': {
+            'idle': PetAction('idle', (frame,), loop=True),
+            'move': PetAction('move', (frame,), loop=True),
+        },
+        'ambient_layers': {'snow': 'outfits/skier/snow.png'},
+    }
+    values.update(overrides)
+    return PetOutfitDefinition(**values)
 
 
 def test_domain_values_are_immutable_and_mappings_are_deeply_frozen():
@@ -125,3 +145,43 @@ def test_schema_v2_frames_and_visual_theme_are_validated():
 
     with pytest.raises(ValueError, match='source_rect'):
         PetFrame('sprites/atlas.png', 50, (0, 0, 0, 64))
+
+
+def test_schema_v3_outfits_are_immutable_and_fall_back_only_to_their_idle():
+    skier = outfit()
+    pet = manifest(
+        schema_version=3,
+        outfits={skier.outfit_id: skier},
+        event_bindings={'click': 'click_reaction'},
+    )
+
+    with pytest.raises(TypeError):
+        pet.outfits['other'] = skier
+    with pytest.raises(TypeError):
+        skier.ambient_layers['snow'] = 'other.png'
+    assert pet.action_for_event('autonomous.move', outfit_id=skier.outfit_id).action_id == 'move'
+    assert pet.action_for_event('click', outfit_id=skier.outfit_id) is skier.actions['idle']
+    assert pet.action_for_event('weather.snow', outfit_id=skier.outfit_id) is skier.actions['idle']
+
+
+@pytest.mark.parametrize('outfit_id', ['', 'Snow_skier', '../skier', 'a' * 65])
+def test_outfit_identifiers_are_safe(outfit_id):
+    with pytest.raises(ValueError, match='outfit identifier'):
+        outfit(outfit_id=outfit_id)
+
+
+def test_outfit_requires_its_own_idle_and_limits_total_frames():
+    with pytest.raises(ValueError, match='idle'):
+        outfit(actions={'move': outfit().actions['move']})
+
+    frame = PetFrame('outfits/skier/atlas.png', 100)
+    with pytest.raises(ValueError, match='60'):
+        outfit(actions={'idle': PetAction('idle', (frame,) * 61)})
+
+
+def test_runtime_pet_state_accepts_only_a_safe_optional_outfit_id():
+    assert PetState('test_pet', outfit_id='snow_slope_skier').outfit_id == (
+        'snow_slope_skier'
+    )
+    with pytest.raises(ValueError, match='outfit identifier'):
+        PetState('test_pet', outfit_id='Snow_skier')

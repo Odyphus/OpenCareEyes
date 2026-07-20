@@ -2,6 +2,7 @@
 
 from dataclasses import FrozenInstanceError
 import sys
+from types import SimpleNamespace
 
 import pytest
 from PySide6.QtCore import QCoreApplication, QObject, Signal
@@ -129,8 +130,32 @@ class FakeCompanion:
     def __init__(self):
         self.enabled = True
         self.pet_id = 'snow_ferret'
+        self.outfit_id = ''
+        self.wardrobe_mode = 'automatic'
         self.scale = 100
         self.items = []
+        self.accessories = {}
+        outfit = SimpleNamespace(
+            outfit_id='snow_slope_skier',
+            display_name='雪坡滑雪客',
+            description='',
+            thumbnail_path='preview.png',
+            preview_path='preview.png',
+        )
+        navy = SimpleNamespace(
+            outfit_id='navy_scarf',
+            display_name='蓝围巾小鼬',
+            description='',
+            thumbnail_path='navy.png',
+            preview_path='navy.png',
+        )
+        self.manifest = SimpleNamespace(
+            pet_id='snow_ferret',
+            outfits={
+                'snow_slope_skier': outfit,
+                'navy_scarf': navy,
+            },
+        )
 
     def set_enabled(self, enabled):
         self.enabled = bool(enabled)
@@ -145,8 +170,67 @@ class FakeCompanion:
     def set_scale(self, scale):
         self.scale = int(scale)
 
+    def set_outfit(self, outfit_id):
+        if outfit_id == 'missing':
+            raise ValueError('missing outfit')
+        self.outfit_id = '' if outfit_id is None else str(outfit_id)
+        self.wardrobe_mode = 'outfit' if self.outfit_id else 'automatic'
+
+    def set_wardrobe_mode(self, mode, outfit_id=None):
+        if mode == 'outfit':
+            self.set_outfit(outfit_id)
+            return
+        self.wardrobe_mode = str(mode)
+        self.outfit_id = ''
+
+    def set_manual_accessory(self, slot, item_id):
+        self.wardrobe_mode = 'accessories'
+        self.outfit_id = ''
+        if item_id in {None, ''}:
+            self.accessories.pop(str(slot), None)
+        else:
+            self.accessories[str(slot)] = str(item_id)
+
     def offer_item(self, item_id):
         self.items.append(item_id)
+        return True
+
+
+class FakeOutfitRepository(QObject):
+    outfit_preload_ready = Signal(int, str, str)
+    outfit_preload_failed = Signal(int, str, str, str)
+
+    def __init__(self):
+        super().__init__()
+        self.requests = []
+
+    def request_outfit_preload(self, _manifest, outfit_id, request_id):
+        self.requests.append((int(request_id), 'snow_ferret', str(outfit_id)))
+        return True
+
+    def succeed(self, index=0):
+        self.outfit_preload_ready.emit(*self.requests[index])
+
+    def fail(self, index=0):
+        request_id, pet_id, outfit_id = self.requests[index]
+        self.outfit_preload_failed.emit(
+            request_id,
+            pet_id,
+            outfit_id,
+            'outfits/idle.png',
+        )
+
+
+class FakeOutfitSurface:
+    def __init__(self):
+        self.outfit_id = ''
+        self.rejected = set()
+
+    def set_outfit(self, outfit_id):
+        selected = '' if outfit_id in {None, ''} else str(outfit_id)
+        if selected in self.rejected:
+            return False
+        self.outfit_id = selected
         return True
 
 
@@ -225,6 +309,179 @@ def test_companion_commands_persist_and_update_runtime(qapp):
     assert companion.items == ['yarn_ball']
 
 
+def test_pet_outfit_switch_is_atomic_and_restores_automatic_mode(qapp):
+    settings = Settings(MemoryStore())
+    companion = FakeCompanion()
+    instance = AppController(settings, companion=companion)
+    spy = QSignalSpy(instance.state_changed)
+
+    assert instance.set_pet_outfit('snow_slope_skier') is True
+    assert settings.wardrobe_mode == 'outfit'
+    assert settings.outfit_preferences == {
+        'snow_ferret': 'snow_slope_skier',
+    }
+    assert companion.outfit_id == 'snow_slope_skier'
+    assert instance.state.pet_wardrobe.error == ''
+    assert spy.count() == 1
+
+    assert instance.set_pet_outfit(None) is True
+    assert settings.wardrobe_mode == 'automatic'
+    assert settings.outfit_preferences == {
+        'snow_ferret': 'snow_slope_skier',
+    }
+    assert companion.outfit_id == ''
+
+
+def test_pet_outfit_sync_failure_rolls_back_settings_and_runtime(qapp):
+    store = FailingSyncStore()
+    settings = Settings(store)
+    companion = FakeCompanion()
+    instance = AppController(settings, companion=companion)
+    assert instance.set_pet_outfit('snow_slope_skier') is True
+
+    store.fail_next_sync = True
+
+    assert instance.set_pet_outfit('navy_scarf') is False
+    assert settings.wardrobe_mode == 'outfit'
+    assert settings.outfit_preferences == {
+        'snow_ferret': 'snow_slope_skier',
+    }
+    assert companion.outfit_id == 'snow_slope_skier'
+    assert instance.state.pet_wardrobe.error == (
+        '造型资源无法加载，已保留当前造型。'
+    )
+
+
+def test_async_pet_outfit_commits_only_latest_ready_request_once(qapp):
+    settings = Settings(MemoryStore())
+    companion = FakeCompanion()
+    repository = FakeOutfitRepository()
+    instance = AppController(
+        settings,
+        companion=companion,
+        pet_asset_repository=repository,
+    )
+    spy = QSignalSpy(instance.state_changed)
+
+    assert instance.set_pet_outfit('snow_slope_skier') is True
+    assert instance.set_pet_outfit('navy_scarf') is True
+    assert companion.outfit_id == ''
+    assert settings.wardrobe_mode == 'automatic'
+    assert spy.count() == 0
+
+    repository.succeed(0)
+    assert companion.outfit_id == ''
+    assert spy.count() == 0
+
+    repository.succeed(1)
+    assert companion.outfit_id == 'navy_scarf'
+    assert settings.outfit_preferences == {'snow_ferret': 'navy_scarf'}
+    assert spy.count() == 1
+
+
+def test_async_pet_outfit_failure_keeps_old_state_and_marks_entry_unavailable(qapp):
+    settings = Settings(MemoryStore())
+    companion = FakeCompanion()
+    repository = FakeOutfitRepository()
+    instance = AppController(
+        settings,
+        companion=companion,
+        pet_asset_repository=repository,
+    )
+    spy = QSignalSpy(instance.state_changed)
+
+    assert instance.set_pet_outfit('snow_slope_skier') is True
+    repository.fail()
+
+    assert companion.outfit_id == ''
+    assert settings.wardrobe_mode == 'automatic'
+    assert instance.state.pet_wardrobe.error == (
+        '造型资源无法加载，已保留当前造型。'
+    )
+    entry = next(
+        item
+        for item in instance.state.pet_wardrobe.available_outfits
+        if item.outfit_id == 'snow_slope_skier'
+    )
+    assert entry.available is False
+    assert spy.count() == 1
+
+
+def test_surface_rejection_rolls_back_async_outfit_without_writing_settings(qapp):
+    settings = Settings(MemoryStore())
+    companion = FakeCompanion()
+    repository = FakeOutfitRepository()
+    surface = FakeOutfitSurface()
+    surface.rejected.add('snow_slope_skier')
+    instance = AppController(
+        settings,
+        companion=companion,
+        pet_asset_repository=repository,
+    )
+    instance.attach_companion_surface(surface)
+    spy = QSignalSpy(instance.state_changed)
+
+    assert instance.set_pet_outfit('snow_slope_skier') is True
+    repository.succeed()
+
+    assert companion.outfit_id == ''
+    assert surface.outfit_id == ''
+    assert settings.wardrobe_mode == 'automatic'
+    assert settings.outfit_preferences == {}
+    assert instance.state.pet_wardrobe.error == (
+        '造型资源无法加载，已保留当前造型。'
+    )
+    assert spy.count() == 1
+
+
+def test_initial_wardrobe_error_is_visible_in_first_state(qapp):
+    instance = AppController(
+        Settings(MemoryStore()),
+        companion=FakeCompanion(),
+        initial_wardrobe_error='启动恢复造型失败。',
+    )
+
+    assert instance.state.pet_wardrobe.error == '启动恢复造型失败。'
+
+
+def test_clear_pet_accessories_is_one_atomic_state_change(qapp):
+    settings = Settings(MemoryStore())
+    companion = FakeCompanion()
+    instance = AppController(settings, companion=companion)
+    assert instance.set_pet_accessory('headwear', 'sunglasses') is True
+    assert instance.set_pet_accessory('neckwear', 'red_scarf') is True
+    spy = QSignalSpy(instance.state_changed)
+
+    assert instance.clear_pet_accessories() is True
+
+    assert settings.pet_preferences == {'snow_ferret': {}}
+    assert companion.accessories == {}
+    assert spy.count() == 1
+
+
+def test_clear_pet_accessories_sync_failure_restores_all_slots(qapp):
+    store = FailingSyncStore()
+    settings = Settings(store)
+    companion = FakeCompanion()
+    instance = AppController(settings, companion=companion)
+    assert instance.set_pet_accessory('headwear', 'sunglasses') is True
+    assert instance.set_pet_accessory('neckwear', 'red_scarf') is True
+    store.fail_next_sync = True
+
+    assert instance.clear_pet_accessories() is False
+
+    assert settings.pet_preferences == {
+        'snow_ferret': {
+            'headwear': 'sunglasses',
+            'neckwear': 'red_scarf',
+        }
+    }
+    assert companion.accessories == {
+        'headwear': 'sunglasses',
+        'neckwear': 'red_scarf',
+    }
+
+
 @pytest.mark.parametrize(
     ("method_name", "args"),
     (
@@ -233,6 +490,7 @@ def test_companion_commands_persist_and_update_runtime(qapp):
         ("set_pet_scale", (125,)),
         ("set_pet_anchor", ("free", 8, 120, 240)),
         ("set_pet_accessory", ("neckwear", "red_scarf")),
+        ("set_pet_outfit", ("snow_slope_skier",)),
         ("upsert_app_prop_rule", ("winword.exe", "writing")),
         ("remove_app_prop_rule", ("winword.exe",)),
         ("set_follow_active_monitor", (True,)),

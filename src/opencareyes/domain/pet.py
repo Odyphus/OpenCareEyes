@@ -10,9 +10,10 @@ from pathlib import PurePosixPath
 from types import MappingProxyType
 from typing import Any
 
-PET_PACK_SCHEMA_VERSION = 2
-SUPPORTED_PET_PACK_SCHEMAS = frozenset({1, 2})
+PET_PACK_SCHEMA_VERSION = 3
+SUPPORTED_PET_PACK_SCHEMAS = frozenset({1, 2, 3})
 PET_ID_PATTERN = re.compile(r'^[a-z0-9_]{1,64}$')
+OUTFIT_ID_PATTERN = PET_ID_PATTERN
 ACTION_ID_PATTERN = re.compile(r'^[a-z0-9_.-]{1,64}$')
 EVENT_KIND_PATTERN = re.compile(r'^[a-z0-9_.-]{1,96}$')
 REQUIRED_ACTIONS = frozenset(
@@ -186,6 +187,70 @@ class PetAction:
 
 
 @dataclass(frozen=True, slots=True)
+class PetOutfitDefinition:
+    '''One complete replacement look with its own safe animation fallback.'''
+
+    outfit_id: str
+    display_name: str
+    description: str
+    thumbnail_path: str
+    preview_path: str
+    actions: Mapping[str, PetAction]
+    ambient_layers: Mapping[str, str] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        outfit_id = str(self.outfit_id).strip()
+        if not OUTFIT_ID_PATTERN.fullmatch(outfit_id):
+            raise ValueError(f'Invalid outfit identifier: {self.outfit_id!r}')
+        display_name = str(self.display_name).strip()
+        if not display_name or len(display_name) > 80:
+            raise ValueError('Outfit display name must contain 1 to 80 characters')
+        description = str(self.description).strip()
+        if len(description) > 1_000:
+            raise ValueError('Outfit description cannot exceed 1000 characters')
+
+        thumbnail = normalise_resource_path(self.thumbnail_path)
+        preview = normalise_resource_path(self.preview_path)
+        if any(
+            PurePosixPath(path).suffix.casefold() != '.png'
+            for path in (thumbnail, preview)
+        ):
+            raise ValueError('Outfit thumbnail and preview must be PNG files')
+
+        actions = {_normalise_action_id(key): value for key, value in self.actions.items()}
+        if any(not isinstance(value, PetAction) for value in actions.values()):
+            raise TypeError('Outfit actions must contain PetAction values')
+        if any(key != value.action_id for key, value in actions.items()):
+            raise ValueError('Outfit action map keys must match action identifiers')
+        if 'idle' not in actions:
+            raise ValueError('Outfit is missing required idle action')
+        if sum(len(action.frames) for action in actions.values()) > 60:
+            raise ValueError('An outfit cannot exceed 60 frame descriptions')
+
+        layers: dict[str, str] = {}
+        for raw_layer_id, raw_path in self.ambient_layers.items():
+            layer_id = _normalise_action_id(raw_layer_id)
+            path = normalise_resource_path(raw_path)
+            if PurePosixPath(path).suffix.casefold() != '.png':
+                raise ValueError('Outfit ambient layers must be PNG files')
+            layers[layer_id] = path
+
+        object.__setattr__(self, 'outfit_id', outfit_id)
+        object.__setattr__(self, 'display_name', display_name)
+        object.__setattr__(self, 'description', description)
+        object.__setattr__(self, 'thumbnail_path', thumbnail)
+        object.__setattr__(self, 'preview_path', preview)
+        object.__setattr__(self, 'actions', MappingProxyType(actions))
+        object.__setattr__(self, 'ambient_layers', MappingProxyType(layers))
+
+    def action(self, action_id: str) -> PetAction:
+        '''Resolve only inside this outfit; never fall back to the base pet.'''
+
+        normalised = _normalise_action_id(action_id)
+        return self.actions.get(normalised, self.actions['idle'])
+
+
+@dataclass(frozen=True, slots=True)
 class PetPackManifest:
     '''Validated immutable description of one official pet resource pack.'''
 
@@ -201,6 +266,7 @@ class PetPackManifest:
     personality: PetPersonality
     actions: Mapping[str, PetAction]
     event_bindings: Mapping[str, str]
+    outfits: Mapping[str, PetOutfitDefinition] = field(default_factory=dict)
     attachment_points: Mapping[str, tuple[int, int]] = field(default_factory=dict)
     appearance_rules: Mapping[str, Any] = field(default_factory=dict)
     sound_rules: Mapping[str, str] = field(default_factory=dict)
@@ -255,6 +321,23 @@ class PetPackManifest:
                 raise ValueError(f'Event {event!r} refers to missing action {action!r}')
             bindings[event] = action
 
+        outfits = {
+            str(key).strip().casefold(): value
+            for key, value in self.outfits.items()
+        }
+        if schema_version < 3 and outfits:
+            raise ValueError('Outfits require pet pack schema 3')
+        if any(not isinstance(value, PetOutfitDefinition) for value in outfits.values()):
+            raise TypeError('outfits must contain PetOutfitDefinition values')
+        if any(key != value.outfit_id for key, value in outfits.items()):
+            raise ValueError('Outfit map keys must match outfit identifiers')
+        if sum(
+            len(action.frames)
+            for outfit in outfits.values()
+            for action in outfit.actions.values()
+        ) > 512:
+            raise ValueError('A pet pack cannot exceed 512 outfit frame descriptions')
+
         points: dict[str, tuple[int, int]] = {}
         for slot, raw_point in self.attachment_points.items():
             if slot not in APPEARANCE_SLOTS:
@@ -288,12 +371,18 @@ class PetPackManifest:
         object.__setattr__(self, 'asset_scale', asset_scale)
         object.__setattr__(self, 'actions', MappingProxyType(actions))
         object.__setattr__(self, 'event_bindings', MappingProxyType(bindings))
+        object.__setattr__(self, 'outfits', MappingProxyType(outfits))
         object.__setattr__(self, 'attachment_points', MappingProxyType(points))
         object.__setattr__(self, 'appearance_rules', _freeze(self.appearance_rules))
         object.__setattr__(self, 'sound_rules', MappingProxyType(sounds))
         object.__setattr__(self, 'preview_path', preview)
 
-    def action_for_event(self, event_kind: str) -> PetAction:
+    def action_for_event(
+        self,
+        event_kind: str,
+        *,
+        outfit_id: str | None = None,
+    ) -> PetAction:
         '''Resolve an event and safely fall back to the required idle action.'''
 
         kind = _normalise_event_kind(event_kind)
@@ -302,6 +391,15 @@ class PetPackManifest:
             action_id = kind.removeprefix('autonomous.')
         if action_id is None:
             action_id = _DEFAULT_ACTION_BY_EVENT.get(kind, kind)
+        if outfit_id is not None:
+            normalised_outfit = str(outfit_id).strip()
+            if not OUTFIT_ID_PATTERN.fullmatch(normalised_outfit):
+                raise ValueError(f'Invalid outfit identifier: {outfit_id!r}')
+            try:
+                outfit = self.outfits[normalised_outfit]
+            except KeyError as error:
+                raise KeyError(f'Unknown outfit: {normalised_outfit}') from error
+            return outfit.action(action_id)
         return self.actions.get(action_id, self.actions['idle'])
 
 
@@ -366,6 +464,7 @@ class PetState:
     '''Immutable runtime projection for one active desktop companion.'''
 
     pet_id: str
+    outfit_id: str = ''
     behavior: PetBehavior = field(default_factory=PetBehavior)
     appearance: PetAppearance = field(default_factory=PetAppearance)
     enabled: bool = True
@@ -377,7 +476,11 @@ class PetState:
         pet_id = str(self.pet_id).strip().casefold()
         if not PET_ID_PATTERN.fullmatch(pet_id):
             raise ValueError(f'Invalid pet identifier: {self.pet_id!r}')
+        outfit_id = str(self.outfit_id).strip()
+        if outfit_id and not OUTFIT_ID_PATTERN.fullmatch(outfit_id):
+            raise ValueError(f'Invalid outfit identifier: {self.outfit_id!r}')
         object.__setattr__(self, 'pet_id', pet_id)
+        object.__setattr__(self, 'outfit_id', outfit_id)
         reasons = tuple(dict.fromkeys(str(reason) for reason in self.suppressed_by if reason))
         object.__setattr__(self, 'suppressed_by', reasons)
 

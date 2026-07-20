@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 
-from PySide6.QtCore import QObject, Signal  # noqa: E402
+from PySide6.QtCore import QObject, Qt, Signal  # noqa: E402
 from PySide6.QtGui import QColor, QImage  # noqa: E402
 from PySide6.QtWidgets import (  # noqa: E402
     QApplication,
@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (  # noqa: E402
     QTabWidget,
     QWidget,
 )
+from PySide6.QtTest import QTest  # noqa: E402
 
 import opencareyes.ui.main_panel as main_panel_module  # noqa: E402
 from opencareyes.ui.companion_pages import (  # noqa: E402
@@ -49,6 +50,39 @@ def _state():
                 SimpleNamespace(pet_id='snow_ferret', display_name='鼬鼬'),
                 SimpleNamespace(pet_id='test_bird', display_name='小鸟'),
             ),
+        ),
+        pet_wardrobe=SimpleNamespace(
+            available_outfits=(
+                SimpleNamespace(
+                    outfit_id='snow_slope_skier',
+                    display_name='雪坡滑雪客',
+                    description='薄荷绿滑雪外套与浅蓝色护目镜。',
+                    thumbnail_path='outfits/snow_slope_skier/thumbnail.png',
+                    preview_path='outfits/snow_slope_skier/preview.png',
+                    available=True,
+                ),
+                SimpleNamespace(
+                    outfit_id='thunder_mage',
+                    display_name='雷系小巫师',
+                    description='紫黑镶金斗篷与星光法杖。',
+                    thumbnail_path='outfits/thunder_mage/thumbnail.png',
+                    preview_path='outfits/thunder_mage/preview.png',
+                    available=True,
+                ),
+                SimpleNamespace(
+                    outfit_id='missing_outfit',
+                    display_name='资源缺失造型',
+                    description='用于验证不可用状态。',
+                    thumbnail_path='outfits/missing/thumbnail.png',
+                    preview_path='outfits/missing/preview.png',
+                    available=False,
+                ),
+            ),
+            mode='outfit',
+            selected_outfit_id='snow_slope_skier',
+            effective_outfit_id='snow_slope_skier',
+            loading_outfit_id='',
+            error='',
         ),
         companion=SimpleNamespace(
             enabled=True,
@@ -228,6 +262,66 @@ def test_catalog_render_is_differential_and_reflects_accessory_selection():
     assert controller.calls[-1][0] == 'set_pet_accessory'
     assert controller.calls[-1][1] == ('neckwear', 'scarf')
 
+    controller.calls.clear()
+    page._clear_manual_accessories()
+    assert controller.calls == [('clear_pet_accessories', (), {})]
+
+
+def test_catalog_empty_loading_state_uses_active_pet_without_species_hard_coding():
+    controller = _Controller()
+    controller.state.pet_catalog.available_pets = ()
+    controller.state.pet_catalog.active_pet_id = 'tiny_bird'
+    controller.state.pet_wardrobe.available_outfits = ()
+
+    page = PetCatalogPage(controller)
+
+    assert page._pet_combo.count() == 1
+    assert page._pet_combo.itemData(0) == 'tiny_bird'
+    assert page._pet_combo.itemText(0) == 'tiny bird'
+    assert '白鼬' not in page._pet_combo.itemText(0)
+
+
+def test_wardrobe_is_manifest_driven_and_only_explicit_activation_wears_outfit():
+    app = _app()
+    controller = _Controller()
+    page = PetCatalogPage(controller)
+
+    assert page.layout.indexOf(page._wardrobe_card) == 1
+    assert page._wardrobe_model.rowCount() == 3
+    assert page._wardrobe_status.text() == '已锁定：雪坡滑雪客'
+    assert page._wardrobe_detail_title.text() == '雪坡滑雪客'
+    assert '已穿戴' in page._wardrobe_model.index(0, 0).data(Qt.AccessibleTextRole)
+    assert '资源不可用' in page._wardrobe_model.index(2, 0).data(
+        Qt.AccessibleDescriptionRole
+    )
+
+    controller.calls.clear()
+    page._wardrobe_view.setCurrentIndex(page._wardrobe_model.index(1, 0))
+    app.processEvents()
+    assert controller.calls == []
+    assert page._wardrobe_detail_title.text() == '雷系小巫师'
+
+    QTest.keyClick(page._wardrobe_view, Qt.Key_Space)
+    assert controller.calls[-1] == ('set_pet_outfit', ('thunder_mage',), {})
+
+    page._restore_outfit.click()
+    assert controller.calls[-1] == ('set_pet_outfit', (None,), {})
+    page.close()
+
+
+def test_wardrobe_thumbnails_are_requested_by_visible_delegate_not_model_reset():
+    app = _app()
+    repository = _PreviewRepository()
+    page = PetCatalogPage(_Controller(), asset_repository=repository)
+    assert repository.calls == []
+
+    page.resize(900, 700)
+    page.show()
+    app.processEvents()
+    assert 0 < len(repository.calls) <= page._wardrobe_model.rowCount()
+    assert all(pet_id == 'snow_ferret' for pet_id, _path in repository.calls)
+    page.close()
+
 
 def test_catalog_reflows_controls_below_640_pixels():
     app = _app()
@@ -237,6 +331,7 @@ def test_catalog_reflows_controls_below_640_pixels():
     app.processEvents()
     assert page._selector_layout.direction() == QBoxLayout.TopToBottom
     assert page._wardrobe_layout.direction() == QBoxLayout.TopToBottom
+    assert page._wardrobe_columns == 2
     assert page.horizontalScrollBar().maximum() == 0
     page.close()
 

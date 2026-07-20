@@ -1,0 +1,26 @@
+{
+  "source": "action_contact_sheet_rgba.png",
+  "sheet": {
+    "columns": 4,
+    "rows": 3,
+    "cell_width": 313.5,
+    "cell_height": 418
+  },
+  "sample_only": true,
+  "actions": {
+    "idle": [[0, 0]],
+    "sleep": [[1, 0]],
+    "move": [[2, 0]],
+    "click_reaction": [[3, 0]],
+    "drag_hold": [[0, 1]],
+    "drag_release": [[1, 1]],
+    "right_click_reaction": [[2, 1]],
+    "rest_prompt": [[3, 1]],
+    "play": [[0, 2]],
+    "look_cursor": {
+      "left": [1, 2],
+      "center": [2, 2],
+      "right": [3, 2]
+    }
+  }
+}

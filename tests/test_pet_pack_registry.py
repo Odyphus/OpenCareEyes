@@ -55,6 +55,51 @@ def update_manifest(pack_dir, change):
     path.write_text(json.dumps(data, ensure_ascii=False), encoding='utf-8')
 
 
+def outfit_json(
+    *,
+    outfit_id='snow_slope_skier',
+    actions=None,
+    thumbnail_path='preview.png',
+    preview_path='preview.png',
+    ambient_layers=None,
+):
+    if actions is None:
+        actions = {
+            'idle': {
+                'loop': True,
+                'frames': [
+                    {
+                        'path': 'sprites/base.png',
+                        'duration_ms': 100,
+                        'source_rect': [0, 0, 16, 16],
+                    }
+                ],
+            },
+            'move': {
+                'loop': True,
+                'frames': [{'path': 'sprites/base.png', 'duration_ms': 100}],
+            },
+        }
+    return {
+        outfit_id: {
+            'display_name': '雪坡滑雪客',
+            'description': '薄荷绿滑雪外套与浅蓝护目镜。',
+            'thumbnail_path': thumbnail_path,
+            'preview_path': preview_path,
+            'actions': actions,
+            'ambient_layers': ambient_layers or {'snow': 'preview.png'},
+        }
+    }
+
+
+def make_schema_v3(pack, **outfit_options):
+    def change(data):
+        data['schema_version'] = 3
+        data['outfits'] = outfit_json(**outfit_options)
+
+    update_manifest(pack, change)
+
+
 def test_discovers_two_different_species_without_core_hard_coding():
     registry = PetPackRegistry(FIXTURE_ROOT, app_version='0.5.0')
 
@@ -65,7 +110,30 @@ def test_discovers_two_different_species_without_core_hard_coding():
     assert manifests[1].canvas_size == (96, 72)
     assert registry.resolve_action('snow_ferret', 'click').action_id == 'paw_cursor'
     assert registry.resolve_action('tiny_bird', 'click').action_id == 'peck'
+    bird_outfit = manifests[1].outfits['rain_cape']
+    assert bird_outfit.display_name == '雨披小团雀'
+    assert registry.resolve_action(
+        'tiny_bird', 'click', outfit_id=bird_outfit.outfit_id
+    ) is bird_outfit.actions['idle']
     assert registry.errors == {}
+
+
+def test_loads_schema_v3_outfit_and_resolves_missing_action_to_outfit_idle(tmp_path):
+    root, pack = copy_pet(tmp_path)
+    make_schema_v3(pack)
+
+    registry = PetPackRegistry(root, app_version='0.8.0')
+    manifest = registry.load('snow_ferret')
+    outfit = manifest.outfits['snow_slope_skier']
+
+    assert manifest.schema_version == 3
+    assert outfit.display_name == '雪坡滑雪客'
+    assert registry.resolve_action(
+        'snow_ferret', 'autonomous.move', outfit_id=outfit.outfit_id
+    ).action_id == 'move'
+    assert registry.resolve_action(
+        'snow_ferret', 'click', outfit_id=outfit.outfit_id
+    ) is outfit.actions['idle']
 
 
 def test_resolve_resource_returns_only_a_validated_file_inside_pack():
@@ -93,6 +161,32 @@ def test_rejects_path_traversal_drive_paths_and_urls(tmp_path, unsafe_path):
 
     with pytest.raises(PetPackValidationError):
         PetPackRegistry(root, app_version='0.5.0').load('snow_ferret')
+
+
+@pytest.mark.parametrize(
+    ('field', 'unsafe_path'),
+    [
+        ('thumbnail_path', '../thumbnail.png'),
+        ('preview_path', 'C:/preview.png'),
+        ('ambient_layers', '../snow.png'),
+        ('frame', 'https://bad/atlas.png'),
+    ],
+)
+def test_rejects_unsafe_outfit_resource_paths(tmp_path, field, unsafe_path):
+    root, pack = copy_pet(tmp_path)
+    options = {}
+    if field == 'ambient_layers':
+        options[field] = {'snow': unsafe_path}
+    elif field == 'frame':
+        options['actions'] = {
+            'idle': {'frames': [{'path': unsafe_path, 'duration_ms': 100}]}
+        }
+    else:
+        options[field] = unsafe_path
+    make_schema_v3(pack, **options)
+
+    with pytest.raises(PetPackValidationError):
+        PetPackRegistry(root, app_version='0.8.0').load('snow_ferret')
 
 
 def test_rejects_executable_or_unknown_resource_extensions(tmp_path):
@@ -140,6 +234,79 @@ def test_rejects_missing_required_action_and_broken_binding(tmp_path):
 
     with pytest.raises(PetPackValidationError, match='required actions'):
         PetPackRegistry(root, app_version='0.5.0').load('snow_ferret')
+
+
+@pytest.mark.parametrize('outfit_id', ['Snow_skier', '../skier', 'x' * 65])
+def test_rejects_invalid_outfit_id(tmp_path, outfit_id):
+    root, pack = copy_pet(tmp_path)
+    make_schema_v3(pack, outfit_id=outfit_id)
+
+    with pytest.raises(PetPackValidationError, match='outfit identifier'):
+        PetPackRegistry(root, app_version='0.8.0').load('snow_ferret')
+
+
+def test_rejects_outfit_without_idle_action(tmp_path):
+    root, pack = copy_pet(tmp_path)
+    make_schema_v3(
+        pack,
+        actions={
+            'move': {'frames': [{'path': 'sprites/base.png', 'duration_ms': 100}]}
+        },
+    )
+
+    with pytest.raises(PetPackValidationError, match='idle'):
+        PetPackRegistry(root, app_version='0.8.0').load('snow_ferret')
+
+
+def test_rejects_more_than_60_frames_in_one_outfit(tmp_path):
+    root, pack = copy_pet(tmp_path)
+    frame = {'path': 'sprites/base.png', 'duration_ms': 100}
+    make_schema_v3(pack, actions={'idle': {'frames': [frame] * 61}})
+
+    with pytest.raises(PetPackValidationError, match='60'):
+        PetPackRegistry(root, app_version='0.8.0').load('snow_ferret')
+
+
+def test_rejects_more_than_512_outfit_frame_descriptions(tmp_path):
+    root, pack = copy_pet(tmp_path)
+
+    def change(data):
+        data['schema_version'] = 3
+        frame = {'path': 'sprites/base.png', 'duration_ms': 100}
+        data['outfits'] = {}
+        for index in range(9):
+            data['outfits'].update(
+                outfit_json(
+                    outfit_id=f'outfit_{index}',
+                    actions={'idle': {'frames': [frame] * 60}},
+                )
+            )
+
+    update_manifest(pack, change)
+
+    with pytest.raises(PetPackValidationError, match='512'):
+        PetPackRegistry(root, app_version='0.8.0').load('snow_ferret')
+
+
+def test_rejects_outfit_source_rect_outside_atlas(tmp_path):
+    root, pack = copy_pet(tmp_path)
+    make_schema_v3(
+        pack,
+        actions={
+            'idle': {
+                'frames': [
+                    {
+                        'path': 'sprites/base.png',
+                        'duration_ms': 100,
+                        'source_rect': [5_000, 5_000, 80, 80],
+                    }
+                ]
+            }
+        },
+    )
+
+    with pytest.raises(PetPackValidationError, match='source_rect leaves its atlas'):
+        PetPackRegistry(root, app_version='0.8.0').load('snow_ferret')
 
 
 def test_rejects_future_version_without_publishing_pack(tmp_path):

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from dataclasses import dataclass
 
 from PySide6.QtCore import (
     QEasingCurve,
@@ -18,6 +19,14 @@ from PySide6.QtGui import QColor, QImage, QMouseEvent, QPainter, QPainterPath, Q
 from PySide6.QtWidgets import QApplication, QWidget
 
 from opencareyes.ui.pet_animator import PetAnimator
+
+
+@dataclass(frozen=True, slots=True)
+class _StableGazeAction:
+    action_id: str
+    frames: tuple[object, ...]
+    loop: bool = False
+    static_frame: int = 0
 
 
 class PetSurface(QWidget):
@@ -39,16 +48,19 @@ class PetSurface(QWidget):
     pet_event = Signal(str, object)
     pack_switched = Signal(str)
     pack_switch_failed = Signal(str, str)
+    outfit_switch_failed = Signal(str, str)
 
     def __init__(self, repository=None, parent=None):
         super().__init__(parent)
         self._repository = repository
         self._pet_id = ''
         self._manifest = None
+        self._outfit_id = ''
         self._frame: QImage | None = None
         self._appearance_paths: tuple[str, ...] = ()
         self._appearance_images: tuple[QImage, ...] = ()
         self._facing_direction = 0
+        self._gaze_direction = 'center'
         self._scale_percent = 100
         self._reduced_motion = False
         self._suppressed = False
@@ -121,6 +133,10 @@ class PetSurface(QWidget):
     @property
     def action_id(self) -> str:
         return self.animator.action_id
+
+    @property
+    def outfit_id(self) -> str:
+        return self._outfit_id
 
     @property
     def is_dragging(self) -> bool:
@@ -201,6 +217,44 @@ class PetSurface(QWidget):
 
         return self.set_pack(pet_id, manifest)
 
+    def set_outfit(self, outfit_id: str | None) -> bool:
+        '''Select one full replacement sprite set without changing the pack.'''
+
+        selected = '' if outfit_id in {None, ''} else str(outfit_id).strip().lower()
+        if selected == self._outfit_id:
+            return True
+        if selected:
+            outfits = getattr(self._manifest, 'outfits', None)
+            outfit = outfits.get(selected) if isinstance(outfits, Mapping) else None
+            actions = getattr(outfit, 'actions', None)
+            if not isinstance(actions, Mapping) or actions.get('idle') is None:
+                self.outfit_switch_failed.emit(
+                    selected,
+                    '造型缺少可用的待机动作。',
+                )
+                return False
+
+        previous = self._outfit_id
+        previous_action = self.animator.action_id or 'idle'
+        self._outfit_id = selected
+        self.animator.clear_cache()
+        if self.play_action(previous_action, restart=True):
+            return True
+
+        self._outfit_id = previous
+        self.animator.clear_cache()
+        self.play_action(previous_action, restart=True)
+        self.outfit_switch_failed.emit(
+            selected,
+            '造型画面无法启动，已恢复之前的造型。',
+        )
+        return False
+
+    def has_action(self, action_id: str) -> bool:
+        '''Report an exact current-sprite capability without idle fallback.'''
+
+        return self._exact_action(str(action_id)) is not None
+
     def play_event(self, event_kind: str, payload=None) -> bool:
         bindings = getattr(self._manifest, 'event_bindings', None)
         action_id = bindings.get(event_kind) if isinstance(bindings, Mapping) else None
@@ -238,6 +292,19 @@ class PetSurface(QWidget):
             return False
         self._facing_direction = normalised
         self.update()
+        return True
+
+    def set_gaze_direction(self, direction: str) -> bool:
+        '''Select a stable head-gaze frame without mirroring the whole sprite.'''
+
+        normalised = str(direction).strip().lower()
+        if normalised not in {'left', 'center', 'right'}:
+            raise ValueError(f'Unsupported gaze direction: {direction!r}')
+        if normalised == self._gaze_direction:
+            return False
+        self._gaze_direction = normalised
+        if self.animator.action_id == 'look_cursor':
+            self.play_action('look_cursor', restart=True)
         return True
 
     def face_towards_cursor(
@@ -499,9 +566,35 @@ class PetSurface(QWidget):
         self._dragging = False
         self.setCursor(Qt.OpenHandCursor)
 
-    def _action(self, action_id: str):
+    def _exact_action(self, action_id: str):
+        if self._outfit_id:
+            outfits = getattr(self._manifest, 'outfits', None)
+            outfit = (
+                outfits.get(self._outfit_id)
+                if isinstance(outfits, Mapping)
+                else None
+            )
+            actions = getattr(outfit, 'actions', None)
+            return actions.get(action_id) if isinstance(actions, Mapping) else None
         actions = getattr(self._manifest, 'actions', None)
         return actions.get(action_id) if isinstance(actions, Mapping) else None
+
+    def _action(self, action_id: str):
+        action = self._exact_action(action_id)
+        if action is not None and action_id == 'look_cursor':
+            frames = tuple(getattr(action, 'frames', ()))
+            if frames:
+                requested = {'left': 0, 'center': 1, 'right': 2}[
+                    self._gaze_direction
+                ]
+                frame = frames[min(requested, len(frames) - 1)]
+                return _StableGazeAction(
+                    action_id=str(getattr(action, 'action_id', action_id)),
+                    frames=(frame,),
+                )
+        if action is not None or not self._outfit_id or action_id == 'idle':
+            return action
+        return self._exact_action('idle')
 
     @staticmethod
     def _pack_size(manifest) -> tuple[int, int]:
@@ -527,6 +620,7 @@ class PetSurface(QWidget):
         scale = self._scale_percent / 100
         self._pet_id = pet_id
         self._manifest = manifest
+        self._outfit_id = ''
         self._appearance_paths = ()
         self._appearance_images = ()
         self._set_fixed_size_if_changed(
@@ -545,6 +639,7 @@ class PetSurface(QWidget):
             self._manifest,
             self.size(),
             self.animator.action_id or 'idle',
+            self._outfit_id,
             self._appearance_paths,
             tuple(QImage(image) for image in self._appearance_images),
         )
@@ -559,11 +654,13 @@ class PetSurface(QWidget):
             manifest,
             size,
             action_id,
+            outfit_id,
             appearance_paths,
             appearance_images,
         ) = snapshot
         self._pet_id = pet_id
         self._manifest = manifest
+        self._outfit_id = outfit_id
         self._set_fixed_size_if_changed(size.width(), size.height())
         self._appearance_paths = appearance_paths
         self._appearance_images = tuple(QImage(image) for image in appearance_images)
@@ -574,6 +671,7 @@ class PetSurface(QWidget):
     def _clear_pack(self) -> None:
         self._pet_id = ''
         self._manifest = None
+        self._outfit_id = ''
         self._frame = None
         self._appearance_paths = ()
         self._appearance_images = ()
@@ -650,7 +748,7 @@ class PetSurface(QWidget):
         self.setWindowOpacity(1.0)
 
     def _has_action(self, action_id: str) -> bool:
-        return self._action(action_id) is not None
+        return self._exact_action(action_id) is not None
 
     def _set_frame(self, image) -> None:
         candidate = (

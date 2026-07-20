@@ -58,6 +58,8 @@ class PetAssetRepository(QObject):
 
     resource_ready = Signal(str, str)
     resource_failed = Signal(str, str)
+    outfit_preload_ready = Signal(int, str, str)
+    outfit_preload_failed = Signal(int, str, str, str)
     catalog_ready = Signal(object)
     catalog_failed = Signal(str)
 
@@ -76,6 +78,8 @@ class PetAssetRepository(QObject):
         self._cache_bytes = 0
         self._cache: OrderedDict[tuple[str, str], QImage] = OrderedDict()
         self._tasks: dict[tuple[str, str], _DecodeTask] = {}
+        self._outfit_preloads: dict[int, dict[str, object]] = {}
+        self._outfit_waiters: dict[tuple[str, str], set[int]] = {}
         self._catalog_task: _CatalogTask | None = None
         self._catalog_entries: tuple | None = None
         self._pool = QThreadPool(self)
@@ -120,6 +124,49 @@ class PetAssetRepository(QObject):
         for resource_path in paths:
             self._schedule(pet_id, resource_path)
 
+    def preload_outfit(self, manifest, outfit_id: str) -> bool:
+        '''Schedule only the selected outfit's idle resources.'''
+
+        pet_id, _selected, paths = self._outfit_idle_paths(manifest, outfit_id)
+        for resource_path in paths:
+            self._schedule(pet_id, resource_path)
+        return bool(paths)
+
+    def request_outfit_preload(
+        self,
+        manifest,
+        outfit_id: str,
+        request_id: int,
+    ) -> bool:
+        '''Publish success only after every selected idle resource is decoded.'''
+
+        request = int(request_id)
+        if request in self._outfit_preloads:
+            return False
+        pet_id, selected, paths = self._outfit_idle_paths(manifest, outfit_id)
+        if not pet_id or not selected or not paths:
+            return False
+
+        pending = {
+            path
+            for path in paths
+            if (pet_id, path) not in self._cache
+        }
+        self._outfit_preloads[request] = {
+            'pet_id': pet_id,
+            'outfit_id': selected,
+            'pending': pending,
+        }
+        if not pending:
+            self._finish_outfit_preload(request)
+            return True
+
+        for resource_path in tuple(pending):
+            key = (pet_id, resource_path)
+            self._outfit_waiters.setdefault(key, set()).add(request)
+            self._schedule(*key)
+        return True
+
     def request_catalog(self) -> bool:
         '''Validate non-active bundled packs once, off the GUI thread.'''
 
@@ -155,6 +202,7 @@ class PetAssetRepository(QObject):
             resolved = self._registry.resolve_resource(pet_id, resource_path)
         except (FileNotFoundError, KeyError, OSError, TypeError, ValueError):
             self.resource_failed.emit(pet_id, resource_path)
+            self._resolve_outfit_resource(key, succeeded=False)
             return
         task = _DecodeTask(pet_id, resource_path, str(resolved))
         task.signals.finished.connect(self._on_decoded)
@@ -167,6 +215,7 @@ class PetAssetRepository(QObject):
         self._tasks.pop(key, None)
         if not isinstance(image, QImage) or image.isNull():
             self.resource_failed.emit(pet_id, resource_path)
+            self._resolve_outfit_resource(key, succeeded=False)
             return
         stored = QImage(image)
         self._cache[key] = stored
@@ -178,6 +227,67 @@ class PetAssetRepository(QObject):
             _old_key, evicted = self._cache.popitem(last=False)
             self._cache_bytes = max(0, self._cache_bytes - evicted.sizeInBytes())
         self.resource_ready.emit(pet_id, resource_path)
+        self._resolve_outfit_resource(key, succeeded=True)
+
+    @staticmethod
+    def _outfit_idle_paths(manifest, outfit_id: str) -> tuple[str, str, set[str]]:
+        selected = str(outfit_id).strip().lower()
+        outfits = getattr(manifest, 'outfits', {})
+        outfit = outfits.get(selected) if hasattr(outfits, 'get') else None
+        actions = getattr(outfit, 'actions', {})
+        idle = actions.get('idle') if hasattr(actions, 'get') else None
+        if idle is None:
+            return '', selected, set()
+        pet_id = str(getattr(manifest, 'pet_id', ''))
+        paths = {
+            str(getattr(frame, 'path', ''))
+            for frame in getattr(idle, 'frames', ())
+            if getattr(frame, 'path', '')
+        }
+        return pet_id, selected, paths
+
+    def _resolve_outfit_resource(
+        self,
+        key: tuple[str, str],
+        *,
+        succeeded: bool,
+    ) -> None:
+        request_ids = tuple(self._outfit_waiters.pop(key, ()))
+        for request_id in request_ids:
+            request = self._outfit_preloads.get(request_id)
+            if request is None:
+                continue
+            if not succeeded:
+                self._fail_outfit_preload(request_id, key[1])
+                continue
+            pending = request.get('pending')
+            if isinstance(pending, set):
+                pending.discard(key[1])
+                if not pending:
+                    self._finish_outfit_preload(request_id)
+
+    def _finish_outfit_preload(self, request_id: int) -> None:
+        request = self._outfit_preloads.pop(int(request_id), None)
+        if request is None:
+            return
+        self.outfit_preload_ready.emit(
+            int(request_id),
+            str(request.get('pet_id', '')),
+            str(request.get('outfit_id', '')),
+        )
+
+    def _fail_outfit_preload(self, request_id: int, resource_path: str) -> None:
+        request = self._outfit_preloads.pop(int(request_id), None)
+        if request is None:
+            return
+        for waiters in self._outfit_waiters.values():
+            waiters.discard(int(request_id))
+        self.outfit_preload_failed.emit(
+            int(request_id),
+            str(request.get('pet_id', '')),
+            str(request.get('outfit_id', '')),
+            str(resource_path),
+        )
 
     @Slot(object)
     def _on_catalog_ready(self, entries) -> None:

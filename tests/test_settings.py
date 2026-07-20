@@ -287,14 +287,14 @@ def test_environment_can_select_isolated_ini_backend(monkeypatch, tmp_path):
     assert path.exists()
 
 
-def test_empty_store_migrates_to_v6_with_new_install_defaults():
+def test_empty_store_migrates_to_v7_with_new_install_defaults():
     from opencareyes.config.settings import Settings
 
     store = MemoryStore()
     settings = Settings(store)
 
-    assert store.values == {"meta/schema_version": 6}
-    assert settings.stored_schema_version == 6
+    assert store.values == {"meta/schema_version": 7}
+    assert settings.stored_schema_version == 7
     assert settings.read_only is False
     assert settings.break_mode == "20-20-20"
     assert settings.break_reminder_style == "progressive"
@@ -307,7 +307,7 @@ def test_v1_migrates_in_order_and_preserves_legacy_effective_defaults():
     store = MemoryStore({"filter/enabled": True})
     settings = Settings(store)
 
-    assert settings.stored_schema_version == 6
+    assert settings.stored_schema_version == 7
     assert settings.onboarding_completed is True
     assert settings.break_mode == "pomodoro"
     assert settings.work_duration == 45 * 60
@@ -337,7 +337,7 @@ def test_v2_migration_preserves_explicit_values_and_is_idempotent():
 
     store.writes.clear()
     second = Settings(store)
-    assert second.stored_schema_version == 6
+    assert second.stored_schema_version == 7
     assert store.writes == []
     assert writes_after_first_migration
 
@@ -369,7 +369,7 @@ def test_v3_sun_migration_preserves_behavior_and_materializes_v4_values():
     )
     settings = Settings(store)
 
-    assert settings.stored_schema_version == 6
+    assert settings.stored_schema_version == 7
     assert settings.break_reminder_style == "fullscreen"
     assert settings.cadence_mode == "custom"
     assert settings.cadence_short_interval == 1800
@@ -426,7 +426,7 @@ def test_v4_to_v5_migration_preserves_previous_pet_visibility(
     )
     settings = Settings(store)
 
-    assert settings.stored_schema_version == 6
+    assert settings.stored_schema_version == 7
     assert settings.companion_enabled is expected_enabled
     assert settings.active_pet_id == 'snow_ferret'
     assert settings.pet_x == -240
@@ -484,7 +484,7 @@ def test_v5_companion_accessors_validate_and_round_trip():
         settings.quick_actions = ('rest', 'unknown')
 
 
-def test_v5_to_v6_materializes_quick_actions_without_changing_preferences():
+def test_v5_to_v7_materializes_quick_actions_without_changing_preferences():
     from opencareyes.config.settings import Settings
 
     store = MemoryStore(
@@ -496,7 +496,7 @@ def test_v5_to_v6_materializes_quick_actions_without_changing_preferences():
     )
     settings = Settings(store)
 
-    assert settings.stored_schema_version == 6
+    assert settings.stored_schema_version == 7
     assert settings.companion_enabled is False
     assert settings.theme == 'dark'
     assert settings.quick_actions == ('rest', 'timer', 'notes', 'system')
@@ -505,13 +505,70 @@ def test_v5_to_v6_materializes_quick_actions_without_changing_preferences():
     )
 
 
+def test_v6_to_v7_preserves_manual_accessories_and_selects_accessories_mode():
+    from opencareyes.config.settings import Settings
+
+    store = MemoryStore(
+        {
+            'meta/schema_version': 6,
+            'companion/pet_preferences_json': (
+                '{"snow_ferret":{"neckwear":"red_scarf"}}'
+            ),
+        }
+    )
+
+    settings = Settings(store)
+
+    assert settings.stored_schema_version == 7
+    assert settings.wardrobe_mode == 'accessories'
+    assert settings.outfit_preferences == {}
+    assert settings.pet_preferences == {
+        'snow_ferret': {'neckwear': 'red_scarf'},
+    }
+
+
+def test_v6_to_v7_uses_automatic_mode_without_manual_accessories():
+    from opencareyes.config.settings import Settings
+
+    settings = Settings(
+        MemoryStore(
+            {
+                'meta/schema_version': 6,
+                'companion/pet_preferences_json': '{"snow_ferret":{}}',
+            }
+        )
+    )
+
+    assert settings.stored_schema_version == 7
+    assert settings.wardrobe_mode == 'automatic'
+    assert settings.outfit_preferences == {}
+
+
+def test_v7_wardrobe_accessors_validate_and_round_trip():
+    from opencareyes.config.settings import Settings
+
+    settings = Settings(MemoryStore())
+    settings.wardrobe_mode = 'outfit'
+    settings.outfit_preferences = {'snow_ferret': 'snow_slope_skier'}
+
+    assert settings.wardrobe_mode == 'outfit'
+    assert settings.outfit_preferences == {
+        'snow_ferret': 'snow_slope_skier',
+    }
+
+    with pytest.raises(ValueError, match='wardrobe mode'):
+        settings.wardrobe_mode = 'mixed'
+    with pytest.raises(ValueError):
+        settings.outfit_preferences = {'snow_ferret': '../unsafe'}
+
+
 def test_preferences_repository_keeps_settings_compatibility():
     from opencareyes.config.settings import PreferencesRepository, Settings
 
     repository = PreferencesRepository(MemoryStore())
 
     assert isinstance(repository, Settings)
-    assert repository.stored_schema_version == 6
+    assert repository.stored_schema_version == 7
 
 
 def test_migration_sync_failure_restores_exact_snapshot():
@@ -712,7 +769,7 @@ def test_v4_accessors_reject_invalid_values():
 def test_repository_transaction_rolls_back_after_checked_sync_failure():
     from opencareyes.config.settings import PreferencesRepository
 
-    original = {"meta/schema_version": 6, "general/theme": "dark"}
+    original = {"meta/schema_version": 7, "general/theme": "dark"}
     store = MemoryStore(original, fail_sync_count=1)
     repository = PreferencesRepository(store)
 
@@ -726,7 +783,7 @@ def test_repository_transaction_rolls_back_after_checked_sync_failure():
 def test_transaction_persists_snapshot_marker_before_user_writes():
     from opencareyes.config.settings import PreferencesRepository
 
-    store = MemoryStore({"meta/schema_version": 6, "general/theme": "dark"})
+    store = MemoryStore({"meta/schema_version": 7, "general/theme": "dark"})
     repository = PreferencesRepository(store)
 
     with repository.transaction():
@@ -745,12 +802,12 @@ def test_startup_recovers_pending_transaction_snapshot():
 
     store = MemoryStore(
         {
-            "meta/schema_version": 6,
+            "meta/schema_version": 7,
             "general/theme": "light",
             "meta/pending_settings": True,
             "meta/pending_settings_operation": "transaction",
             "meta/pending_settings_snapshot": (
-                '{"general/theme":"dark","meta/schema_version":6}'
+                '{"general/theme":"dark","meta/schema_version":7}'
             ),
         }
     )
@@ -761,7 +818,7 @@ def test_startup_recovers_pending_transaction_snapshot():
     assert settings.theme == "dark"
     assert store.values == {
         "general/theme": "dark",
-        "meta/schema_version": 6,
+        "meta/schema_version": 7,
     }
 
 
@@ -770,12 +827,12 @@ def test_startup_recovery_sync_failure_enters_read_only_mode():
 
     store = MemoryStore(
         {
-            "meta/schema_version": 6,
+            "meta/schema_version": 7,
             "general/theme": "light",
             "meta/pending_settings": True,
             "meta/pending_settings_operation": "transaction",
             "meta/pending_settings_snapshot": (
-                '{"general/theme":"dark","meta/schema_version":6}'
+                '{"general/theme":"dark","meta/schema_version":7}'
             ),
         },
         fail_sync_calls={1},
@@ -796,7 +853,7 @@ def test_transaction_rollback_sync_failure_enters_read_only_mode():
     )
 
     store = MemoryStore(
-        {"meta/schema_version": 6, "general/theme": "dark"},
+        {"meta/schema_version": 7, "general/theme": "dark"},
         fail_sync_calls={2, 3},
     )
     repository = PreferencesRepository(store)
@@ -825,8 +882,8 @@ def test_migration_persists_recovery_marker_and_logs_schema_change(caplog):
         if event[:2] == ("set", "companion/quick_actions_json")
     )
     assert first_sync < migration_write
-    assert settings.stored_schema_version == 6
-    assert "settings migration from schema v5 to v6" in caplog.text.lower()
+    assert settings.stored_schema_version == 7
+    assert "settings migration from schema v5 to v7" in caplog.text.lower()
     assert "general/theme" not in caplog.text
 
 
@@ -834,7 +891,7 @@ def test_sync_checks_backend_status():
     from opencareyes.config.settings import PreferencesRepository
 
     repository = PreferencesRepository(
-        MemoryStore({"meta/schema_version": 6}, status_value=1)
+        MemoryStore({"meta/schema_version": 7}, status_value=1)
     )
     with pytest.raises(OSError, match="sync failed"):
         repository.sync()
