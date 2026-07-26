@@ -23,6 +23,9 @@ def test_prerelease_build_uses_numeric_windows_version_and_skips_winget():
     build_script = (ROOT / "build.bat").read_text(encoding="utf-8")
     installer = (ROOT / "installer.iss").read_text(encoding="utf-8")
     spec = (ROOT / "opencareyes.spec").read_text(encoding="utf-8")
+    workflow = (
+        ROOT / ".github" / "workflows" / "windows-ci.yml"
+    ).read_text(encoding="utf-8")
 
     assert "WINDOWS_VERSION" in build_script
     assert "/DMyWindowsVersion=%WINDOWS_VERSION%" in build_script
@@ -31,6 +34,9 @@ def test_prerelease_build_uses_numeric_windows_version_and_skips_winget():
     assert "VersionInfoVersion={#MyWindowsVersion}" in installer
     assert "#define MyWindowsVersion MyAppVersion" in installer
     assert 'StringStruct("FileVersion", _release_version.windows)' in spec
+    assert "$windowsVersion = python -c" in workflow
+    assert "resolve_release_version(sys.argv[1]).windows" in workflow
+    assert '"/DMyWindowsVersion=$windowsVersion"' in workflow
 
 
 def test_installer_can_replace_the_running_tray_executable_during_upgrade():

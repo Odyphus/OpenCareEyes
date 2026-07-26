@@ -128,12 +128,13 @@ jobs:
         shell: pwsh
         run: |
           $version = python -c "import pathlib, tomllib; print(tomllib.loads(pathlib.Path('pyproject.toml').read_text(encoding='utf-8'))['project']['version'])"
+          $windowsVersion = python -c "import sys; from scripts.release_version import resolve_release_version; print(resolve_release_version(sys.argv[1]).windows)" $version
           $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
           if (-not (Test-Path $iscc)) {
             choco install innosetup --yes --no-progress
           }
           if (-not (Test-Path $iscc)) { throw "Inno Setup 6 was not found" }
-          & $iscc "/DMyAppVersion=$version" installer.iss
+          & $iscc "/DMyAppVersion=$version" "/DMyWindowsVersion=$windowsVersion" installer.iss
           if ($LASTEXITCODE -ne 0) { throw "ISCC failed with exit code $LASTEXITCODE" }
       - name: Smoke-test per-user install and tag upgrade
         shell: pwsh
