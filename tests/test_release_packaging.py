@@ -4,8 +4,54 @@ from __future__ import annotations
 
 from pathlib import Path
 
+try:
+    import tomllib
+except ModuleNotFoundError:  # pragma: no cover - Python 3.10 compatibility
+    import tomli as tomllib
+
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def test_beta_is_the_single_project_version_source():
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+
+    assert project["project"]["version"] == "0.8.0b2"
+
+
+def test_prerelease_build_uses_numeric_windows_version_and_skips_winget():
+    build_script = (ROOT / "build.bat").read_text(encoding="utf-8")
+    installer = (ROOT / "installer.iss").read_text(encoding="utf-8")
+    spec = (ROOT / "opencareyes.spec").read_text(encoding="utf-8")
+
+    assert "WINDOWS_VERSION" in build_script
+    assert "/DMyWindowsVersion=%WINDOWS_VERSION%" in build_script
+    assert 'if "%IS_PRERELEASE%"=="1"' in build_script
+    assert "Pre-release build; WinGet generation skipped." in build_script
+    assert "VersionInfoVersion={#MyWindowsVersion}" in installer
+    assert "#define MyWindowsVersion MyAppVersion" in installer
+    assert 'StringStruct("FileVersion", _release_version.windows)' in spec
+
+
+def test_installer_can_replace_the_running_tray_executable_during_upgrade():
+    installer = (ROOT / "installer.iss").read_text(encoding="utf-8")
+
+    assert "CloseApplications=force" in installer
+    assert "CloseApplicationsFilter={#MyAppExeName}" in installer
+    assert "RestartApplications=no" in installer
+
+
+def test_portable_packaging_uses_an_ascii_safe_usage_guide_name():
+    build_script = (ROOT / "build.bat").read_text(encoding="utf-8")
+
+    assert "FromBase64String('5L2/55So6K+05piOLm1k')" in build_script
+    assert "(Join-Path $PWD $guideName)" in build_script
+
+
+def test_stable_build_path_still_contains_winget_generation():
+    build_script = (ROOT / "build.bat").read_text(encoding="utf-8")
+
+    assert r"scripts\generate_winget_manifest.py" in build_script
 
 
 def test_third_party_license_bundle_has_required_full_texts():

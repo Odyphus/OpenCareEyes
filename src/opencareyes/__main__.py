@@ -318,6 +318,7 @@ def main() -> None:
         blue_filter.refresh_screens()
         dimmer.refresh_screens()
         focus_mode.refresh_screens()
+        companion_runtime.refresh_display_topology()
 
     def refresh_after_session_change(inactive: bool) -> None:
         if not inactive:

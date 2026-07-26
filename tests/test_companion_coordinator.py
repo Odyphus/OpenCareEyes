@@ -7,7 +7,7 @@ import pytest
 
 from opencareyes.application.companion_coordinator import CompanionCoordinator
 from opencareyes.application.pet_pack_registry import PetPackNotFoundError, PetPackRegistry
-from opencareyes.constants import PETS_DIR
+from opencareyes.constants import APP_VERSION, PETS_DIR
 from opencareyes.domain.pet import (
     PetAction,
     PetEventPriority,
@@ -247,7 +247,7 @@ def test_interactive_and_manual_appearance_override_automatic_conditions():
 
 def test_official_interaction_item_is_transient_and_clears_after_action():
     pet = CompanionCoordinator(
-        PetPackRegistry(PETS_DIR, app_version='0.6.0'),
+        PetPackRegistry(PETS_DIR, app_version=APP_VERSION),
         'snow_ferret',
     )
 

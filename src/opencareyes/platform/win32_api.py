@@ -296,6 +296,14 @@ GetWindowRect = user32.GetWindowRect
 GetWindowRect.argtypes = [wintypes.HWND, ctypes.POINTER(RECT)]
 GetWindowRect.restype = wintypes.BOOL
 
+GetClientRect = user32.GetClientRect
+GetClientRect.argtypes = [wintypes.HWND, ctypes.POINTER(RECT)]
+GetClientRect.restype = wintypes.BOOL
+
+ClientToScreen = user32.ClientToScreen
+ClientToScreen.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.POINT)]
+ClientToScreen.restype = wintypes.BOOL
+
 GetWindowThreadProcessId = user32.GetWindowThreadProcessId
 GetWindowThreadProcessId.argtypes = [
     wintypes.HWND,

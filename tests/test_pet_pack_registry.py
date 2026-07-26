@@ -13,14 +13,14 @@ from opencareyes.application.pet_pack_registry import (
     PetPackRegistry,
     PetPackValidationError,
 )
-from opencareyes.constants import PETS_DIR
+from opencareyes.constants import APP_VERSION, PETS_DIR
 from opencareyes.domain.pet import REQUIRED_ACTIONS
 
 FIXTURE_ROOT = Path(__file__).parent / 'fixtures' / 'pets'
 
 
 def test_official_snow_ferret_pack_is_complete_and_buildable():
-    registry = PetPackRegistry(PETS_DIR, app_version='0.6.0')
+    registry = PetPackRegistry(PETS_DIR, app_version=APP_VERSION)
 
     manifest = registry.load('snow_ferret')
 
@@ -28,7 +28,9 @@ def test_official_snow_ferret_pack_is_complete_and_buildable():
     assert manifest.event_bindings['click'] == 'click_reaction'
     assert manifest.appearance_rules['weather.snow']['neckwear']
     assert manifest.appearance_rules['holiday.christmas']['scene']
-    assert manifest.schema_version == 2
+    assert manifest.schema_version == 3
+    assert set(manifest.outfits) == {'snow_slope_skier'}
+    assert len(manifest.outfits['snow_slope_skier'].actions) == 10
     assert manifest.asset_scale == 2
     assert manifest.visual_theme.accent == '#6B9EEA'
     assert any(
@@ -307,6 +309,23 @@ def test_rejects_outfit_source_rect_outside_atlas(tmp_path):
 
     with pytest.raises(PetPackValidationError, match='source_rect leaves its atlas'):
         PetPackRegistry(root, app_version='0.8.0').load('snow_ferret')
+
+
+def test_prerelease_application_version_can_validate_matching_pack(tmp_path):
+    root, pack = copy_pet(tmp_path)
+    update_manifest(pack, lambda data: data.update(min_app_version='0.8.0b1'))
+
+    manifest = PetPackRegistry(root, app_version='0.8.0b1').load('snow_ferret')
+
+    assert manifest.min_app_version == '0.8.0b1'
+
+
+def test_prerelease_application_does_not_satisfy_stable_minimum(tmp_path):
+    root, pack = copy_pet(tmp_path)
+    update_manifest(pack, lambda data: data.update(min_app_version='0.8.0'))
+
+    with pytest.raises(PetPackValidationError, match='requires OpenCareEyes'):
+        PetPackRegistry(root, app_version='0.8.0b1').load('snow_ferret')
 
 
 def test_rejects_future_version_without_publishing_pack(tmp_path):

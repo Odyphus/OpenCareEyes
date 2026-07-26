@@ -59,7 +59,7 @@ def _pack(canvas=(96, 112)):
     )
 
 
-def _outfit(action_ids=('idle',)):
+def _outfit(action_ids=('idle',), *, ambient_layers=None):
     actions = {}
     for action_id in action_ids:
         frame = SimpleNamespace(
@@ -71,7 +71,10 @@ def _outfit(action_ids=('idle',)):
             frames=(frame,),
             loop=action_id in {'idle', 'move'},
         )
-    return SimpleNamespace(actions=actions)
+    return SimpleNamespace(
+        actions=actions,
+        ambient_layers=dict(ambient_layers or {}),
+    )
 
 
 def test_surface_is_stable_transparent_tool_with_static_fallback(qtbot):
@@ -424,6 +427,33 @@ def test_presentation_visibility_and_suppression_are_idempotent(qtbot):
     assert not surface.animator.is_running
 
 
+def test_preview_finishes_against_latest_projected_visibility(qtbot):
+    surface = PetSurface()
+    qtbot.addWidget(surface)
+
+    assert not surface.isVisible()
+    surface.preview()
+    assert surface.isVisible()
+
+    assert surface.set_presentation_visible(True)
+    surface._finish_preview()
+
+    assert surface.isVisible()
+    assert not surface._preview_timer.isActive()
+
+
+def test_reapplying_visible_projection_repairs_an_externally_hidden_surface(qtbot):
+    surface = PetSurface()
+    qtbot.addWidget(surface)
+
+    assert surface.set_presentation_visible(True)
+    surface.hide()
+    assert not surface.isVisible()
+
+    assert surface.set_presentation_visible(True)
+    assert surface.isVisible()
+
+
 def test_hiding_during_fade_in_keeps_applied_appearance(qtbot):
     surface = PetSurface()
     qtbot.addWidget(surface)
@@ -509,6 +539,101 @@ def test_invalid_outfit_keeps_current_outfit_and_action(qtbot):
     assert not surface.set_outfit('missing')
     assert surface.outfit_id == 'skier'
     assert surface.animator._action is current_action
+
+
+def test_outfit_ambient_layers_draw_between_sprite_and_temporary_props(qtbot):
+    repository = _DeferredRepository()
+    repository.frames[('snow_ferret', 'outfits/skier/idle.png')] = _color_image(
+        '#FF0000'
+    )
+    repository.frames[('snow_ferret', 'outfits/skier/snow.png')] = _color_image(
+        '#00FF00'
+    )
+    prop = QImage(8, 8, QImage.Format_ARGB32_Premultiplied)
+    prop.fill(Qt.transparent)
+    for x in range(4):
+        for y in range(8):
+            prop.setPixelColor(x, y, QColor('#0000FF'))
+    repository.frames[('snow_ferret', 'accessories/prop.png')] = prop
+
+    manifest = _pack()
+    manifest.outfits = {
+        'skier': _outfit(
+            ('idle',),
+            ambient_layers={'snow': 'outfits/skier/snow.png'},
+        )
+    }
+    surface = PetSurface(repository)
+    qtbot.addWidget(surface)
+    assert surface.set_pack('snow_ferret', manifest)
+    assert surface.set_outfit('skier')
+    surface.set_appearance(SimpleNamespace(held_item='accessories/prop.png'))
+    surface.show()
+    rendered = surface.grab().toImage()
+    dpr = rendered.devicePixelRatio()
+    y = round(surface.height() * 0.5 * dpr)
+
+    assert rendered.pixelColor(round(surface.width() * 0.25 * dpr), y) == QColor(
+        '#0000FF'
+    )
+    assert rendered.pixelColor(round(surface.width() * 0.75 * dpr), y) == QColor(
+        '#00FF00'
+    )
+
+
+def test_outfit_switch_clears_previous_ambient_layers(qtbot):
+    repository = _DeferredRepository()
+    repository.frames[('snow_ferret', 'outfits/first/snow.png')] = _color_image(
+        '#00FF00'
+    )
+    manifest = _pack()
+    manifest.outfits = {
+        'first': _outfit(
+            ('idle',),
+            ambient_layers={'snow': 'outfits/first/snow.png'},
+        ),
+        'second': _outfit(('idle',)),
+    }
+    surface = PetSurface(repository)
+    qtbot.addWidget(surface)
+    surface.set_pack('snow_ferret', manifest)
+
+    assert surface.set_outfit('first')
+    assert surface._ambient_paths == ('outfits/first/snow.png',)
+    assert len(surface._ambient_images) == 1
+
+    assert surface.set_outfit('second')
+    assert surface._ambient_paths == ()
+    assert surface._ambient_images == ()
+
+
+def test_broken_ambient_layer_is_hidden_without_unloading_outfit(qtbot):
+    repository = _DeferredRepository()
+    repository.frames[('snow_ferret', 'outfits/skier/snow.png')] = _color_image(
+        '#00FF00'
+    )
+    manifest = _pack()
+    manifest.outfits = {
+        'skier': _outfit(
+            ('idle',),
+            ambient_layers={'snow': 'outfits/skier/snow.png'},
+        )
+    }
+    surface = PetSurface(repository)
+    qtbot.addWidget(surface)
+    failed = QSignalSpy(surface.outfit_layer_failed)
+    surface.set_pack('snow_ferret', manifest)
+    surface.set_outfit('skier')
+
+    repository.resource_failed.emit(
+        'snow_ferret',
+        'outfits/skier/snow.png',
+    )
+
+    assert failed.count() == 1
+    assert surface.outfit_id == 'skier'
+    assert surface._ambient_images == ()
+    assert 'outfits/skier/snow.png' in surface._failed_ambient_paths
 
 
 def test_look_cursor_uses_requested_stable_gaze_frame(qtbot):

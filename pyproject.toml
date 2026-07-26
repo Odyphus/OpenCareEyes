@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "opencareyes"
-version = "0.7.0"
+version = "0.8.0b2"
 description = "Windows 桌面陪伴与护眼助手"
 readme = { file = "README.md", content-type = "text/markdown" }
 license = "Apache-2.0"
@@ -31,11 +31,13 @@ dependencies = [
 
 [project.optional-dependencies]
 build = [
+    "numpy>=1.26",
     "pyinstaller>=6.3",
     "pillow>=10.0",
     "tomli>=2.0; python_version < '3.11'",
 ]
 dev = [
+    "numpy>=1.26",
     "pillow>=10.0",
     "pytest>=8.0",
     "pytest-qt>=4.4",

@@ -103,6 +103,74 @@ def test_win32_backend_ignores_only_own_window_busy(
     assert snapshot.fullscreen is False
 
 
+@pytest.mark.parametrize(
+    ("client_bounds", "expected"),
+    [
+        ((-1920, 32, 0, 1040), False),
+        ((-1920, 0, 0, 1080), True),
+    ],
+)
+def test_win32_fullscreen_requires_client_area_to_cover_monitor(
+    monkeypatch,
+    client_bounds,
+    expected,
+):
+    real_api = context_sensor_module.api
+    if real_api is None:
+        pytest.skip("Win32 structures are unavailable")
+
+    monitor_bounds = (-1920, 0, 0, 1080)
+    client_left, client_top, client_right, client_bottom = client_bounds
+
+    def assign_rect(target, bounds):
+        rect = getattr(target, "_obj", target)
+        rect.left, rect.top, rect.right, rect.bottom = bounds
+
+    def dwm_get_window_attribute(_hwnd, _attribute, pointer, _size):
+        assign_rect(pointer, monitor_bounds)
+        return 0
+
+    def get_monitor_info(_monitor, pointer):
+        assign_rect(pointer._obj.rcMonitor, monitor_bounds)
+        return True
+
+    def get_client_rect(_hwnd, pointer):
+        assign_rect(
+            pointer,
+            (
+                0,
+                0,
+                client_right - client_left,
+                client_bottom - client_top,
+            ),
+        )
+        return True
+
+    def client_to_screen(_hwnd, pointer):
+        point = pointer._obj
+        point.x += client_left
+        point.y += client_top
+        return True
+
+    fake_api = SimpleNamespace(
+        RECT=real_api.RECT,
+        MONITORINFOEXW=real_api.MONITORINFOEXW,
+        wintypes=real_api.wintypes,
+        DWMWA_EXTENDED_FRAME_BOUNDS=real_api.DWMWA_EXTENDED_FRAME_BOUNDS,
+        MONITOR_DEFAULTTONEAREST=real_api.MONITOR_DEFAULTTONEAREST,
+        IsWindow=lambda _hwnd: True,
+        IsIconic=lambda _hwnd: False,
+        DwmGetWindowAttribute=dwm_get_window_attribute,
+        MonitorFromWindow=lambda _hwnd, _flags: 7,
+        GetMonitorInfoW=get_monitor_info,
+        GetClientRect=get_client_rect,
+        ClientToScreen=client_to_screen,
+    )
+    monkeypatch.setattr(context_sensor_module, "api", fake_api)
+
+    assert Win32ContextBackend._is_fullscreen(123) is expected
+
+
 def test_start_samples_immediately_and_is_idempotent(qtbot):
     backend = FakeBackend()
     sensor = make_sensor(backend)

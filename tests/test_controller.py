@@ -12,6 +12,11 @@ from opencareyes.config.settings import Settings
 from opencareyes.controller import AppController
 from opencareyes.core.break_reminder import BreakReminder
 from opencareyes.application.utility_timer import UtilityTimerService
+from opencareyes.state import (
+    ContextState,
+    EffectivePolicyState,
+    FeatureRuntimeState,
+)
 
 
 @pytest.fixture(scope="module")
@@ -309,6 +314,66 @@ def test_companion_commands_persist_and_update_runtime(qapp):
     assert companion.items == ['yarn_ball']
 
 
+def test_reset_pet_position_is_one_atomic_anchor_reset(qapp):
+    settings = Settings(MemoryStore())
+    settings.pet_anchor_edge = 'free'
+    settings.pet_anchor_offset = 0
+    settings.pet_x = 420
+    settings.pet_y = 240
+    instance = AppController(settings)
+    spy = QSignalSpy(instance.state_changed)
+
+    assert instance.reset_pet_position() is True
+
+    assert settings.pet_anchor_edge == 'bottom_right'
+    assert settings.pet_anchor_offset == 24
+    assert settings.pet_x is None
+    assert settings.pet_y is None
+    assert spy.count() == 1
+
+
+def test_companion_visibility_reuses_effective_break_suppression(qapp):
+    settings = Settings(MemoryStore())
+    companion = FakeCompanion()
+    companion.state = SimpleNamespace(
+        pet_id='snow_ferret',
+        outfit_id='',
+        visible=True,
+        suppressed_by=(),
+        bubble_visible=False,
+        behavior=SimpleNamespace(action_id='idle'),
+        appearance=SimpleNamespace(),
+    )
+    instance = AppController(settings, companion=companion)
+
+    instance.update_runtime_state(
+        ContextState(notification_mode='presentation'),
+        EffectivePolicyState(
+            breaks=FeatureRuntimeState(
+                desired_enabled=True,
+                effective_enabled=False,
+                suppressed_by=('presentation',),
+            )
+        ),
+    )
+
+    assert instance.state.companion.visible is False
+    assert instance.state.companion.suppressed_by == ('presentation',)
+
+    instance.update_runtime_state(
+        ContextState(fullscreen=True),
+        EffectivePolicyState(
+            breaks=FeatureRuntimeState(
+                desired_enabled=True,
+                effective_enabled=True,
+            )
+        ),
+    )
+
+    assert instance.state.companion.visible is True
+    assert instance.state.companion.suppressed_by == ()
+
+
 def test_pet_outfit_switch_is_atomic_and_restores_automatic_mode(qapp):
     settings = Settings(MemoryStore())
     companion = FakeCompanion()
@@ -352,7 +417,7 @@ def test_pet_outfit_sync_failure_rolls_back_settings_and_runtime(qapp):
     )
 
 
-def test_async_pet_outfit_commits_only_latest_ready_request_once(qapp):
+def test_async_pet_outfit_commits_only_latest_ready_request_once(qapp, monkeypatch):
     settings = Settings(MemoryStore())
     companion = FakeCompanion()
     repository = FakeOutfitRepository()
@@ -361,24 +426,42 @@ def test_async_pet_outfit_commits_only_latest_ready_request_once(qapp):
         companion=companion,
         pet_asset_repository=repository,
     )
-    spy = QSignalSpy(instance.state_changed)
+    state_spy = QSignalSpy(instance.state_changed)
+    wardrobe_spy = QSignalSpy(instance.wardrobe_changed)
+    build_calls = []
+    original_build_state = instance._build_state
+
+    def tracked_build_state():
+        build_calls.append(True)
+        return original_build_state()
+
+    monkeypatch.setattr(instance, '_build_state', tracked_build_state)
 
     assert instance.set_pet_outfit('snow_slope_skier') is True
     assert instance.set_pet_outfit('navy_scarf') is True
     assert companion.outfit_id == ''
     assert settings.wardrobe_mode == 'automatic'
-    assert spy.count() == 0
+    assert state_spy.count() == 0
+    assert build_calls == []
+    assert wardrobe_spy.count() == 2
+    assert wardrobe_spy.at(0)[0].loading_outfit_id == 'snow_slope_skier'
+    assert wardrobe_spy.at(1)[0].loading_outfit_id == 'navy_scarf'
 
     repository.succeed(0)
     assert companion.outfit_id == ''
-    assert spy.count() == 0
+    assert state_spy.count() == 0
+    assert wardrobe_spy.count() == 2
+    assert build_calls == []
 
     repository.succeed(1)
     assert companion.outfit_id == 'navy_scarf'
     assert settings.outfit_preferences == {'snow_ferret': 'navy_scarf'}
-    assert spy.count() == 1
-
-
+    assert state_spy.count() == 1
+    assert wardrobe_spy.count() == 3
+    assert wardrobe_spy.at(2)[0].loading_outfit_id == ''
+    assert wardrobe_spy.at(2)[0].selected_outfit_id == 'navy_scarf'
+    assert wardrobe_spy.at(2)[0].mode == 'outfit'
+    assert len(build_calls) == 1
 def test_async_pet_outfit_failure_keeps_old_state_and_marks_entry_unavailable(qapp):
     settings = Settings(MemoryStore())
     companion = FakeCompanion()
@@ -389,8 +472,11 @@ def test_async_pet_outfit_failure_keeps_old_state_and_marks_entry_unavailable(qa
         pet_asset_repository=repository,
     )
     spy = QSignalSpy(instance.state_changed)
+    wardrobe_spy = QSignalSpy(instance.wardrobe_changed)
 
     assert instance.set_pet_outfit('snow_slope_skier') is True
+    assert wardrobe_spy.count() == 1
+    assert wardrobe_spy.at(0)[0].loading_outfit_id == 'snow_slope_skier'
     repository.fail()
 
     assert companion.outfit_id == ''
@@ -405,6 +491,9 @@ def test_async_pet_outfit_failure_keeps_old_state_and_marks_entry_unavailable(qa
     )
     assert entry.available is False
     assert spy.count() == 1
+    assert wardrobe_spy.count() == 2
+    assert wardrobe_spy.at(1)[0].loading_outfit_id == ''
+    assert wardrobe_spy.at(1)[0].error
 
 
 def test_surface_rejection_rolls_back_async_outfit_without_writing_settings(qapp):

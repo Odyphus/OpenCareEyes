@@ -12,7 +12,15 @@ from PySide6.QtCore import (
     Qt,
     Signal,
 )
-from PySide6.QtGui import QColor, QImage, QPainter, QPainterPath, QPen
+from PySide6.QtGui import (
+    QAccessible,
+    QAccessibleEvent,
+    QColor,
+    QImage,
+    QPainter,
+    QPainterPath,
+    QPen,
+)
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QBoxLayout,
@@ -163,6 +171,7 @@ class _WardrobeModel(QAbstractListModel):
     EntryRole = Qt.UserRole + 1
     EffectiveRole = Qt.UserRole + 2
     AvailableRole = Qt.UserRole + 3
+    LoadingRole = Qt.UserRole + 4
 
     def __init__(self, parent=None, *, asset_repository=None):
         super().__init__(parent)
@@ -194,12 +203,14 @@ class _WardrobeModel(QAbstractListModel):
         description = str(getattr(entry, 'description', ''))
         available = self.is_available(index)
         effective = bool(outfit_id and outfit_id == self._effective_id)
+        loading = bool(outfit_id and outfit_id == self._loading_id)
         if role == Qt.DisplayRole:
             return display_name
         if role == Qt.ToolTipRole:
             return description
         if role == Qt.AccessibleTextRole:
-            return f'装扮：{display_name}，{"已穿戴" if effective else "未穿戴"}'
+            status = '正在穿戴' if loading else ('已穿戴' if effective else '未穿戴')
+            return f'装扮：{display_name}，{status}'
         if role == Qt.AccessibleDescriptionRole:
             suffix = '资源可用' if available else '资源不可用'
             return f'{description}；{suffix}' if description else suffix
@@ -209,6 +220,8 @@ class _WardrobeModel(QAbstractListModel):
             return effective
         if role == self.AvailableRole:
             return available
+        if role == self.LoadingRole:
+            return loading
         return None
 
     def set_context(
@@ -262,7 +275,7 @@ class _WardrobeModel(QAbstractListModel):
             self.dataChanged.emit(
                 self.index(0, 0),
                 self.index(len(self._entries) - 1, 0),
-                [self.EffectiveRole, Qt.AccessibleTextRole],
+                [self.EffectiveRole, self.LoadingRole, Qt.AccessibleTextRole],
             )
 
     def entry(self, index) -> object | None:
@@ -287,6 +300,19 @@ class _WardrobeModel(QAbstractListModel):
         if entry is None:
             return QImage()
         return QImage(self._images.get(str(getattr(entry, 'thumbnail_path', '')), QImage()))
+
+    def thumbnail_placeholder(self, index) -> str:
+        entry = self.entry(index)
+        if entry is None:
+            return '资源不可用'
+        path = str(getattr(entry, 'thumbnail_path', ''))
+        if (
+            self._asset_repository is None
+            or not bool(getattr(entry, 'available', True))
+            or path in self._failed
+        ):
+            return '资源不可用'
+        return '预览加载中'
 
     def ensure_thumbnail(self, index) -> None:
         entry = self.entry(index)
@@ -343,6 +369,7 @@ class _WardrobeDelegate(QStyledItemDelegate):
         display_name = str(getattr(entry, 'display_name', '未命名造型'))
         effective = bool(index.data(_WardrobeModel.EffectiveRole))
         available = bool(index.data(_WardrobeModel.AvailableRole))
+        loading = bool(index.data(_WardrobeModel.LoadingRole))
         current = bool(option.state & QStyle.State_Selected)
         focused = bool(option.state & QStyle.State_HasFocus)
 
@@ -380,7 +407,11 @@ class _WardrobeDelegate(QStyledItemDelegate):
             painter.setBrush(palette.window().color())
             painter.drawRoundedRect(image_rect, 8, 8)
             painter.setPen(palette.placeholderText().color())
-            painter.drawText(image_rect, Qt.AlignCenter, '预览加载中' if available else '资源不可用')
+            painter.drawText(
+                image_rect,
+                Qt.AlignCenter,
+                model.thumbnail_placeholder(index),
+            )
 
         font = painter.font()
         font.setBold(True)
@@ -392,7 +423,10 @@ class _WardrobeDelegate(QStyledItemDelegate):
         status_rect = QRectF(card.left() + 10, name_rect.bottom() + 2, card.width() - 20, 20)
         font.setBold(False)
         painter.setFont(font)
-        if effective:
+        if loading:
+            painter.setPen(palette.highlight().color())
+            painter.drawText(status_rect, Qt.AlignCenter, '正在穿戴…')
+        elif effective:
             painter.setPen(palette.highlight().color())
             painter.drawText(status_rect, Qt.AlignCenter, '✓  已穿戴')
         elif not available:
@@ -613,6 +647,10 @@ class PetCatalogPage(ScrollPage):
         self._rendering = False
         self._catalog_signature = None
         self._compact = None
+        self._active_pet_id = ''
+        self._last_wardrobe_state = None
+        self._last_wardrobe_announcement = ''
+        self._loading_outfit_id = ''
         self.layout.addWidget(
             PageHeader(
                 '宠物图鉴',
@@ -712,6 +750,9 @@ class PetCatalogPage(ScrollPage):
         )
         self._weather.toggled.connect(self._toggle_weather)
         controller.state_changed.connect(self.render)
+        wardrobe_changed = getattr(controller, 'wardrobe_changed', None)
+        if wardrobe_changed is not None and hasattr(wardrobe_changed, 'connect'):
+            wardrobe_changed.connect(self.render_wardrobe)
         loader = getattr(controller, 'ensure_pet_catalog_loaded', None)
         if (
             callable(loader)
@@ -732,6 +773,57 @@ class PetCatalogPage(ScrollPage):
         self._wardrobe_status.setAccessibleName('当前造型状态')
         wardrobe.body.addWidget(self._wardrobe_status)
 
+        self._wardrobe_content = QWidget()
+        content_layout = QBoxLayout(QBoxLayout.RightToLeft)
+        content_layout.setContentsMargins(0, 0, 0, 0)
+        content_layout.setSpacing(12)
+        self._wardrobe_content.setLayout(content_layout)
+        self._wardrobe_content_layout = content_layout
+
+        self._wardrobe_detail_panel = QWidget()
+        self._wardrobe_detail_panel.setMinimumWidth(220)
+        self._wardrobe_detail_panel.setMaximumWidth(280)
+        detail_layout = QVBoxLayout(self._wardrobe_detail_panel)
+        detail_layout.setContentsMargins(0, 0, 0, 0)
+        detail_layout.setSpacing(8)
+        self._wardrobe_detail_title = QLabel('选择一套造型查看详情')
+        self._wardrobe_detail_title.setObjectName('cardHeading')
+        self._wardrobe_detail = QLabel('')
+        self._wardrobe_detail.setObjectName('statusDetail')
+        self._wardrobe_detail.setWordWrap(True)
+        self._wardrobe_error = QLabel('')
+        self._wardrobe_error.setObjectName('errorLabel')
+        self._wardrobe_error.setAccessibleName('衣橱资源错误')
+        self._wardrobe_error.setWordWrap(True)
+        detail_layout.addWidget(self._wardrobe_detail_title)
+        detail_layout.addWidget(self._wardrobe_detail)
+        detail_layout.addWidget(self._wardrobe_error)
+
+        action_row = QBoxLayout(QBoxLayout.LeftToRight)
+        self._wardrobe_action_layout = action_row
+        self._wear_outfit = QPushButton('穿戴这套')
+        self._wear_outfit.setObjectName('primaryButton')
+        self._wear_outfit.setAccessibleName('穿戴当前浏览的整套造型')
+        self._wear_outfit.setMinimumHeight(40)
+        self._restore_outfit = QPushButton('恢复自动搭配')
+        self._restore_outfit.setObjectName('quietButton')
+        self._restore_outfit.setAccessibleName('恢复天气与节日自动搭配')
+        self._restore_outfit.setMinimumHeight(40)
+        action_row.addWidget(self._wear_outfit)
+        action_row.addWidget(self._restore_outfit)
+        detail_layout.addLayout(action_row)
+
+        self._wardrobe_weather_note = QLabel('天气与节日装扮会自动生效。')
+        self._wardrobe_weather_note.setObjectName('statusDetail')
+        self._wardrobe_weather_note.setWordWrap(True)
+        detail_layout.addWidget(self._wardrobe_weather_note)
+        detail_layout.addStretch()
+        content_layout.addWidget(self._wardrobe_detail_panel)
+
+        self._wardrobe_gallery = QWidget()
+        gallery_layout = QVBoxLayout(self._wardrobe_gallery)
+        gallery_layout.setContentsMargins(0, 0, 0, 0)
+        gallery_layout.setSpacing(8)
         self._wardrobe_model = _WardrobeModel(
             wardrobe,
             asset_repository=self._asset_repository,
@@ -754,45 +846,27 @@ class PetCatalogPage(ScrollPage):
         self._wardrobe_view.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self._wardrobe_view.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self._wardrobe_view.setSpacing(8)
-        wardrobe.body.addWidget(self._wardrobe_view)
-
-        self._wardrobe_detail_title = QLabel('选择一套造型查看详情')
-        self._wardrobe_detail_title.setObjectName('cardHeading')
-        self._wardrobe_detail = QLabel('')
-        self._wardrobe_detail.setObjectName('statusDetail')
-        self._wardrobe_detail.setWordWrap(True)
-        self._wardrobe_error = QLabel('')
-        self._wardrobe_error.setObjectName('errorLabel')
-        self._wardrobe_error.setWordWrap(True)
-        wardrobe.body.addWidget(self._wardrobe_detail_title)
-        wardrobe.body.addWidget(self._wardrobe_detail)
-        wardrobe.body.addWidget(self._wardrobe_error)
-
-        action_row = QBoxLayout(QBoxLayout.LeftToRight)
-        self._wardrobe_action_layout = action_row
-        self._wear_outfit = QPushButton('穿戴这套')
-        self._wear_outfit.setObjectName('primaryButton')
-        self._wear_outfit.setAccessibleName('穿戴当前浏览的整套造型')
-        self._restore_outfit = QPushButton('恢复自动搭配')
-        self._restore_outfit.setObjectName('quietButton')
-        self._restore_outfit.setAccessibleName('恢复天气与节日自动搭配')
-        action_row.addWidget(self._wear_outfit)
-        action_row.addWidget(self._restore_outfit)
-        action_row.addStretch()
-        wardrobe.body.addLayout(action_row)
-
-        self._wardrobe_weather_note = QLabel('天气与节日装扮会自动生效。')
-        self._wardrobe_weather_note.setObjectName('statusDetail')
-        self._wardrobe_weather_note.setWordWrap(True)
-        wardrobe.body.addWidget(self._wardrobe_weather_note)
+        self._wardrobe_empty = QLabel(
+            '当前伙伴尚未提供整套造型，可继续使用自动搭配或单件配饰。'
+        )
+        self._wardrobe_empty.setObjectName('statusDetail')
+        self._wardrobe_empty.setAccessibleName('衣橱空状态')
+        self._wardrobe_empty.setWordWrap(True)
+        gallery_layout.addWidget(self._wardrobe_empty)
+        gallery_layout.addWidget(self._wardrobe_view)
+        content_layout.addWidget(self._wardrobe_gallery, 1)
+        wardrobe.body.addWidget(self._wardrobe_content)
 
         self._advanced_accessories_toggle = QToolButton()
         self._advanced_accessories_toggle.setObjectName('wardrobeAdvancedToggle')
         self._advanced_accessories_toggle.setText('单件配饰（高级）')
         self._advanced_accessories_toggle.setCheckable(True)
         self._advanced_accessories_toggle.setArrowType(Qt.RightArrow)
-        self._advanced_accessories_toggle.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        self._advanced_accessories_toggle.setToolButtonStyle(
+            Qt.ToolButtonTextBesideIcon
+        )
         self._advanced_accessories_toggle.setAccessibleName('展开单件配饰高级设置')
+        self._advanced_accessories_toggle.setMinimumHeight(40)
         wardrobe.body.addWidget(self._advanced_accessories_toggle)
 
         self._advanced_accessories = QWidget()
@@ -810,6 +884,7 @@ class PetCatalogPage(ScrollPage):
             button = QPushButton(label)
             button.setCheckable(True)
             button.setAccessibleName(f'装扮：{label}')
+            button.setMinimumHeight(40)
             button.clicked.connect(
                 lambda checked=False, selected_slot=slot, selected_item=item_id: (
                     self._set_accessory(selected_slot, selected_item, checked)
@@ -819,9 +894,10 @@ class PetCatalogPage(ScrollPage):
             self._accessory_buttons[key] = button
             self._accessory_labels[key] = label
             wardrobe_row.addWidget(button)
-        clear_accessories = QPushButton('清除单件配饰')
-        clear_accessories.clicked.connect(self._clear_manual_accessories)
-        wardrobe_row.addWidget(clear_accessories)
+        self._clear_accessories = QPushButton('清除单件配饰')
+        self._clear_accessories.setMinimumHeight(40)
+        self._clear_accessories.clicked.connect(self._clear_manual_accessories)
+        wardrobe_row.addWidget(self._clear_accessories)
         self._advanced_accessories.hide()
         wardrobe.body.addWidget(self._advanced_accessories)
 
@@ -861,6 +937,11 @@ class PetCatalogPage(ScrollPage):
             self._wardrobe_action_layout,
         ):
             layout.setDirection(direction)
+        self._wardrobe_content_layout.setDirection(
+            QBoxLayout.TopToBottom if compact else QBoxLayout.RightToLeft
+        )
+        self._wardrobe_detail_panel.setMinimumWidth(0 if compact else 220)
+        self._wardrobe_detail_panel.setMaximumWidth(16_777_215 if compact else 280)
         self.content.layout().setContentsMargins(
             16 if compact else 28,
             16 if compact else 24,
@@ -869,21 +950,36 @@ class PetCatalogPage(ScrollPage):
         )
 
     def _apply_wardrobe_grid(self, available_width: int) -> None:
-        width = max(240, int(available_width) - (32 if available_width < 640 else 56) - 40)
-        if width < 390:
-            columns = 1
-        elif width < 640:
+        has_items = self._wardrobe_model.rowCount() > 0
+        self._wardrobe_empty.setVisible(not has_items)
+        self._wardrobe_view.setVisible(has_items)
+        if not has_items:
+            self._wardrobe_columns = 0
+            self._wardrobe_view.setFixedHeight(0)
+            return
+
+        gallery_width = self._wardrobe_gallery.width()
+        if gallery_width < 240:
+            reserved = 0 if self._compact else 300
+            margins = 32 if self._compact else 56
+            gallery_width = max(240, int(available_width) - reserved - margins)
+        if self._compact:
+            columns = 1 if gallery_width < 390 else 2
+        elif gallery_width < 480:
             columns = 2
-        elif width < 860:
+        elif gallery_width < 720:
             columns = 3
         else:
             columns = 4
         spacing = self._wardrobe_view.spacing()
-        cell_width = max(150, (width - spacing * (columns - 1)) // columns)
+        cell_width = max(
+            150,
+            (gallery_width - spacing * (columns - 1)) // columns,
+        )
         cell_height = 218
         self._wardrobe_columns = columns
         self._wardrobe_view.setGridSize(QSize(cell_width, cell_height))
-        rows = max(1, (self._wardrobe_model.rowCount() + columns - 1) // columns)
+        rows = (self._wardrobe_model.rowCount() + columns - 1) // columns
         self._wardrobe_view.setFixedHeight(rows * cell_height + 4)
 
     def _toggle_advanced_accessories(self, expanded: bool) -> None:
@@ -919,6 +1015,8 @@ class PetCatalogPage(ScrollPage):
         return self._wardrobe_model.entry(self._wardrobe_view.currentIndex())
 
     def _wear_selected_outfit(self) -> None:
+        if self._loading_outfit_id:
+            return
         entry = self._selected_outfit_entry()
         if entry is None or not self._wardrobe_model.is_available(
             self._wardrobe_view.currentIndex()
@@ -931,21 +1029,122 @@ class PetCatalogPage(ScrollPage):
     def _update_wardrobe_detail(self) -> None:
         entry = self._selected_outfit_entry()
         if entry is None:
-            self._wardrobe_detail_title.setText('选择一套造型查看详情')
-            self._wardrobe_detail.clear()
+            empty = self._wardrobe_model.rowCount() == 0
+            self._wardrobe_detail_title.setText(
+                '暂无整套造型' if empty else '选择一套造型查看详情'
+            )
+            self._wardrobe_detail.setText(
+                '当前伙伴仍可使用自动搭配和单件配饰。' if empty else ''
+            )
             self._wear_outfit.setEnabled(False)
+            self._wear_outfit.setText('穿戴这套')
             return
         display_name = str(getattr(entry, 'display_name', '未命名造型'))
         description = str(getattr(entry, 'description', '暂无造型说明。'))
         current = self._wardrobe_view.currentIndex()
         available = self._wardrobe_model.is_available(current)
         effective = bool(current.data(_WardrobeModel.EffectiveRole))
+        loading = bool(self._loading_outfit_id)
         self._wardrobe_detail_title.setText(display_name)
         self._wardrobe_detail.setText(
             description if available else f'{description}\n资源不可用，当前造型不会改变。'
         )
-        self._wear_outfit.setEnabled(available and not effective)
-        self._wear_outfit.setText('已穿戴' if effective else '穿戴这套')
+        self._wear_outfit.setEnabled(available and not effective and not loading)
+        if loading:
+            self._wear_outfit.setText('正在应用…')
+        else:
+            self._wear_outfit.setText('已穿戴' if effective else '穿戴这套')
+
+    def render_wardrobe(self, wardrobe_state) -> None:
+        """Apply a lightweight wardrobe projection without rebuilding the page."""
+
+        previous_rendering = self._rendering
+        self._rendering = True
+        try:
+            self._apply_wardrobe_state(wardrobe_state)
+        finally:
+            self._rendering = previous_rendering
+
+    def _apply_wardrobe_state(self, wardrobe_state) -> None:
+        wardrobe_state = getattr(wardrobe_state, 'pet_wardrobe', wardrobe_state)
+        self._last_wardrobe_state = wardrobe_state
+        wardrobe_entries = tuple(
+            getattr(wardrobe_state, 'available_outfits', ()) or ()
+        )
+        wardrobe_mode = str(getattr(wardrobe_state, 'mode', 'automatic'))
+        selected_outfit = str(
+            getattr(wardrobe_state, 'selected_outfit_id', '')
+        )
+        effective_outfit = str(
+            getattr(wardrobe_state, 'effective_outfit_id', '')
+        )
+        loading_outfit = str(
+            getattr(wardrobe_state, 'loading_outfit_id', '')
+        )
+        self._loading_outfit_id = loading_outfit
+
+        browsed = self._selected_outfit_entry()
+        browsed_id = str(getattr(browsed, 'outfit_id', '')) if browsed else ''
+        self._wardrobe_model.set_context(
+            self._active_pet_id,
+            wardrobe_entries,
+            effective_id=effective_outfit,
+            loading_id=loading_outfit,
+        )
+        target = self._wardrobe_model.index_for_outfit(browsed_id)
+        if not target.isValid():
+            target = self._wardrobe_model.index_for_outfit(
+                effective_outfit or selected_outfit
+            )
+        if not target.isValid() and self._wardrobe_model.rowCount():
+            target = self._wardrobe_model.index(0, 0)
+        if target.isValid() and target != self._wardrobe_view.currentIndex():
+            self._wardrobe_view.setCurrentIndex(target)
+
+        names = {
+            str(getattr(entry, 'outfit_id', '')): str(
+                getattr(entry, 'display_name', '未命名造型')
+            )
+            for entry in wardrobe_entries
+        }
+        if loading_outfit:
+            wardrobe_status = (
+                f'正在穿戴：{names.get(loading_outfit, loading_outfit)}'
+            )
+        elif wardrobe_mode == 'outfit' and effective_outfit:
+            wardrobe_status = (
+                f'已锁定：{names.get(effective_outfit, effective_outfit)}'
+            )
+        elif wardrobe_mode == 'accessories':
+            wardrobe_status = '当前：单件配饰'
+        else:
+            wardrobe_status = '当前：自动搭配'
+        self._wardrobe_status.setText(wardrobe_status)
+
+        wardrobe_error = str(getattr(wardrobe_state, 'error', ''))
+        self._wardrobe_error.setText(wardrobe_error)
+        self._wardrobe_error.setVisible(bool(wardrobe_error))
+        locked = wardrobe_mode == 'outfit' and bool(effective_outfit)
+        self._wardrobe_weather_note.setText(
+            '天气与节日装扮当前因整套造型暂停。'
+            if locked
+            else '天气与节日装扮会自动生效。'
+        )
+        self._restore_outfit.setEnabled(
+            wardrobe_mode != 'automatic' and not loading_outfit
+        )
+        self._update_wardrobe_detail()
+        self._apply_wardrobe_grid(self.viewport().width())
+
+        announcement = wardrobe_error or wardrobe_status
+        self._wardrobe_status.setAccessibleDescription(announcement)
+        if announcement != self._last_wardrobe_announcement:
+            self._last_wardrobe_announcement = announcement
+            alert_event = getattr(QAccessible.Event, 'Alert', None)
+            if alert_event is not None and self.isVisible():
+                QAccessible.updateAccessibility(
+                    QAccessibleEvent(self._wardrobe_status, alert_event)
+                )
 
     def _call_unless_rendering(self, command, value) -> None:
         if not self._rendering:
@@ -1010,92 +1209,24 @@ class PetCatalogPage(ScrollPage):
             self._controller.set_pet_accessory(slot, None)
 
     def render(self, state) -> None:
+        previous_rendering = self._rendering
         self._rendering = True
+        try:
+            self._render_state(state)
+        finally:
+            self._rendering = previous_rendering
+
+    def _render_state(self, state) -> None:
         entries = tuple(
             first_state_value(state, 'pet_catalog.available_pets', default=()) or ()
         )
         active = str(
             first_state_value(state, 'pet_catalog.active_pet_id', default='')
         )
-        wardrobe_entries = tuple(
-            first_state_value(
-                state,
-                'pet_wardrobe.available_outfits',
-                'pet_wardrobe.entries',
-                default=(),
-            )
-            or ()
+        self._active_pet_id = active
+        self._apply_wardrobe_state(
+            getattr(state, 'pet_wardrobe', state)
         )
-        wardrobe_mode = str(
-            first_state_value(state, 'pet_wardrobe.mode', default='automatic')
-        )
-        selected_outfit = str(
-            first_state_value(
-                state,
-                'pet_wardrobe.selected_outfit_id',
-                default='',
-            )
-        )
-        effective_outfit = str(
-            first_state_value(
-                state,
-                'pet_wardrobe.effective_outfit_id',
-                default='',
-            )
-        )
-        loading_outfit = str(
-            first_state_value(
-                state,
-                'pet_wardrobe.loading_outfit_id',
-                default='',
-            )
-        )
-        browsed = self._selected_outfit_entry()
-        browsed_id = str(getattr(browsed, 'outfit_id', '')) if browsed else ''
-        self._wardrobe_model.set_context(
-            active,
-            wardrobe_entries,
-            effective_id=effective_outfit,
-            loading_id=loading_outfit,
-        )
-        target = self._wardrobe_model.index_for_outfit(browsed_id)
-        if not target.isValid():
-            target = self._wardrobe_model.index_for_outfit(
-                effective_outfit or selected_outfit
-            )
-        if not target.isValid() and self._wardrobe_model.rowCount():
-            target = self._wardrobe_model.index(0, 0)
-        if target.isValid() and target != self._wardrobe_view.currentIndex():
-            self._wardrobe_view.setCurrentIndex(target)
-        names = {
-            str(getattr(entry, 'outfit_id', '')): str(
-                getattr(entry, 'display_name', '未命名造型')
-            )
-            for entry in wardrobe_entries
-        }
-        if loading_outfit:
-            wardrobe_status = f'正在穿戴：{names.get(loading_outfit, loading_outfit)}'
-        elif wardrobe_mode == 'outfit' and effective_outfit:
-            wardrobe_status = f'已锁定：{names.get(effective_outfit, effective_outfit)}'
-        elif wardrobe_mode == 'accessories':
-            wardrobe_status = '当前：单件配饰'
-        else:
-            wardrobe_status = '当前：自动搭配'
-        self._wardrobe_status.setText(wardrobe_status)
-        wardrobe_error = str(
-            first_state_value(state, 'pet_wardrobe.error', default='')
-        )
-        self._wardrobe_error.setText(wardrobe_error)
-        self._wardrobe_error.setVisible(bool(wardrobe_error))
-        locked = wardrobe_mode == 'outfit' and bool(effective_outfit)
-        self._wardrobe_weather_note.setText(
-            '天气与节日装扮当前因整套造型暂停。'
-            if locked
-            else '天气与节日装扮会自动生效。'
-        )
-        self._restore_outfit.setEnabled(wardrobe_mode != 'automatic')
-        self._update_wardrobe_detail()
-        self._apply_wardrobe_grid(self.viewport().width())
         signature = tuple(
             (
                 str(getattr(entry, 'pet_id', '')),
@@ -1181,7 +1312,6 @@ class PetCatalogPage(ScrollPage):
                 button.setObjectName(object_name)
                 button.style().unpolish(button)
                 button.style().polish(button)
-        self._rendering = False
 
 
 class AppPropRulesCard(Card):

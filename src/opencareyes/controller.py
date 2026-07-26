@@ -188,6 +188,7 @@ class AppController(QObject):
     """Own all feature mutations and publish immutable snapshots."""
 
     state_changed = Signal(object)
+    wardrobe_changed = Signal(object)
     companion_presentation_changed = Signal(object)
     break_tick = Signal(int, int)
     utility_timer_tick = Signal(int)
@@ -405,11 +406,16 @@ class AppController(QObject):
                 )
 
         self._state = self._build_state()
+        self._wardrobe_state = self._state.pet_wardrobe
         self._companion_presentation = self._build_companion_presentation()
 
     @property
     def state(self) -> AppState:
         return self._state
+
+    @property
+    def wardrobe_state(self) -> PetWardrobeState:
+        return self._wardrobe_state
 
     @property
     def companion_presentation(self) -> CompanionPresentationSnapshot:
@@ -466,12 +472,29 @@ class AppController(QObject):
         if self._in_transaction and not force:
             return self._state
         new_state = self._build_state()
+        wardrobe = new_state.pet_wardrobe
         if force or new_state != self._state:
             self._state = new_state
             self.state_changed.emit(new_state)
+        self._publish_wardrobe(wardrobe, force=force)
         self.refresh_companion_presentation()
         return self._state
 
+    def refresh_wardrobe(self, *_args, force: bool = False) -> PetWardrobeState:
+        """Publish wardrobe loading progress without rebuilding the full AppState."""
+
+        return self._publish_wardrobe(self._project_pet_wardrobe(), force=force)
+
+    def _publish_wardrobe(
+        self,
+        snapshot: PetWardrobeState,
+        *,
+        force: bool = False,
+    ) -> PetWardrobeState:
+        if force or snapshot != self._wardrobe_state:
+            self._wardrobe_state = snapshot
+            self.wardrobe_changed.emit(snapshot)
+        return self._wardrobe_state
     def refresh_companion_presentation(
         self,
         *_args,
@@ -520,6 +543,7 @@ class AppController(QObject):
             str(pet_id),
             str(outfit_id),
         )
+        self.refresh_wardrobe(force=True)
         return request_id
 
     def _cancel_wardrobe_request(self) -> None:
@@ -818,10 +842,12 @@ class AppController(QObject):
 
     def reset_pet_position(self) -> bool:
         def operation() -> None:
+            self._settings.pet_anchor_edge = "bottom_right"
+            self._settings.pet_anchor_offset = 24
             self._settings.pet_x = None
             self._settings.pet_y = None
 
-        return self._run("pet_position", operation, reconcile=False)
+        return self._run("pet_anchor", operation, reconcile=False)
 
     def set_companion_enabled(self, enabled: bool) -> bool:
         return self._companion_commands.set_companion_enabled(enabled)
@@ -2660,10 +2686,12 @@ class AppController(QObject):
         appearance = getattr(runtime, 'appearance', None)
         behavior = getattr(runtime, 'behavior', None)
         reasons = list(getattr(runtime, 'suppressed_by', ()))
-        if self._context_state.session in {'locked', 'suspended'}:
-            reasons.append(self._context_state.session)
-        if self._context_state.fullscreen:
-            reasons.append('fullscreen')
+        break_policy = getattr(self._effective_policy, 'breaks', None)
+        reasons.extend(
+            reason
+            for reason in getattr(break_policy, 'suppressed_by', ())
+            if reason != 'global_pause'
+        )
         reasons = list(dict.fromkeys(reasons))
         enabled = bool(getattr(self._settings, 'companion_enabled', True))
         return AppPetState(

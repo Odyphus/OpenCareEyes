@@ -357,10 +357,18 @@ class PetPackRegistry:
     @staticmethod
     def _version_tuple(value: str, field_name: str) -> tuple[int, ...]:
         text = str(value).strip()
-        if not re.fullmatch(r'[0-9]+(?:\.[0-9]+){0,3}', text):
+        match = re.fullmatch(
+            r'(?P<core>[0-9]+(?:\.[0-9]+){0,3})'
+            r'(?:(?P<tag>a|b|rc)(?P<serial>[1-9][0-9]*))?',
+            text,
+        )
+        if match is None:
             raise PetPackValidationError(f'{field_name} must be a numeric release version')
-        values = tuple(int(part) for part in text.split('.'))
-        return values + (0,) * (4 - len(values))
+        values = tuple(int(part) for part in match.group('core').split('.'))
+        padded = values + (0,) * (4 - len(values))
+        phase = {'a': 0, 'b': 1, 'rc': 2, None: 3}[match.group('tag')]
+        serial = int(match.group('serial') or 0)
+        return (*padded, phase, serial)
 
     def _validate_files(self, pack_dir: Path, manifest: PetPackManifest) -> None:
         total_size = 0

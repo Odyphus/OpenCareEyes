@@ -302,9 +302,6 @@ class BreakPage(ScrollPage):
             command(self._reminder_style_combo.itemData(index))
 
     def _reset_pet_position(self) -> None:
-        anchor = getattr(self._controller, 'set_pet_anchor', None)
-        if callable(anchor):
-            anchor('bottom_right', 24)
         command = getattr(self._controller, "reset_pet_position", None)
         if command is not None:
             command()

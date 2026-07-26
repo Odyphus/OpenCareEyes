@@ -135,6 +135,8 @@ class RuntimeSurface(QWidget):
         self.face_cursor_calls = []
         self.gaze_directions = []
         self.move_supported = True
+        self.accept_outfit = True
+        self.presentation_visibility = []
         self.setFixedSize(64, 64)
 
     @property
@@ -161,7 +163,7 @@ class RuntimeSurface(QWidget):
 
     def set_outfit(self, outfit_id):
         self.outfit_ids.append(str(outfit_id or ''))
-        return True
+        return self.accept_outfit
 
     def has_action(self, action_id):
         return str(action_id) != 'move' or self.move_supported
@@ -170,6 +172,7 @@ class RuntimeSurface(QWidget):
         return None
 
     def set_presentation_visible(self, visible):
+        self.presentation_visibility.append(bool(visible))
         self.setVisible(bool(visible))
         return True
 
@@ -220,13 +223,16 @@ class FakeWindowAvoidance(QObject):
         super().__init__()
         self.start_calls = 0
         self.stop_calls = 0
+        self.restore_values = []
 
     def start(self):
         self.start_calls += 1
 
     def stop(self, *, restore=False):
-        del restore
         self.stop_calls += 1
+        self.restore_values.append(bool(restore))
+        if restore:
+            self.restore_requested.emit()
 
 
 def test_break_end_restores_idle_in_same_event_loop():
@@ -437,6 +443,126 @@ def test_presentation_applies_outfit_before_requested_action():
 
     assert surface.outfit_ids == ['snow_slope_skier']
     assert surface.action_id == 'click_reaction'
+    runtime.shutdown()
+    surface.close()
+
+
+def test_presentation_visibility_still_applies_when_outfit_rendering_fails():
+    QApplication.instance() or QApplication(sys.argv)
+    settings = Settings(MemoryStore())
+    companion = CompanionCoordinator(
+        PetPackRegistry(FIXTURE_ROOT, app_version='0.8.0'),
+        'snow_ferret',
+    )
+    controller = AppController(settings, companion=companion)
+    surface = RuntimeSurface()
+    surface.accept_outfit = False
+    bubble = FakeBubble()
+    runtime = CompanionRuntime(controller, companion, surface, bubble)
+    presentation = replace(
+        controller.companion_presentation,
+        outfit_id='snow_slope_skier',
+        visible=True,
+    )
+
+    runtime.sync_presentation(presentation)
+
+    assert surface.outfit_ids == ['snow_slope_skier']
+    assert surface.presentation_visibility == [True]
+    assert surface.isVisible()
+    runtime.shutdown()
+    surface.close()
+
+
+def test_hiding_restores_transient_window_avoidance_position_once():
+    QApplication.instance() or QApplication(sys.argv)
+    settings = Settings(MemoryStore())
+    companion = CompanionCoordinator(
+        PetPackRegistry(FIXTURE_ROOT, app_version='0.7.0'),
+        'snow_ferret',
+    )
+    controller = AppController(settings, companion=companion)
+    surface = RuntimeSurface()
+    bubble = FakeBubble()
+    application = RuntimeApplication()
+    avoidance = FakeWindowAvoidance()
+    runtime = CompanionRuntime(
+        controller,
+        companion,
+        surface,
+        bubble,
+        application=application,
+    )
+    runtime.attach_window_avoidance(avoidance)
+    runtime.start()
+    permanent = runtime.permanent_pet_rect()
+    surface.setProperty('serviceTransientPlacement', True)
+    surface.move(300, 240)
+
+    runtime.sync_presentation(
+        replace(controller.companion_presentation, visible=False)
+    )
+
+    assert avoidance.restore_values[-1] is True
+    assert not bool(surface.property('serviceTransientPlacement'))
+    assert surface.pos() == QPoint(permanent.left, permanent.top)
+    runtime.shutdown()
+    surface.close()
+
+
+def test_changed_edge_anchor_repositions_an_already_started_surface():
+    app = QApplication.instance() or QApplication(sys.argv)
+    settings = Settings(MemoryStore())
+    companion = CompanionCoordinator(
+        PetPackRegistry(FIXTURE_ROOT, app_version='0.7.0'),
+        'snow_ferret',
+    )
+    controller = AppController(settings, companion=companion)
+    surface = RuntimeSurface()
+    bubble = FakeBubble()
+    runtime = CompanionRuntime(
+        controller,
+        companion,
+        surface,
+        bubble,
+        application=RuntimeApplication(),
+    )
+    runtime.start()
+
+    assert controller.set_pet_anchor('top_left', 32)
+
+    area = app.primaryScreen().availableGeometry()
+    assert surface.pos() == QPoint(area.left() + 32, area.top() + 32)
+    runtime.shutdown()
+    surface.close()
+
+
+def test_offscreen_free_anchor_is_clamped_back_to_a_visible_screen():
+    app = QApplication.instance() or QApplication(sys.argv)
+    settings = Settings(MemoryStore())
+    settings.pet_anchor_edge = 'free'
+    settings.pet_anchor_offset = 0
+    settings.pet_x = 999_999
+    settings.pet_y = 999_999
+    companion = CompanionCoordinator(
+        PetPackRegistry(FIXTURE_ROOT, app_version='0.7.0'),
+        'snow_ferret',
+    )
+    controller = AppController(settings, companion=companion)
+    surface = RuntimeSurface()
+    bubble = FakeBubble()
+    runtime = CompanionRuntime(
+        controller,
+        companion,
+        surface,
+        bubble,
+        application=RuntimeApplication(),
+    )
+    runtime.start()
+
+    area = app.primaryScreen().availableGeometry()
+    assert area.left() <= surface.x() <= area.right() - surface.width() + 1
+    assert area.top() <= surface.y() <= area.bottom() - surface.height() + 1
     runtime.shutdown()
     surface.close()
 

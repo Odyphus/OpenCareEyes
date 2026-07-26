@@ -5,6 +5,7 @@ from types import SimpleNamespace
 
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 
+import pytest  # noqa: E402
 from PySide6.QtCore import QObject, Qt, Signal  # noqa: E402
 from PySide6.QtGui import QColor, QImage  # noqa: E402
 from PySide6.QtWidgets import (  # noqa: E402
@@ -167,6 +168,7 @@ def _state():
 
 class _Controller(QObject):
     state_changed = Signal(object)
+    wardrobe_changed = Signal(object)
     operation_failed = Signal(str, str)
     notification_requested = Signal(str, str)
     break_tick = Signal(object)
@@ -268,6 +270,7 @@ def test_catalog_render_is_differential_and_reflects_accessory_selection():
 
 
 def test_catalog_empty_loading_state_uses_active_pet_without_species_hard_coding():
+    _app()
     controller = _Controller()
     controller.state.pet_catalog.available_pets = ()
     controller.state.pet_catalog.active_pet_id = 'tiny_bird'
@@ -279,9 +282,18 @@ def test_catalog_empty_loading_state_uses_active_pet_without_species_hard_coding
     assert page._pet_combo.itemData(0) == 'tiny_bird'
     assert page._pet_combo.itemText(0) == 'tiny bird'
     assert '白鼬' not in page._pet_combo.itemText(0)
+    assert not page._wardrobe_empty.isHidden()
+    assert page._wardrobe_view.isHidden()
+    assert page._wardrobe_columns == 0
+    assert not page._wear_outfit.isEnabled()
+    assert page._wardrobe_detail_title.text() == '暂无整套造型'
+    page.close()
 
 
-def test_wardrobe_is_manifest_driven_and_only_explicit_activation_wears_outfit():
+@pytest.mark.parametrize('activation_key', (Qt.Key_Return, Qt.Key_Enter, Qt.Key_Space))
+def test_wardrobe_is_manifest_driven_and_only_explicit_activation_wears_outfit(
+    activation_key,
+):
     app = _app()
     controller = _Controller()
     page = PetCatalogPage(controller)
@@ -301,11 +313,72 @@ def test_wardrobe_is_manifest_driven_and_only_explicit_activation_wears_outfit()
     assert controller.calls == []
     assert page._wardrobe_detail_title.text() == '雷系小巫师'
 
-    QTest.keyClick(page._wardrobe_view, Qt.Key_Space)
+    QTest.keyClick(page._wardrobe_view, activation_key)
     assert controller.calls[-1] == ('set_pet_outfit', ('thunder_mage',), {})
 
     page._restore_outfit.click()
     assert controller.calls[-1] == ('set_pet_outfit', (None,), {})
+    page.close()
+
+
+def test_wardrobe_lightweight_loading_signal_updates_only_wardrobe_controls():
+    app = _app()
+    controller = _Controller()
+    page = PetCatalogPage(controller)
+    original_personality = page._personality.text()
+    loading = SimpleNamespace(
+        available_outfits=controller.state.pet_wardrobe.available_outfits,
+        mode='outfit',
+        selected_outfit_id='snow_slope_skier',
+        effective_outfit_id='snow_slope_skier',
+        loading_outfit_id='thunder_mage',
+        error='',
+    )
+
+    controller.wardrobe_changed.emit(loading)
+    app.processEvents()
+
+    assert page._wardrobe_status.text() == '正在穿戴：雷系小巫师'
+    assert page._loading_outfit_id == 'thunder_mage'
+    assert not page._wear_outfit.isEnabled()
+    assert not page._restore_outfit.isEnabled()
+    assert page._personality.text() == original_personality
+    assert page._wardrobe_model.index(1, 0).data(
+        page._wardrobe_model.LoadingRole
+    )
+
+    controller.calls.clear()
+    page._wardrobe_view.setCurrentIndex(page._wardrobe_model.index(1, 0))
+    QTest.keyClick(page._wardrobe_view, Qt.Key_Return)
+    assert controller.calls == []
+    page.close()
+
+
+def test_wardrobe_lightweight_failure_keeps_current_outfit_and_exposes_error():
+    app = _app()
+    controller = _Controller()
+    page = PetCatalogPage(controller)
+    failed = SimpleNamespace(
+        available_outfits=controller.state.pet_wardrobe.available_outfits,
+        mode='outfit',
+        selected_outfit_id='snow_slope_skier',
+        effective_outfit_id='snow_slope_skier',
+        loading_outfit_id='',
+        error='雷系小巫师资源预加载失败，已保留当前造型。',
+    )
+
+    controller.wardrobe_changed.emit(failed)
+    app.processEvents()
+
+    assert page._wardrobe_status.text() == '已锁定：雪坡滑雪客'
+    assert page._wardrobe_model.index(0, 0).data(
+        page._wardrobe_model.EffectiveRole
+    )
+    assert not page._wardrobe_error.isHidden()
+    assert '已保留当前造型' in page._wardrobe_error.text()
+    assert '已保留当前造型' in page._wardrobe_status.accessibleDescription()
+    assert page._restore_outfit.isEnabled()
+    assert controller.calls == []
     page.close()
 
 
@@ -333,6 +406,48 @@ def test_catalog_reflows_controls_below_640_pixels():
     assert page._wardrobe_layout.direction() == QBoxLayout.TopToBottom
     assert page._wardrobe_columns == 2
     assert page.horizontalScrollBar().maximum() == 0
+    page.close()
+
+
+def test_catalog_uses_compact_layout_at_480_pixels():
+    app = _app()
+    page = PetCatalogPage(_Controller())
+    page.resize(480, 640)
+    page.show()
+    app.processEvents()
+
+    assert page._wardrobe_content_layout.direction() == QBoxLayout.TopToBottom
+    assert page._wardrobe_columns == 2
+    assert (
+        page._wardrobe_content_layout.indexOf(page._wardrobe_detail_panel)
+        < page._wardrobe_content_layout.indexOf(page._wardrobe_gallery)
+    )
+    assert page.horizontalScrollBar().maximum() == 0
+    page.close()
+
+
+def test_catalog_render_restores_guard_after_exception(monkeypatch):
+    _app()
+    page = PetCatalogPage(_Controller())
+
+    def fail(_state):
+        raise RuntimeError('render failed')
+
+    monkeypatch.setattr(page, '_render_state', fail)
+    with pytest.raises(RuntimeError, match='render failed'):
+        page.render(page._controller.state)
+
+    assert not page._rendering
+    page.close()
+
+
+def test_wardrobe_without_asset_repository_reports_preview_unavailable():
+    _app()
+    page = PetCatalogPage(_Controller())
+    index = page._wardrobe_model.index(0, 0)
+
+    assert page._wardrobe_model.thumbnail(index).isNull()
+    assert page._wardrobe_model.thumbnail_placeholder(index) == '资源不可用'
     page.close()
 
 

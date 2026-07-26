@@ -105,7 +105,7 @@ class AutoPausePolicy:
             return "d3d_fullscreen"
         if snapshot.notification_mode == "presentation":
             return "presentation"
-        if snapshot.fullscreen or snapshot.notification_mode == "busy":
+        if snapshot.fullscreen:
             return "fullscreen"
         return ""
 

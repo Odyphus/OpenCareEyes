@@ -61,13 +61,20 @@ def test_fullscreen_pauses_breaks_and_focus_but_not_display_effects():
 
 @pytest.mark.parametrize(
     ("mode", "reason"),
-    [("busy", "fullscreen"), ("presentation", "presentation"), ("d3d_fullscreen", "d3d_fullscreen")],
+    [("presentation", "presentation"), ("d3d_fullscreen", "d3d_fullscreen")],
 )
 def test_notification_modes_have_stable_reason_codes(mode, reason):
     decision = evaluate(ContextSnapshot(notification_mode=mode))
 
     assert decision.breaks.suppressed_by == (reason,)
     assert decision.focus.suppressed_by == (reason,)
+
+
+def test_busy_notification_mode_alone_does_not_imply_fullscreen():
+    decision = evaluate(ContextSnapshot(notification_mode="busy"))
+
+    assert not decision.breaks.suppressed
+    assert not decision.focus.suppressed
 
 
 def test_fullscreen_setting_only_disables_fullscreen_suppression():
