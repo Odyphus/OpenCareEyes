@@ -1,10 +1,16 @@
 '''Regression tests for safe startup pet selection and recovery.'''
 
 from pathlib import Path
+from types import SimpleNamespace
 
-from opencareyes.__main__ import _load_companion
+from opencareyes.__main__ import (
+    _load_companion,
+    _restore_startup_accessories,
+    _restore_startup_outfit,
+)
 from opencareyes.application.pet_pack_registry import PetPackRegistry
 from opencareyes.config.settings import Settings
+from opencareyes.controller import AppController
 
 
 FIXTURE_ROOT = Path(__file__).parent / 'fixtures' / 'pets'
@@ -93,3 +99,90 @@ def test_broken_default_pack_keeps_preferences_untouched(tmp_path):
     assert fallback_used is False
     assert settings.active_pet_id == 'snow_ferret'
     assert settings.recovery_pet_id == ''
+
+
+class StartupCompanion:
+    def __init__(self, *, invalid_accessories=()):
+        self.state = SimpleNamespace(pet_id='snow_ferret', outfit_id='')
+        self.invalid_accessories = set(invalid_accessories)
+        self.mode_calls = []
+        self.accessory_calls = []
+        self.outfit_calls = []
+
+    def set_wardrobe_mode(self, mode):
+        self.mode_calls.append(mode)
+
+    def set_manual_accessory(self, slot, item_id):
+        if item_id in self.invalid_accessories:
+            raise KeyError(item_id)
+        self.accessory_calls.append((slot, item_id))
+
+    def set_outfit(self, outfit_id):
+        self.outfit_calls.append(outfit_id)
+
+
+class RecordingController:
+    def __init__(self):
+        self.outfit_calls = []
+
+    def set_pet_outfit(self, outfit_id):
+        self.outfit_calls.append(outfit_id)
+        return True
+
+
+class RejectingOutfitRepository:
+    def request_outfit_preload(self, _manifest, _outfit_id, _request_id):
+        return False
+
+
+def test_startup_restores_accessories_individually_and_reports_failures():
+    settings = Settings(MemoryStore())
+    settings.wardrobe_mode = 'accessories'
+    settings.pet_preferences = {
+        'snow_ferret': {
+            'neckwear': 'scarf',
+            'headwear': 'missing_hat',
+        },
+    }
+    companion = StartupCompanion(invalid_accessories={'missing_hat'})
+
+    error = _restore_startup_accessories(settings, companion)
+
+    assert companion.mode_calls == ['accessories']
+    assert companion.accessory_calls == [('neckwear', 'scarf')]
+    assert error == '部分单件配饰恢复失败（1 项），已跳过不可用配饰。'
+
+
+def test_startup_outfit_is_only_restored_through_public_controller_command():
+    settings = Settings(MemoryStore())
+    settings.wardrobe_mode = 'outfit'
+    settings.outfit_preferences = {'snow_ferret': 'snow_slope_skier'}
+    companion = StartupCompanion()
+    controller = RecordingController()
+
+    assert _restore_startup_outfit(settings, companion, controller) is True
+
+    assert companion.outfit_calls == []
+    assert controller.outfit_calls == ['snow_slope_skier']
+
+
+def test_missing_startup_outfit_keeps_preference_and_reports_controller_error(qapp):
+    settings = Settings(MemoryStore())
+    settings.wardrobe_mode = 'outfit'
+    settings.outfit_preferences = {'snow_ferret': 'missing_outfit'}
+    companion, _, _ = _load_companion(settings, registry())
+    controller = AppController(
+        settings,
+        companion=companion,
+        pet_asset_repository=RejectingOutfitRepository(),
+    )
+
+    assert _restore_startup_outfit(settings, companion, controller) is False
+
+    assert companion.wardrobe_mode == 'automatic'
+    assert companion.state.outfit_id == ''
+    assert settings.wardrobe_mode == 'outfit'
+    assert settings.outfit_preferences == {'snow_ferret': 'missing_outfit'}
+    assert controller.state.pet_wardrobe.error == (
+        '造型资源无法加载，已保留当前造型。'
+    )

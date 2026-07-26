@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import QPoint, QRect, QRectF, Signal, Qt
-from PySide6.QtGui import QColor, QFont, QPainter, QPalette, QPen
+from PySide6.QtGui import QColor, QFont, QMouseEvent, QPainter, QPalette, QPen
 from PySide6.QtWidgets import (
     QApplication,
     QGridLayout,
@@ -57,6 +57,8 @@ class PetBubble(QWidget):
         self._anchor_target = None
         self._mode = ''
         self._focusable = False
+        self._dragging = False
+        self._drag_offset: QPoint | None = None
 
         self.setObjectName('petBubble')
         self.setWindowFlags(
@@ -70,6 +72,8 @@ class PetBubble(QWidget):
         self.setAttribute(Qt.WA_DeleteOnClose, False)
         self.setFixedSize(342, 220)
         self.setAccessibleName('桌面伙伴快捷气泡')
+        self.setToolTip('按住空白处可拖动快捷气泡')
+        self.setCursor(Qt.OpenHandCursor)
 
         self._build_ui()
         self.set_theme('dark')
@@ -104,11 +108,13 @@ class PetBubble(QWidget):
         self._title = QLabel('伙伴在陪你')
         self._title.setFont(QFont('Microsoft YaHei UI', 10, QFont.DemiBold))
         self._title.setAccessibleName('伙伴状态')
+        self._title.setAttribute(Qt.WA_TransparentForMouseEvents)
         header.addWidget(self._title, 1)
 
         self._close = QToolButton(self)
         self._close.setText('×')
         self._close.setFixedSize(24, 24)
+        self._close.setCursor(Qt.PointingHandCursor)
         self._close.setAccessibleName('关闭伙伴快捷气泡')
         self._close.setToolTip('关闭')
         self._close.setFocusPolicy(Qt.StrongFocus)
@@ -120,11 +126,13 @@ class PetBubble(QWidget):
         self._detail.setFont(QFont('Microsoft YaHei UI', 9))
         self._detail.setWordWrap(True)
         self._detail.setAccessibleName('伙伴状态说明')
+        self._detail.setAttribute(Qt.WA_TransparentForMouseEvents)
         layout.addWidget(self._detail)
 
         self._countdown = QLabel('--:--')
         self._countdown.setFont(QFont('Microsoft YaHei UI', 20, QFont.DemiBold))
         self._countdown.setAccessibleName('休息倒计时')
+        self._countdown.setAttribute(Qt.WA_TransparentForMouseEvents)
         layout.addWidget(self._countdown)
 
         self._tools_widget = QWidget(self)
@@ -340,6 +348,7 @@ class PetBubble(QWidget):
             self._position_for_anchor(self._anchor_rect)
 
     def hideEvent(self, event) -> None:
+        self._reset_drag_state()
         super().hideEvent(event)
         self.dismissed.emit()
 
@@ -361,6 +370,30 @@ class PetBubble(QWidget):
         painter.setPen(QPen(QColor(palette['border']), 1))
         painter.setBrush(QColor(palette['card']))
         painter.drawRoundedRect(card, 14, 14)
+
+    def mousePressEvent(self, event: QMouseEvent) -> None:
+        if event.button() == Qt.LeftButton:
+            self._dragging = True
+            self._drag_offset = event.globalPosition().toPoint() - self.pos()
+            self.setCursor(Qt.ClosedHandCursor)
+            event.accept()
+            return
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event: QMouseEvent) -> None:
+        if self._dragging and self._drag_offset is not None:
+            self.move(event.globalPosition().toPoint() - self._drag_offset)
+            event.accept()
+            return
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event: QMouseEvent) -> None:
+        if event.button() == Qt.LeftButton and self._dragging:
+            self._ensure_drag_position_visible(event.globalPosition().toPoint())
+            self._reset_drag_state()
+            event.accept()
+            return
+        super().mouseReleaseEvent(event)
 
     @staticmethod
     def _resolve_anchor(anchor) -> QRect:
@@ -391,6 +424,30 @@ class PetBubble(QWidget):
         y = anchor.bottom() - self.height()
         y = max(area.top(), min(y, area.bottom() - self.height() + 1))
         self.move(x, y)
+
+    def _ensure_drag_position_visible(self, release_point: QPoint) -> None:
+        screen = QApplication.screenAt(release_point)
+        if screen is None:
+            screen = QApplication.screenAt(self.geometry().center())
+        if screen is None:
+            screen = self.screen()
+        if screen is None:
+            screen = QApplication.primaryScreen()
+        if screen is not None:
+            self.move(self._clamp_to_area(self.pos(), screen.availableGeometry()))
+
+    def _clamp_to_area(self, position: QPoint, area: QRect) -> QPoint:
+        max_x = max(area.left(), area.right() - self.width() + 1)
+        max_y = max(area.top(), area.bottom() - self.height() + 1)
+        return QPoint(
+            max(area.left(), min(position.x(), max_x)),
+            max(area.top(), min(position.y(), max_y)),
+        )
+
+    def _reset_drag_state(self) -> None:
+        self._dragging = False
+        self._drag_offset = None
+        self.setCursor(Qt.OpenHandCursor)
 
     def _set_mode(self, mode: str) -> None:
         mode = 'rest_prompt' if str(mode) == 'rest_prompt' else 'quick'

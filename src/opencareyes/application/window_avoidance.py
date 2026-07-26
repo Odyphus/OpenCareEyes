@@ -47,7 +47,6 @@ class WindowAvoidanceService(QObject):
         stable_seconds: float = 2.0,
         minimum_sample_interval_seconds: float | None = None,
         margin: int = 16,
-        peek_size: int = 24,
     ) -> None:
         super().__init__(parent)
         self._backend = backend
@@ -65,7 +64,6 @@ class WindowAvoidanceService(QObject):
             float(minimum_sample_interval_seconds),
         )
         self._margin = max(0, int(margin))
-        self._peek_size = max(1, int(peek_size))
         self._context_key: tuple[int, str | None] | None = None
         self._stable_since = 0.0
         self._last_requested: MovementRequest | None = None
@@ -255,22 +253,15 @@ class WindowAvoidanceService(QObject):
                 default=None,
             )
 
-        position, edge_peek = _choose_position(
+        position = _choose_position(
             target_monitor.work_area,
             pet,
             foreground,
-            snapshot.monitors,
             margin=self._margin,
-            peek_size=self._peek_size,
         )
         if position is None:
             return None
-        if edge_peek:
-            reason = "edge_peek"
-        elif migrate:
-            reason = "active_monitor"
-        else:
-            reason = "window_avoidance"
+        reason = "active_monitor" if migrate else "window_avoidance"
         return MovementRequest(position=position, reason=reason)
 
 
@@ -327,11 +318,9 @@ def _choose_position(
     work_area: ScreenRect,
     pet: ScreenRect,
     foreground: ScreenRect | None,
-    monitors: tuple[MonitorGeometry, ...],
     *,
     margin: int,
-    peek_size: int,
-) -> tuple[tuple[int, int] | None, bool]:
+) -> tuple[int, int] | None:
     width = pet.width
     height = pet.height
     left = work_area.left + margin
@@ -346,30 +335,8 @@ def _choose_position(
         or not _rect_at(position, width, height).intersects(foreground)
     ]
     if clear:
-        return min(clear, key=lambda position: _distance_squared(position, pet)), False
-
-    horizontal_peek = min(peek_size, width)
-    vertical_peek = min(peek_size, height)
-    clamped_x = _clamp(pet.left, left, right)
-    clamped_y = _clamp(pet.top, top, bottom)
-    edge_positions = (
-        (work_area.left - width + horizontal_peek, clamped_y),
-        (work_area.right - horizontal_peek, clamped_y),
-        (clamped_x, work_area.top - height + vertical_peek),
-        (clamped_x, work_area.bottom - vertical_peek),
-    )
-
-    def edge_score(position: tuple[int, int]) -> tuple[int, int, int]:
-        candidate = _rect_at(position, width, height)
-        obstruction = (
-            candidate.intersection_area(foreground) if foreground is not None else 0
-        )
-        visible_area = sum(
-            candidate.intersection_area(monitor.work_area) for monitor in monitors
-        )
-        return obstruction, visible_area, _distance_squared(position, pet)
-
-    return min(edge_positions, key=edge_score), True
+        return min(clear, key=lambda position: _distance_squared(position, pet))
+    return None
 
 
 def _rect_at(position: tuple[int, int], width: int, height: int) -> ScreenRect:
@@ -379,7 +346,3 @@ def _rect_at(position: tuple[int, int], width: int, height: int) -> ScreenRect:
 
 def _distance_squared(position: tuple[int, int], pet: ScreenRect) -> int:
     return (position[0] - pet.left) ** 2 + (position[1] - pet.top) ** 2
-
-
-def _clamp(value: int, lower: int, upper: int) -> int:
-    return max(lower, min(value, upper))

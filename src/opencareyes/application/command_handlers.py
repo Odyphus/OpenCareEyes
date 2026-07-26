@@ -1035,6 +1035,7 @@ class CompanionToolCommands:
 
     def set_active_pet(self, pet_id: str) -> bool:
         controller = self._controller
+        controller._cancel_wardrobe_request()
         normalized = str(pet_id).strip().lower()
         previous = str(getattr(controller._settings, "active_pet_id", "snow_ferret"))
 
@@ -1049,7 +1050,34 @@ class CompanionToolCommands:
             preferences = getattr(controller._settings, "pet_preferences", {})
             selected = preferences.get(value, {}) if isinstance(preferences, dict) else {}
             accessory_setter = getattr(controller._companion, "set_manual_accessory", None)
-            if callable(accessory_setter) and isinstance(selected, dict):
+            wardrobe_mode = str(
+                getattr(controller._settings, 'wardrobe_mode', 'automatic')
+            )
+            outfit_preferences = getattr(
+                controller._settings, 'outfit_preferences', {}
+            )
+            outfit_id = (
+                str(outfit_preferences.get(value, ''))
+                if isinstance(outfit_preferences, dict)
+                else ''
+            )
+            outfit_setter = getattr(controller._companion, 'set_outfit', None)
+            mode_setter = getattr(
+                controller._companion, 'set_wardrobe_mode', None
+            )
+            if wardrobe_mode == 'outfit' and outfit_id and callable(outfit_setter):
+                outfit_setter(outfit_id)
+            elif wardrobe_mode == 'accessories' and callable(mode_setter):
+                mode_setter('accessories')
+            elif callable(outfit_setter):
+                outfit_setter(None)
+                if wardrobe_mode == 'outfit':
+                    controller._settings.wardrobe_mode = 'automatic'
+            if (
+                wardrobe_mode == 'accessories'
+                and callable(accessory_setter)
+                and isinstance(selected, dict)
+            ):
                 for slot, item_id in selected.items():
                     accessory_setter(str(slot), str(item_id))
 
@@ -1109,7 +1137,45 @@ class CompanionToolCommands:
 
     def set_pet_accessory(self, slot: str, item_id: str | None) -> bool:
         controller = self._controller
+        controller._cancel_wardrobe_request()
         pet_id = str(getattr(controller._settings, "active_pet_id", "snow_ferret"))
+        previous_mode = str(
+            getattr(controller._settings, 'wardrobe_mode', 'automatic')
+        )
+        previous_outfits = getattr(controller._settings, 'outfit_preferences', {})
+        previous_outfit = (
+            str(previous_outfits.get(pet_id, ''))
+            if isinstance(previous_outfits, dict)
+            else ''
+        )
+        previous_preferences = getattr(controller._settings, 'pet_preferences', {})
+        previous_slots = (
+            dict(previous_preferences.get(pet_id, {}))
+            if isinstance(previous_preferences, dict)
+            else {}
+        )
+
+        def restore_runtime() -> None:
+            mode_setter = getattr(
+                controller._companion, 'set_wardrobe_mode', None
+            )
+            outfit_setter = getattr(controller._companion, 'set_outfit', None)
+            accessory_setter = getattr(
+                controller._companion, 'set_manual_accessory', None
+            )
+            if previous_mode == 'outfit' and previous_outfit and callable(outfit_setter):
+                outfit_setter(previous_outfit)
+                return
+            if callable(mode_setter):
+                mode_setter(previous_mode)
+            if previous_mode == 'accessories' and callable(accessory_setter):
+                for accessory_slot in (
+                    'headwear', 'neckwear', 'bodywear',
+                    'held_item', 'scene', 'effect',
+                ):
+                    accessory_setter(accessory_slot, None)
+                for previous_slot, previous_item in previous_slots.items():
+                    accessory_setter(previous_slot, previous_item)
 
         def operation() -> None:
             preferences = dict(getattr(controller._settings, "pet_preferences", {}))
@@ -1120,13 +1186,189 @@ class CompanionToolCommands:
                 slots[str(slot)] = str(item_id)
             preferences[pet_id] = slots
             controller._settings.pet_preferences = preferences
+            controller._settings.wardrobe_mode = 'accessories'
             setter = getattr(controller._companion, "set_manual_accessory", None)
             if not callable(setter):
                 setter = getattr(controller._companion, "set_appearance", None)
             if callable(setter):
                 setter(str(slot), item_id)
 
-        return controller._run("pet_accessory", operation, reconcile=False)
+        return controller._run(
+            "pet_accessory",
+            operation,
+            reconcile=False,
+            rollback=restore_runtime,
+        )
+
+    def set_pet_outfit(self, outfit_id: str | None) -> bool:
+        controller = self._controller
+        pet_id = str(getattr(controller._settings, 'active_pet_id', 'snow_ferret'))
+        selected = '' if outfit_id in {None, ''} else str(outfit_id).strip().lower()
+        controller._cancel_wardrobe_request()
+        if not selected:
+            return self._commit_pet_outfit(pet_id, '')
+
+        repository = getattr(controller, '_pet_asset_repository', None)
+        request_preload = getattr(repository, 'request_outfit_preload', None)
+        manifest = getattr(controller._companion, 'manifest', None)
+        if not callable(request_preload):
+            return self._commit_pet_outfit(pet_id, selected)
+
+        request_id = controller._begin_wardrobe_request(pet_id, selected)
+        # Acceptance intentionally does not rebuild AppState. Only the terminal
+        # ready/failed callback publishes one semantic wardrobe state.
+        if request_preload(manifest, selected, request_id):
+            return True
+        controller._cancel_wardrobe_request()
+        controller._wardrobe_error = '造型资源无法加载，已保留当前造型。'
+        controller.operation_failed.emit('pet_outfit', controller._wardrobe_error)
+        controller.refresh_state()
+        return False
+
+    def complete_pet_outfit_request(self, pet_id: str, outfit_id: str) -> bool:
+        controller = self._controller
+        active_pet = str(
+            getattr(controller._settings, 'active_pet_id', 'snow_ferret')
+        )
+        if str(pet_id) != active_pet:
+            return False
+        return self._commit_pet_outfit(active_pet, str(outfit_id))
+
+    def _commit_pet_outfit(self, pet_id: str, selected: str) -> bool:
+        controller = self._controller
+        previous_mode = str(
+            getattr(controller._settings, 'wardrobe_mode', 'automatic')
+        )
+        previous_preferences = getattr(
+            controller._settings, 'outfit_preferences', {}
+        )
+        previous_outfit = (
+            str(previous_preferences.get(pet_id, ''))
+            if isinstance(previous_preferences, dict)
+            else ''
+        )
+        surface = getattr(controller, '_companion_surface', None)
+        previous_surface_outfit = str(getattr(surface, 'outfit_id', ''))
+
+        def apply_runtime(value: str | None) -> None:
+            setter = getattr(controller._companion, 'set_outfit', None)
+            if not callable(setter):
+                raise RuntimeError('Companion outfit service is unavailable')
+            setter(value)
+
+        def apply_surface(value: str | None) -> None:
+            setter = getattr(surface, 'set_outfit', None)
+            if callable(setter) and setter(value) is False:
+                raise RuntimeError('Companion surface rejected the outfit')
+
+        def operation() -> None:
+            try:
+                apply_runtime(selected or None)
+                apply_surface(selected or None)
+                preferences = dict(
+                    getattr(controller._settings, 'outfit_preferences', {})
+                )
+                if selected:
+                    preferences[pet_id] = selected
+                    controller._settings.outfit_preferences = preferences
+                    controller._settings.wardrobe_mode = 'outfit'
+                else:
+                    controller._settings.wardrobe_mode = 'automatic'
+            except Exception:
+                controller._wardrobe_error = (
+                    '造型资源无法加载，已保留当前造型。'
+                )
+                raise
+            controller._wardrobe_error = ''
+
+        def rollback() -> None:
+            if previous_mode == 'outfit' and previous_outfit:
+                apply_runtime(previous_outfit)
+            else:
+                mode_setter = getattr(
+                    controller._companion, 'set_wardrobe_mode', None
+                )
+                if callable(mode_setter):
+                    mode_setter(previous_mode)
+                else:
+                    apply_runtime(None)
+            apply_surface(previous_surface_outfit or None)
+
+        return controller._run(
+            'pet_outfit',
+            operation,
+            reconcile=False,
+            rollback=rollback,
+        )
+
+    def clear_pet_accessories(self) -> bool:
+        controller = self._controller
+        controller._cancel_wardrobe_request()
+        pet_id = str(getattr(controller._settings, 'active_pet_id', 'snow_ferret'))
+        previous_mode = str(
+            getattr(controller._settings, 'wardrobe_mode', 'automatic')
+        )
+        previous_outfits = getattr(controller._settings, 'outfit_preferences', {})
+        previous_outfit = (
+            str(previous_outfits.get(pet_id, ''))
+            if isinstance(previous_outfits, dict)
+            else ''
+        )
+        previous_preferences = getattr(controller._settings, 'pet_preferences', {})
+        previous_slots = (
+            dict(previous_preferences.get(pet_id, {}))
+            if isinstance(previous_preferences, dict)
+            else {}
+        )
+
+        def clear_runtime() -> None:
+            mode_setter = getattr(
+                controller._companion, 'set_wardrobe_mode', None
+            )
+            if callable(mode_setter):
+                mode_setter('accessories')
+            accessory_setter = getattr(
+                controller._companion, 'set_manual_accessory', None
+            )
+            if callable(accessory_setter):
+                for accessory_slot in (
+                    'headwear', 'neckwear', 'bodywear',
+                    'held_item', 'scene', 'effect',
+                ):
+                    accessory_setter(accessory_slot, None)
+
+        def restore_runtime() -> None:
+            outfit_setter = getattr(controller._companion, 'set_outfit', None)
+            mode_setter = getattr(
+                controller._companion, 'set_wardrobe_mode', None
+            )
+            accessory_setter = getattr(
+                controller._companion, 'set_manual_accessory', None
+            )
+            if previous_mode == 'outfit' and previous_outfit and callable(outfit_setter):
+                outfit_setter(previous_outfit)
+                return
+            if callable(mode_setter):
+                mode_setter(previous_mode)
+            if previous_mode == 'accessories' and callable(accessory_setter):
+                for slot, item_id in previous_slots.items():
+                    accessory_setter(slot, item_id)
+
+        def operation() -> None:
+            preferences = dict(
+                getattr(controller._settings, 'pet_preferences', {})
+            )
+            preferences[pet_id] = {}
+            controller._settings.pet_preferences = preferences
+            controller._settings.wardrobe_mode = 'accessories'
+            clear_runtime()
+
+        return controller._run(
+            'pet_accessories_clear',
+            operation,
+            reconcile=False,
+            rollback=restore_runtime,
+        )
 
     def upsert_app_prop_rule(self, app_id: str, prop_id: str) -> bool:
         controller = self._controller

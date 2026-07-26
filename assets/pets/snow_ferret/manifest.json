@@ -1,9 +1,9 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "pet_id": "snow_ferret",
   "display_name": "鼬鼬",
-  "pack_version": "2.0.0",
-  "min_app_version": "0.6.0",
+  "pack_version": "3.0.0",
+  "min_app_version": "0.8.0b1",
   "author": "OpenCareEyes Contributors",
   "license": "Apache-2.0",
   "canvas_size": [192, 192],
@@ -147,6 +147,91 @@
     "accessory.sunglasses": {"headwear": "accessories/sunglasses.png"},
     "accessory.scarf": {"neckwear": "accessories/scarf.png"},
     "accessory.red_scarf": {"neckwear": "accessories/red_scarf.png"}
+  },
+  "outfits": {
+    "snow_slope_skier": {
+      "display_name": "雪坡滑雪客",
+      "description": "薄荷绿滑雪外套搭配浅蓝护目镜和雪板背包，陪鼬鼬轻快滑过松软雪坡。",
+      "thumbnail_path": "outfits/snow_slope_skier/thumbnail.png",
+      "preview_path": "outfits/snow_slope_skier/preview.png",
+      "actions": {
+        "idle": {
+          "loop": true,
+          "frames": [
+            {"path": "outfits/snow_slope_skier/snow_slope_skier_atlas_1.png", "duration_ms": 900, "source_rect": [0, 0, 384, 384]},
+            {"path": "outfits/snow_slope_skier/snow_slope_skier_atlas_1.png", "duration_ms": 180, "source_rect": [384, 0, 384, 384]},
+            {"path": "outfits/snow_slope_skier/snow_slope_skier_atlas_1.png", "duration_ms": 1100, "source_rect": [768, 0, 384, 384]}
+          ]
+        },
+        "sleep": {
+          "loop": true,
+          "frames": [
+            {"path": "outfits/snow_slope_skier/snow_slope_skier_atlas_1.png", "duration_ms": 1250, "source_rect": [1152, 0, 384, 384]},
+            {"path": "outfits/snow_slope_skier/snow_slope_skier_atlas_1.png", "duration_ms": 1250, "source_rect": [0, 384, 384, 384]}
+          ]
+        },
+        "move": {
+          "loop": true,
+          "frames": [
+            {"path": "outfits/snow_slope_skier/snow_slope_skier_atlas_1.png", "duration_ms": 180, "source_rect": [384, 384, 384, 384]},
+            {"path": "outfits/snow_slope_skier/snow_slope_skier_atlas_1.png", "duration_ms": 180, "source_rect": [768, 384, 384, 384]},
+            {"path": "outfits/snow_slope_skier/snow_slope_skier_atlas_1.png", "duration_ms": 180, "source_rect": [1152, 384, 384, 384]},
+            {"path": "outfits/snow_slope_skier/snow_slope_skier_atlas_1.png", "duration_ms": 180, "source_rect": [0, 768, 384, 384]}
+          ]
+        },
+        "click_reaction": {
+          "frames": [
+            {"path": "outfits/snow_slope_skier/snow_slope_skier_atlas_1.png", "duration_ms": 160, "source_rect": [384, 768, 384, 384]},
+            {"path": "outfits/snow_slope_skier/snow_slope_skier_atlas_1.png", "duration_ms": 160, "source_rect": [768, 768, 384, 384]},
+            {"path": "outfits/snow_slope_skier/snow_slope_skier_atlas_1.png", "duration_ms": 300, "source_rect": [1152, 768, 384, 384]}
+          ]
+        },
+        "drag_hold": {
+          "loop": true,
+          "frames": [
+            {"path": "outfits/snow_slope_skier/snow_slope_skier_atlas_1.png", "duration_ms": 500, "source_rect": [0, 1152, 384, 384]}
+          ]
+        },
+        "drag_release": {
+          "frames": [
+            {"path": "outfits/snow_slope_skier/snow_slope_skier_atlas_1.png", "duration_ms": 180, "source_rect": [384, 1152, 384, 384]},
+            {"path": "outfits/snow_slope_skier/snow_slope_skier_atlas_1.png", "duration_ms": 240, "source_rect": [768, 1152, 384, 384]},
+            {"path": "outfits/snow_slope_skier/snow_slope_skier_atlas_1.png", "duration_ms": 520, "source_rect": [1152, 1152, 384, 384]}
+          ]
+        },
+        "right_click_reaction": {
+          "frames": [
+            {"path": "outfits/snow_slope_skier/snow_slope_skier_atlas_2.png", "duration_ms": 260, "source_rect": [0, 0, 384, 384]},
+            {"path": "outfits/snow_slope_skier/snow_slope_skier_atlas_2.png", "duration_ms": 720, "source_rect": [384, 0, 384, 384]},
+            {"path": "outfits/snow_slope_skier/snow_slope_skier_atlas_2.png", "duration_ms": 260, "source_rect": [768, 0, 384, 384]}
+          ]
+        },
+        "rest_prompt": {
+          "loop": true,
+          "frames": [
+            {"path": "outfits/snow_slope_skier/snow_slope_skier_atlas_2.png", "duration_ms": 480, "source_rect": [1152, 0, 384, 384]},
+            {"path": "outfits/snow_slope_skier/snow_slope_skier_atlas_2.png", "duration_ms": 620, "source_rect": [0, 384, 384, 384]},
+            {"path": "outfits/snow_slope_skier/snow_slope_skier_atlas_2.png", "duration_ms": 760, "source_rect": [384, 384, 384, 384]}
+          ]
+        },
+        "play": {
+          "frames": [
+            {"path": "outfits/snow_slope_skier/snow_slope_skier_atlas_2.png", "duration_ms": 180, "source_rect": [768, 384, 384, 384]},
+            {"path": "outfits/snow_slope_skier/snow_slope_skier_atlas_2.png", "duration_ms": 220, "source_rect": [1152, 384, 384, 384]},
+            {"path": "outfits/snow_slope_skier/snow_slope_skier_atlas_2.png", "duration_ms": 260, "source_rect": [0, 768, 384, 384]},
+            {"path": "outfits/snow_slope_skier/snow_slope_skier_atlas_2.png", "duration_ms": 320, "source_rect": [384, 768, 384, 384]}
+          ]
+        },
+        "look_cursor": {
+          "frames": [
+            {"path": "outfits/snow_slope_skier/snow_slope_skier_atlas_2.png", "duration_ms": 600, "source_rect": [768, 768, 384, 384]},
+            {"path": "outfits/snow_slope_skier/snow_slope_skier_atlas_2.png", "duration_ms": 600, "source_rect": [1152, 768, 384, 384]},
+            {"path": "outfits/snow_slope_skier/snow_slope_skier_atlas_2.png", "duration_ms": 600, "source_rect": [0, 1152, 384, 384]}
+          ]
+        }
+      },
+      "ambient_layers": {}
+    }
   },
   "sound_rules": {
     "reminder.hourly": "sounds/chime.wav"

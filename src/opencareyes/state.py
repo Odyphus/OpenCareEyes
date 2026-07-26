@@ -232,6 +232,26 @@ class PetCatalogState:
 
 
 @dataclass(frozen=True, slots=True)
+class PetOutfitEntryState:
+    outfit_id: str
+    display_name: str
+    description: str = ''
+    thumbnail_path: str = ''
+    preview_path: str = ''
+    available: bool = True
+
+
+@dataclass(frozen=True, slots=True)
+class PetWardrobeState:
+    available_outfits: tuple[PetOutfitEntryState, ...] = ()
+    mode: Literal['automatic', 'outfit', 'accessories'] = 'automatic'
+    selected_outfit_id: str = ''
+    effective_outfit_id: str = ''
+    loading_outfit_id: str = ''
+    error: str = ''
+
+
+@dataclass(frozen=True, slots=True)
 class PetAppearanceState:
     headwear: str = ''
     neckwear: str = ''
@@ -254,6 +274,7 @@ class PetAnchorState:
 @dataclass(frozen=True, slots=True)
 class PetState:
     pet_id: str = 'snow_ferret'
+    outfit_id: str = ''
     enabled: bool = True
     visible: bool = True
     behavior: str = 'idle'
@@ -278,6 +299,7 @@ class CompanionPresentationSnapshot:
     """
 
     pet_id: str = 'snow_ferret'
+    outfit_id: str = ''
     action_id: str = 'idle'
     visible: bool = True
     scale_percent: int = 100
@@ -336,6 +358,7 @@ class AppState:
     notices: tuple[UserNotice, ...] = ()
     update: UpdateState = field(default_factory=UpdateState)
     pet_catalog: PetCatalogState = field(default_factory=PetCatalogState)
+    pet_wardrobe: PetWardrobeState = field(default_factory=PetWardrobeState)
     companion: PetState = field(default_factory=PetState)
     weather: WeatherState = field(default_factory=WeatherState)
     quick_tools: QuickToolsState = field(default_factory=QuickToolsState)

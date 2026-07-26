@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>雪坡滑雪客 · 动作样板</title>
+  <style>
+    :root { color-scheme: light dark; font-family: "Segoe UI", "Microsoft YaHei UI", sans-serif; }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 24px; background: #eef3fa; color: #1f2937; }
+    h1 { margin: 0 0 8px; font-size: 28px; }
+    p { margin: 0; color: #566376; line-height: 1.55; }
+    main { max-width: 1120px; margin: auto; }
+    .stage-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin: 24px 0; }
+    .stage { min-height: 330px; border: 1px solid #d9e1ea; border-radius: 12px; display: grid; place-items: center; overflow: hidden; }
+    .stage.light { background: #f8fafc; }
+    .stage.dark { background: #161d27; color: #f5f8ff; }
+    .pose-window { width: 188px; height: 251px; overflow: hidden; position: relative; }
+    .sprite { width: 313.5px; height: 418px; transform: scale(.6); transform-origin: left top; background: url("action_contact_sheet_rgba.png") no-repeat; background-size: 1254px 1254px; }
+    .label { font-weight: 600; text-align: center; margin-top: 8px; }
+    .map { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+    .item { background: #fff; border: 1px solid #d9e1ea; border-radius: 9px; padding: 12px; }
+    .item strong { display: block; margin-bottom: 4px; }
+    @media (max-width: 720px) { .stage-grid { grid-template-columns: 1fr; } .map { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 420px) { body { padding: 16px; } .map { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+<main>
+  <h1>雪坡滑雪客 · 动作样板</h1>
+  <p>此预览按 750ms 切换样板姿势，用于审校角色比例、服装细节、方向和透明边缘；不是正式运行时动画。</p>
+  <section class="stage-grid">
+    <div class="stage light"><div><div class="pose-window"><div class="sprite"></div></div><div class="label">亮色桌面 · idle</div></div></div>
+    <div class="stage dark"><div><div class="pose-window"><div class="sprite"></div></div><div class="label">暗色桌面 · idle</div></div></div>
+  </section>
+  <section class="map" aria-label="动作对应关系"></section>
+</main>
+<script>
+  const poses = [
+    ["idle",0,0],["sleep",1,0],["move",2,0],["click_reaction",3,0],
+    ["drag_hold",0,1],["drag_release",1,1],["right_click_reaction",2,1],["rest_prompt",3,1],
+    ["play",0,2],["look_cursor.left",1,2],["look_cursor.center",2,2],["look_cursor.right",3,2]
+  ];
+  const sprites = [...document.querySelectorAll(".sprite")];
+  const labels = [...document.querySelectorAll(".label")];
+  const map = document.querySelector(".map");
+  poses.forEach(([name, x, y]) => {
+    const item = document.createElement("div");
+    item.className = "item";
+    item.innerHTML = `<strong>${name}</strong><span>第 ${y + 1} 行 · 第 ${x + 1} 列</span>`;
+    map.appendChild(item);
+  });
+  let index = 0;
+  function render() {
+    const [name, x, y] = poses[index];
+    sprites.forEach(sprite => { sprite.style.backgroundPosition = `${-x * 313.5}px ${-y * 418}px`; });
+    labels.forEach((label, i) => { label.textContent = `${i ? "暗色" : "亮色"}桌面 · ${name}`; });
+    index = (index + 1) % poses.length;
+  }
+  render();
+  if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    setInterval(render, 750);
+  }
+</script>
+</body>
+</html>

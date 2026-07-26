@@ -55,6 +55,8 @@ from opencareyes.state import (
     PetAppearanceState,
     PetCatalogEntryState,
     PetCatalogState,
+    PetOutfitEntryState,
+    PetWardrobeState,
     PetState as AppPetState,
     QuickToolsState,
     UtilityTimerState as AppUtilityTimerState,
@@ -120,6 +122,10 @@ def _user_failure_message(code: str) -> str:
             "智能免打扰设置未能保存，请重试。",
         ),
         (
+            ("pet_outfit",),
+            "造型资源无法加载，已保留当前造型。",
+        ),
+        (
             (
                 "theme",
                 "motion",
@@ -182,6 +188,7 @@ class AppController(QObject):
     """Own all feature mutations and publish immutable snapshots."""
 
     state_changed = Signal(object)
+    wardrobe_changed = Signal(object)
     companion_presentation_changed = Signal(object)
     break_tick = Signal(int, int)
     utility_timer_tick = Signal(int)
@@ -208,6 +215,7 @@ class AppController(QObject):
         note_repository=None,
         system_metrics=None,
         parent: QObject | None = None,
+        initial_wardrobe_error: str = '',
     ):
         super().__init__(parent)
         self._settings = settings
@@ -234,6 +242,11 @@ class AppController(QObject):
         self._pet_catalog_entries = None
         self._pet_catalog_loading = False
         self._pet_catalog_loaded = False
+        self._wardrobe_error = str(initial_wardrobe_error)
+        self._wardrobe_request_serial = 0
+        self._pending_wardrobe_request: tuple[int, str, str] | None = None
+        self._unavailable_outfits: set[tuple[str, str]] = set()
+        self._companion_surface = None
         self._weather_service = weather_service
         self._utility_timer = utility_timer
         self._note_repository = note_repository
@@ -336,6 +349,20 @@ class AppController(QObject):
                 catalog_ready.connect(self._on_pet_catalog_ready)
             if catalog_failed is not None:
                 catalog_failed.connect(self._on_pet_catalog_failed)
+            outfit_ready = getattr(
+                self._pet_asset_repository,
+                'outfit_preload_ready',
+                None,
+            )
+            outfit_failed = getattr(
+                self._pet_asset_repository,
+                'outfit_preload_failed',
+                None,
+            )
+            if outfit_ready is not None:
+                outfit_ready.connect(self._on_outfit_preload_ready)
+            if outfit_failed is not None:
+                outfit_failed.connect(self._on_outfit_preload_failed)
 
         if self._utility_timer is not None:
             timer_state_changed = getattr(
@@ -379,11 +406,16 @@ class AppController(QObject):
                 )
 
         self._state = self._build_state()
+        self._wardrobe_state = self._state.pet_wardrobe
         self._companion_presentation = self._build_companion_presentation()
 
     @property
     def state(self) -> AppState:
         return self._state
+
+    @property
+    def wardrobe_state(self) -> PetWardrobeState:
+        return self._wardrobe_state
 
     @property
     def companion_presentation(self) -> CompanionPresentationSnapshot:
@@ -440,12 +472,29 @@ class AppController(QObject):
         if self._in_transaction and not force:
             return self._state
         new_state = self._build_state()
+        wardrobe = new_state.pet_wardrobe
         if force or new_state != self._state:
             self._state = new_state
             self.state_changed.emit(new_state)
+        self._publish_wardrobe(wardrobe, force=force)
         self.refresh_companion_presentation()
         return self._state
 
+    def refresh_wardrobe(self, *_args, force: bool = False) -> PetWardrobeState:
+        """Publish wardrobe loading progress without rebuilding the full AppState."""
+
+        return self._publish_wardrobe(self._project_pet_wardrobe(), force=force)
+
+    def _publish_wardrobe(
+        self,
+        snapshot: PetWardrobeState,
+        *,
+        force: bool = False,
+    ) -> PetWardrobeState:
+        if force or snapshot != self._wardrobe_state:
+            self._wardrobe_state = snapshot
+            self.wardrobe_changed.emit(snapshot)
+        return self._wardrobe_state
     def refresh_companion_presentation(
         self,
         *_args,
@@ -462,6 +511,76 @@ class AppController(QObject):
             self._companion_presentation = snapshot
             self.companion_presentation_changed.emit(snapshot)
         return self._companion_presentation
+
+    def attach_companion_surface(self, surface) -> None:
+        '''Register the production paint boundary for atomic outfit commits.'''
+
+        self._companion_surface = surface
+
+    def report_wardrobe_surface_failure(
+        self,
+        outfit_id: str,
+        message: str,
+    ) -> None:
+        '''Expose an unexpected post-transaction paint failure to the user.'''
+
+        if self._in_transaction:
+            return
+        pet_id = str(getattr(self._settings, 'active_pet_id', 'snow_ferret'))
+        if outfit_id:
+            self._unavailable_outfits.add((pet_id, str(outfit_id)))
+        self._wardrobe_error = str(message) or (
+            '造型画面无法加载，已保留当前造型。'
+        )
+        self.operation_failed.emit('pet_outfit_surface', self._wardrobe_error)
+        self.refresh_state()
+
+    def _begin_wardrobe_request(self, pet_id: str, outfit_id: str) -> int:
+        self._wardrobe_request_serial += 1
+        request_id = self._wardrobe_request_serial
+        self._pending_wardrobe_request = (
+            request_id,
+            str(pet_id),
+            str(outfit_id),
+        )
+        self.refresh_wardrobe(force=True)
+        return request_id
+
+    def _cancel_wardrobe_request(self) -> None:
+        self._wardrobe_request_serial += 1
+        self._pending_wardrobe_request = None
+
+    def _on_outfit_preload_ready(
+        self,
+        request_id: int,
+        pet_id: str,
+        outfit_id: str,
+    ) -> None:
+        expected = (int(request_id), str(pet_id), str(outfit_id))
+        if self._pending_wardrobe_request != expected:
+            return
+        self._pending_wardrobe_request = None
+        self._unavailable_outfits.discard((str(pet_id), str(outfit_id)))
+        self._companion_commands.complete_pet_outfit_request(
+            str(pet_id),
+            str(outfit_id),
+        )
+
+    def _on_outfit_preload_failed(
+        self,
+        request_id: int,
+        pet_id: str,
+        outfit_id: str,
+        _resource_path: str,
+    ) -> None:
+        expected = (int(request_id), str(pet_id), str(outfit_id))
+        if self._pending_wardrobe_request != expected:
+            return
+        self._pending_wardrobe_request = None
+        self._unavailable_outfits.add((str(pet_id), str(outfit_id)))
+        self._wardrobe_error = '造型资源无法加载，已保留当前造型。'
+        self.operation_failed.emit('pet_outfit', self._wardrobe_error)
+        self.refresh_state()
 
     def ensure_pet_catalog_loaded(self) -> bool:
         '''Validate bundled sibling packs once, when the catalog is opened.'''
@@ -723,10 +842,12 @@ class AppController(QObject):
 
     def reset_pet_position(self) -> bool:
         def operation() -> None:
+            self._settings.pet_anchor_edge = "bottom_right"
+            self._settings.pet_anchor_offset = 24
             self._settings.pet_x = None
             self._settings.pet_y = None
 
-        return self._run("pet_position", operation, reconcile=False)
+        return self._run("pet_anchor", operation, reconcile=False)
 
     def set_companion_enabled(self, enabled: bool) -> bool:
         return self._companion_commands.set_companion_enabled(enabled)
@@ -748,6 +869,12 @@ class AppController(QObject):
 
     def set_pet_accessory(self, slot: str, item_id: str | None) -> bool:
         return self._companion_commands.set_pet_accessory(slot, item_id)
+
+    def clear_pet_accessories(self) -> bool:
+        return self._companion_commands.clear_pet_accessories()
+
+    def set_pet_outfit(self, outfit_id: str | None) -> bool:
+        return self._companion_commands.set_pet_outfit(outfit_id)
 
     def upsert_app_prop_rule(self, app_id: str, prop_id: str) -> bool:
         return self._companion_commands.upsert_app_prop_rule(app_id, prop_id)
@@ -1761,6 +1888,10 @@ class AppController(QObject):
             if persist_settings:
                 self._sync_settings_checked()
         except Exception as exc:
+            if code == 'pet_outfit':
+                self._wardrobe_error = (
+                    '造型资源无法加载，已保留当前造型。'
+                )
             rollback_errors: list[str] = []
             if persist_settings:
                 try:
@@ -2313,6 +2444,7 @@ class AppController(QObject):
                 else None
             ),
             pet_catalog=self._project_pet_catalog(),
+            pet_wardrobe=self._project_pet_wardrobe(),
             companion=self._project_companion(),
             weather=self._weather_state,
             quick_tools=self._project_quick_tools(),
@@ -2367,6 +2499,7 @@ class AppController(QObject):
         motion_mode = str(getattr(self._settings, 'motion_mode', 'system'))
         return CompanionPresentationSnapshot(
             pet_id=companion.pet_id,
+            outfit_id=companion.outfit_id,
             action_id=companion.behavior,
             visible=companion.visible,
             scale_percent=companion.scale_percent,
@@ -2500,6 +2633,52 @@ class AppController(QObject):
             ),
         )
 
+    def _project_pet_wardrobe(self) -> PetWardrobeState:
+        manifest = getattr(self._companion, 'manifest', None)
+        outfits = getattr(manifest, 'outfits', {})
+        pet_id = str(getattr(self._settings, 'active_pet_id', 'snow_ferret'))
+        entries = tuple(
+            PetOutfitEntryState(
+                outfit_id=str(getattr(outfit, 'outfit_id', outfit_id)),
+                display_name=str(
+                    getattr(outfit, 'display_name', outfit_id)
+                ),
+                description=str(getattr(outfit, 'description', '')),
+                thumbnail_path=str(getattr(outfit, 'thumbnail_path', '')),
+                preview_path=str(getattr(outfit, 'preview_path', '')),
+                available=(
+                    (pet_id, str(getattr(outfit, 'outfit_id', outfit_id)))
+                    not in self._unavailable_outfits
+                ),
+            )
+            for outfit_id, outfit in getattr(outfits, 'items', lambda: ())()
+        )
+        preferences = getattr(self._settings, 'outfit_preferences', {})
+        selected = (
+            str(preferences.get(pet_id, ''))
+            if isinstance(preferences, dict)
+            else ''
+        )
+        mode = str(getattr(self._settings, 'wardrobe_mode', 'automatic'))
+        if mode not in {'automatic', 'outfit', 'accessories'}:
+            mode = 'automatic'
+        runtime = getattr(self._companion, 'state', None)
+        effective = str(getattr(runtime, 'outfit_id', ''))
+        pending = self._pending_wardrobe_request
+        loading = (
+            str(pending[2])
+            if pending is not None and str(pending[1]) == pet_id
+            else ''
+        )
+        return PetWardrobeState(
+            available_outfits=entries,
+            mode=mode,
+            selected_outfit_id=selected,
+            effective_outfit_id=effective,
+            loading_outfit_id=loading,
+            error=str(getattr(self, '_wardrobe_error', '')),
+        )
+
     def _project_companion(self) -> AppPetState | None:
         runtime = getattr(self._companion, 'state', None)
         if runtime is None:
@@ -2507,14 +2686,17 @@ class AppController(QObject):
         appearance = getattr(runtime, 'appearance', None)
         behavior = getattr(runtime, 'behavior', None)
         reasons = list(getattr(runtime, 'suppressed_by', ()))
-        if self._context_state.session in {'locked', 'suspended'}:
-            reasons.append(self._context_state.session)
-        if self._context_state.fullscreen:
-            reasons.append('fullscreen')
+        break_policy = getattr(self._effective_policy, 'breaks', None)
+        reasons.extend(
+            reason
+            for reason in getattr(break_policy, 'suppressed_by', ())
+            if reason != 'global_pause'
+        )
         reasons = list(dict.fromkeys(reasons))
         enabled = bool(getattr(self._settings, 'companion_enabled', True))
         return AppPetState(
             pet_id=str(getattr(runtime, 'pet_id', 'snow_ferret')),
+            outfit_id=str(getattr(runtime, 'outfit_id', '')),
             enabled=enabled,
             visible=(
                 enabled

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from dataclasses import dataclass
 
 from PySide6.QtCore import (
     QEasingCurve,
@@ -18,6 +19,14 @@ from PySide6.QtGui import QColor, QImage, QMouseEvent, QPainter, QPainterPath, Q
 from PySide6.QtWidgets import QApplication, QWidget
 
 from opencareyes.ui.pet_animator import PetAnimator
+
+
+@dataclass(frozen=True, slots=True)
+class _StableGazeAction:
+    action_id: str
+    frames: tuple[object, ...]
+    loop: bool = False
+    static_frame: int = 0
 
 
 class PetSurface(QWidget):
@@ -39,16 +48,23 @@ class PetSurface(QWidget):
     pet_event = Signal(str, object)
     pack_switched = Signal(str)
     pack_switch_failed = Signal(str, str)
+    outfit_switch_failed = Signal(str, str)
+    outfit_layer_failed = Signal(str, str)
 
     def __init__(self, repository=None, parent=None):
         super().__init__(parent)
         self._repository = repository
         self._pet_id = ''
         self._manifest = None
+        self._outfit_id = ''
         self._frame: QImage | None = None
         self._appearance_paths: tuple[str, ...] = ()
         self._appearance_images: tuple[QImage, ...] = ()
+        self._ambient_paths: tuple[str, ...] = ()
+        self._ambient_images: tuple[QImage, ...] = ()
+        self._failed_ambient_paths: set[str] = set()
         self._facing_direction = 0
+        self._gaze_direction = 'center'
         self._scale_percent = 100
         self._reduced_motion = False
         self._suppressed = False
@@ -112,7 +128,8 @@ class PetSurface(QWidget):
         self._preview_timer.setSingleShot(True)
         self._preview_timer.setInterval(5000)
         self._preview_timer.timeout.connect(self._finish_preview)
-        self._preview_was_visible = False
+        self._preview_active = False
+        self._presentation_visible = False
 
     @property
     def pet_id(self) -> str:
@@ -121,6 +138,10 @@ class PetSurface(QWidget):
     @property
     def action_id(self) -> str:
         return self.animator.action_id
+
+    @property
+    def outfit_id(self) -> str:
+        return self._outfit_id
 
     @property
     def is_dragging(self) -> bool:
@@ -201,6 +222,55 @@ class PetSurface(QWidget):
 
         return self.set_pack(pet_id, manifest)
 
+    def set_outfit(self, outfit_id: str | None) -> bool:
+        '''Select one full replacement sprite set without changing the pack.'''
+
+        selected = '' if outfit_id in {None, ''} else str(outfit_id).strip().lower()
+        if selected == self._outfit_id:
+            return True
+        if selected:
+            outfits = getattr(self._manifest, 'outfits', None)
+            outfit = outfits.get(selected) if isinstance(outfits, Mapping) else None
+            actions = getattr(outfit, 'actions', None)
+            if not isinstance(actions, Mapping) or actions.get('idle') is None:
+                self.outfit_switch_failed.emit(
+                    selected,
+                    '造型缺少可用的待机动作。',
+                )
+                return False
+
+        previous = self._outfit_id
+        previous_action = self.animator.action_id or 'idle'
+        previous_ambient = (
+            self._ambient_paths,
+            self._ambient_images,
+            set(self._failed_ambient_paths),
+        )
+        self._outfit_id = selected
+        self._reload_ambient_layers(force=True)
+        self.animator.clear_cache()
+        if self.play_action(previous_action, restart=True):
+            return True
+
+        self._outfit_id = previous
+        (
+            self._ambient_paths,
+            self._ambient_images,
+            self._failed_ambient_paths,
+        ) = previous_ambient
+        self.animator.clear_cache()
+        self.play_action(previous_action, restart=True)
+        self.outfit_switch_failed.emit(
+            selected,
+            '造型画面无法启动，已恢复之前的造型。',
+        )
+        return False
+
+    def has_action(self, action_id: str) -> bool:
+        '''Report an exact current-sprite capability without idle fallback.'''
+
+        return self._exact_action(str(action_id)) is not None
+
     def play_event(self, event_kind: str, payload=None) -> bool:
         bindings = getattr(self._manifest, 'event_bindings', None)
         action_id = bindings.get(event_kind) if isinstance(bindings, Mapping) else None
@@ -240,6 +310,19 @@ class PetSurface(QWidget):
         self.update()
         return True
 
+    def set_gaze_direction(self, direction: str) -> bool:
+        '''Select a stable head-gaze frame without mirroring the whole sprite.'''
+
+        normalised = str(direction).strip().lower()
+        if normalised not in {'left', 'center', 'right'}:
+            raise ValueError(f'Unsupported gaze direction: {direction!r}')
+        if normalised == self._gaze_direction:
+            return False
+        self._gaze_direction = normalised
+        if self.animator.action_id == 'look_cursor':
+            self.play_action('look_cursor', restart=True)
+        return True
+
     def face_towards_cursor(
         self,
         global_position: QPoint,
@@ -269,14 +352,20 @@ class PetSurface(QWidget):
         '''Apply projected visibility once instead of repeatedly raising the HWND.'''
 
         visible = bool(visible)
-        if visible == self.isVisible():
-            return False
+        projection_changed = visible != self._presentation_visible
+        self._presentation_visible = visible
+        if self._preview_active:
+            self._preview_timer.stop()
+            self._preview_active = False
         if visible:
-            self.show()
-            self.raise_()
-        else:
+            if not self.isVisible():
+                self.show()
+                self.raise_()
+                return True
+        elif self.isVisible():
             self.hide()
-        return True
+            return True
+        return projection_changed
 
     def set_suppressed(self, suppressed: bool) -> bool:
         '''Suspend animation and transient pointer timers without changing preference.'''
@@ -332,29 +421,73 @@ class PetSurface(QWidget):
         self._appearance_images = candidate
         self.update()
 
+    def _reload_ambient_layers(self, *, force: bool = False) -> None:
+        paths: tuple[str, ...] = ()
+        if self._outfit_id and self._manifest is not None:
+            outfits = getattr(self._manifest, 'outfits', None)
+            outfit = (
+                outfits.get(self._outfit_id)
+                if isinstance(outfits, Mapping)
+                else None
+            )
+            layers = getattr(outfit, 'ambient_layers', None)
+            if isinstance(layers, Mapping):
+                paths = tuple(str(path) for path in layers.values() if path)
+
+        if paths != self._ambient_paths:
+            self._ambient_paths = paths
+            self._failed_ambient_paths.clear()
+            force = True
+
+        images: list[QImage] = []
+        if self._repository is not None and self._pet_id:
+            for path in self._ambient_paths:
+                if path in self._failed_ambient_paths:
+                    continue
+                image = self._repository.load_frame(self._pet_id, path)
+                if isinstance(image, QImage) and not image.isNull():
+                    images.append(QImage(image))
+        candidate = tuple(images)
+        unchanged = tuple(image.cacheKey() for image in candidate) == tuple(
+            image.cacheKey() for image in self._ambient_images
+        )
+        if unchanged and not force:
+            return
+        self._ambient_images = candidate
+        self.update()
+
     def _on_appearance_resource_ready(
         self,
         pet_id: str,
         resource_path: str,
     ) -> None:
-        if (
-            str(pet_id) != self._pet_id
-            or str(resource_path) not in self._appearance_paths
-        ):
+        if str(pet_id) != self._pet_id:
             return
-        self._reload_appearance_images()
+        path = str(resource_path)
+        if path in self._ambient_paths:
+            self._failed_ambient_paths.discard(path)
+            self._reload_ambient_layers()
+        if path in self._appearance_paths:
+            self._reload_appearance_images()
 
     def _on_appearance_resource_failed(
         self,
         pet_id: str,
         resource_path: str,
     ) -> None:
-        if (
-            str(pet_id) != self._pet_id
-            or str(resource_path) not in self._appearance_paths
-        ):
+        if str(pet_id) != self._pet_id:
             return
-        self.update()
+        path = str(resource_path)
+        if path in self._ambient_paths:
+            if path not in self._failed_ambient_paths:
+                self._failed_ambient_paths.add(path)
+                self._reload_ambient_layers(force=True)
+                self.outfit_layer_failed.emit(
+                    self._outfit_id,
+                    '造型的环境点缀资源无法加载，已隐藏该点缀。',
+                )
+        elif path in self._appearance_paths:
+            self.update()
 
     def move_to_default(self) -> None:
         screen = QApplication.primaryScreen()
@@ -374,15 +507,17 @@ class PetSurface(QWidget):
     def preview(self) -> None:
         '''Show a short placement preview without changing preferences.'''
 
-        self._preview_was_visible = self.isVisible()
-        if not self._preview_was_visible:
+        self._preview_active = True
+        if not self.isVisible():
             self.move_to_default()
         self.show()
         self.raise_()
         self._preview_timer.start()
 
     def _finish_preview(self) -> None:
-        if not self._preview_was_visible:
+        self._preview_active = False
+        self._preview_timer.stop()
+        if not self._presentation_visible:
             self.hide()
 
     def showEvent(self, event) -> None:
@@ -392,6 +527,7 @@ class PetSurface(QWidget):
     def hideEvent(self, event) -> None:
         if self._switch_phase != 'idle':
             self._complete_switch_immediately()
+        self._preview_active = False
         self._hold_timer.stop()
         self._bubble_timer.stop()
         self._preview_timer.stop()
@@ -415,6 +551,8 @@ class PetSurface(QWidget):
             painter.drawImage(self._frame_target_rect(), self._frame)
         else:
             self._paint_fallback(painter)
+        for ambient in self._ambient_images:
+            painter.drawImage(QRectF(self.rect()), ambient)
         for appearance in self._appearance_images:
             painter.drawImage(QRectF(self.rect()), appearance)
         painter.restore()
@@ -499,9 +637,35 @@ class PetSurface(QWidget):
         self._dragging = False
         self.setCursor(Qt.OpenHandCursor)
 
-    def _action(self, action_id: str):
+    def _exact_action(self, action_id: str):
+        if self._outfit_id:
+            outfits = getattr(self._manifest, 'outfits', None)
+            outfit = (
+                outfits.get(self._outfit_id)
+                if isinstance(outfits, Mapping)
+                else None
+            )
+            actions = getattr(outfit, 'actions', None)
+            return actions.get(action_id) if isinstance(actions, Mapping) else None
         actions = getattr(self._manifest, 'actions', None)
         return actions.get(action_id) if isinstance(actions, Mapping) else None
+
+    def _action(self, action_id: str):
+        action = self._exact_action(action_id)
+        if action is not None and action_id == 'look_cursor':
+            frames = tuple(getattr(action, 'frames', ()))
+            if frames:
+                requested = {'left': 0, 'center': 1, 'right': 2}[
+                    self._gaze_direction
+                ]
+                frame = frames[min(requested, len(frames) - 1)]
+                return _StableGazeAction(
+                    action_id=str(getattr(action, 'action_id', action_id)),
+                    frames=(frame,),
+                )
+        if action is not None or not self._outfit_id or action_id == 'idle':
+            return action
+        return self._exact_action('idle')
 
     @staticmethod
     def _pack_size(manifest) -> tuple[int, int]:
@@ -527,8 +691,12 @@ class PetSurface(QWidget):
         scale = self._scale_percent / 100
         self._pet_id = pet_id
         self._manifest = manifest
+        self._outfit_id = ''
         self._appearance_paths = ()
         self._appearance_images = ()
+        self._ambient_paths = ()
+        self._ambient_images = ()
+        self._failed_ambient_paths.clear()
         self._set_fixed_size_if_changed(
             max(48, round(width * scale)),
             max(48, round(height * scale)),
@@ -545,8 +713,12 @@ class PetSurface(QWidget):
             self._manifest,
             self.size(),
             self.animator.action_id or 'idle',
+            self._outfit_id,
             self._appearance_paths,
             tuple(QImage(image) for image in self._appearance_images),
+            self._ambient_paths,
+            tuple(QImage(image) for image in self._ambient_images),
+            set(self._failed_ambient_paths),
         )
 
     def _restore_pack_snapshot(self) -> None:
@@ -559,14 +731,22 @@ class PetSurface(QWidget):
             manifest,
             size,
             action_id,
+            outfit_id,
             appearance_paths,
             appearance_images,
+            ambient_paths,
+            ambient_images,
+            failed_ambient_paths,
         ) = snapshot
         self._pet_id = pet_id
         self._manifest = manifest
+        self._outfit_id = outfit_id
         self._set_fixed_size_if_changed(size.width(), size.height())
         self._appearance_paths = appearance_paths
         self._appearance_images = tuple(QImage(image) for image in appearance_images)
+        self._ambient_paths = ambient_paths
+        self._ambient_images = tuple(QImage(image) for image in ambient_images)
+        self._failed_ambient_paths = set(failed_ambient_paths)
         self.animator.set_pack(pet_id, manifest)
         if not self.play_action(action_id):
             self.play_action('idle')
@@ -574,9 +754,13 @@ class PetSurface(QWidget):
     def _clear_pack(self) -> None:
         self._pet_id = ''
         self._manifest = None
+        self._outfit_id = ''
         self._frame = None
         self._appearance_paths = ()
         self._appearance_images = ()
+        self._ambient_paths = ()
+        self._ambient_images = ()
+        self._failed_ambient_paths.clear()
         self.animator.stop(clear_frame=True)
         self.update()
 
@@ -650,7 +834,7 @@ class PetSurface(QWidget):
         self.setWindowOpacity(1.0)
 
     def _has_action(self, action_id: str) -> bool:
-        return self._action(action_id) is not None
+        return self._exact_action(action_id) is not None
 
     def _set_frame(self, image) -> None:
         candidate = (

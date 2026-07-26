@@ -99,6 +99,57 @@ def _load_companion(settings, registry):
     return companion, None, False
 
 
+def _restore_startup_accessories(settings, companion) -> str:
+    """Restore valid single accessories without making startup fragile."""
+
+    if companion is None or str(
+        getattr(settings, "wardrobe_mode", "automatic")
+    ) != "accessories":
+        return ""
+
+    pet_id = str(companion.state.pet_id)
+    preferences = getattr(settings, "pet_preferences", {})
+    selected = (
+        preferences.get(pet_id, {}) if isinstance(preferences, dict) else {}
+    )
+    failures = 0
+    try:
+        companion.set_wardrobe_mode("accessories")
+    except Exception:
+        failures += 1
+        log.exception("The accessory wardrobe mode could not be restored")
+
+    for slot, item_id in selected.items():
+        try:
+            companion.set_manual_accessory(str(slot), str(item_id))
+        except Exception:
+            failures += 1
+            log.exception("A saved pet accessory could not be restored")
+
+    if failures:
+        return f"部分单件配饰恢复失败（{failures} 项），已跳过不可用配饰。"
+    return ""
+
+
+def _restore_startup_outfit(settings, companion, controller) -> bool:
+    """Restore a saved outfit through the public atomic command boundary."""
+
+    if companion is None or str(
+        getattr(settings, "wardrobe_mode", "automatic")
+    ) != "outfit":
+        return False
+
+    preferences = getattr(settings, "outfit_preferences", {})
+    selected = (
+        str(preferences.get(companion.state.pet_id, ""))
+        if isinstance(preferences, dict)
+        else ""
+    )
+    if not selected:
+        return False
+    return bool(controller.set_pet_outfit(selected))
+
+
 def main() -> None:
     logging.basicConfig(
         level=logging.INFO,
@@ -127,14 +178,13 @@ def main() -> None:
         settings,
         pet_registry,
     )
+    initial_wardrobe_error = ""
     if companion is not None:
         pet_assets.preload_manifest(companion.manifest)
-        preferences = settings.pet_preferences
-        selected_preferences = (
-            preferences.get(companion.state.pet_id, {}) if isinstance(preferences, dict) else {}
+        initial_wardrobe_error = _restore_startup_accessories(
+            settings,
+            companion,
         )
-        for slot, item_id in selected_preferences.items():
-            companion.set_manual_accessory(str(slot), str(item_id))
     elif pet_load_error is not None:
         log.error("The selected bundled pet pack could not be loaded: %s", pet_load_error)
     event_hub = WindowsEventHub.shared()
@@ -174,7 +224,9 @@ def main() -> None:
         utility_timer=utility_timer,
         note_repository=note_repository,
         system_metrics=system_metrics,
+        initial_wardrobe_error=initial_wardrobe_error,
     )
+    _restore_startup_outfit(settings, companion, controller)
     chime_service = HourlyChimeService(app)
     dimmer.operation_failed.connect(controller.operation_failed)
     focus_mode.operation_failed.connect(controller.operation_failed)
@@ -189,8 +241,7 @@ def main() -> None:
 
     def route_quick_tool(tool_id: str) -> None:
         if tool_id == "wardrobe":
-            panel.show_page("宠物图鉴")
-            panel.show_and_activate()
+            panel.focus_wardrobe()
             return
         quick_tools.show_tool(tool_id)
 
@@ -211,6 +262,8 @@ def main() -> None:
     )
     if companion is not None:
         pet_surface.set_pack(companion.state.pet_id, companion.manifest)
+        if companion.state.outfit_id:
+            pet_surface.set_outfit(companion.state.outfit_id)
         app.set_pet_accent(getattr(companion.manifest.visual_theme, "accent", "#65BFA5"))
     session_notifications_available = event_hub.register_window(int(pet_surface.winId()))
     # Keep every top-level reminder surface alive for the application lifetime.
@@ -265,6 +318,7 @@ def main() -> None:
         blue_filter.refresh_screens()
         dimmer.refresh_screens()
         focus_mode.refresh_screens()
+        companion_runtime.refresh_display_topology()
 
     def refresh_after_session_change(inactive: bool) -> None:
         if not inactive:

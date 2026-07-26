@@ -3,6 +3,8 @@
 
 from importlib.metadata import distribution
 
+from scripts.release_version import resolve_release_version
+
 from PyInstaller.utils.win32.versioninfo import (
     FixedFileInfo,
     StringFileInfo,
@@ -18,10 +20,8 @@ _distribution = distribution("opencareyes")
 _distribution_path = _distribution._path
 _metadata_file = _distribution_path / "METADATA"
 _version = _distribution.version
-_version_parts = tuple(int(part) for part in _version.split("."))
-if len(_version_parts) != 3:
-    raise ValueError("OpenCareEyes release builds require MAJOR.MINOR.PATCH")
-_version_quad = (*_version_parts, 0)
+_release_version = resolve_release_version(_version)
+_version_quad = _release_version.windows_quad
 _version_info = VSVersionInfo(
     ffi=FixedFileInfo(filevers=_version_quad, prodvers=_version_quad),
     kids=[
@@ -35,7 +35,7 @@ _version_info = VSVersionInfo(
                             "FileDescription",
                             "OpenCareEyes - Windows 桌面陪伴与护眼助手",
                         ),
-                        StringStruct("FileVersion", _version),
+                        StringStruct("FileVersion", _release_version.windows),
                         StringStruct("InternalName", "OpenCareEyes"),
                         StringStruct("LegalCopyright", "Copyright (c) 2026 Odyphus"),
                         StringStruct("OriginalFilename", "OpenCareEyes.exe"),

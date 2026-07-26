@@ -26,6 +26,7 @@ from opencareyes.state import (
     PetAppearanceState,
     PetCatalogEntryState,
     PetCatalogState,
+    PetWardrobeState,
     PetState,
     QuickToolsState,
     SmartPausePreferencesState,
@@ -72,6 +73,7 @@ class StateProjector:
         display_override: DisplayState | None = None,
         global_pause_override: GlobalPauseState | None = None,
         pet_catalog: PetCatalogState | None = None,
+        pet_wardrobe: PetWardrobeState | None = None,
         companion: PetState | None = None,
         weather: WeatherState | None = None,
         quick_tools: QuickToolsState | None = None,
@@ -273,6 +275,7 @@ class StateProjector:
             ),
             update=update or UpdateState(),
             pet_catalog=pet_catalog or self._default_pet_catalog(),
+            pet_wardrobe=pet_wardrobe or self._default_pet_wardrobe(),
             companion=companion or self._default_companion_state(context),
             weather=weather or WeatherState(
                 status=(
@@ -313,6 +316,22 @@ class StateProjector:
             active_pet_id=pet_id,
         )
 
+    def _default_pet_wardrobe(self) -> PetWardrobeState:
+        settings = self._settings
+        pet_id = str(getattr(settings, 'active_pet_id', 'snow_ferret'))
+        mode = str(getattr(settings, 'wardrobe_mode', 'automatic'))
+        preferences = getattr(settings, 'outfit_preferences', {})
+        selected = (
+            str(preferences.get(pet_id, ''))
+            if isinstance(preferences, dict)
+            else ''
+        )
+        return PetWardrobeState(
+            mode=(mode if mode in {'automatic', 'outfit', 'accessories'} else 'automatic'),
+            selected_outfit_id=selected,
+            effective_outfit_id=selected if mode == 'outfit' else '',
+        )
+
     def _default_companion_state(
         self,
         context: ContextState | None,
@@ -338,6 +357,14 @@ class StateProjector:
         enabled = bool(getattr(settings, 'companion_enabled', True))
         return PetState(
             pet_id=pet_id,
+            outfit_id=(
+                str(
+                    getattr(settings, 'outfit_preferences', {}).get(pet_id, '')
+                )
+                if str(getattr(settings, 'wardrobe_mode', 'automatic')) == 'outfit'
+                and isinstance(getattr(settings, 'outfit_preferences', {}), dict)
+                else ''
+            ),
             enabled=enabled,
             visible=enabled and not suppressed,
             appearance=appearance,

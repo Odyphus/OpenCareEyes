@@ -311,6 +311,18 @@ class MainPanel(QWidget):
                 break
         self.show_and_activate()
 
+    def focus_wardrobe(self) -> None:
+        for index, (label, _, _) in enumerate(_PAGES):
+            if label != '宠物图鉴':
+                continue
+            self._navigation.setCurrentRow(index)
+            page = self._ensure_page(index)
+            focus = getattr(page, 'focus_wardrobe', None)
+            if callable(focus):
+                QTimer.singleShot(0, focus)
+            break
+        self.show_and_activate()
+
     def show_and_activate(self) -> None:
         self.showNormal()
         self.raise_()
@@ -364,3 +376,6 @@ class DeferredMainPanel:
 
     def show_page(self, name: str) -> None:
         self.widget.show_page(name)
+
+    def focus_wardrobe(self) -> None:
+        self.widget.focus_wardrobe()

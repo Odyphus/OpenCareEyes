@@ -163,13 +163,34 @@ class Win32ContextBackend:
             return False
         bounds = info.rcMonitor
         tolerance = cls._FRAME_TOLERANCE
-        return all(
+        frame_covers_monitor = all(
             abs(actual - expected) <= tolerance
             for actual, expected in (
                 (frame.left, bounds.left),
                 (frame.top, bounds.top),
                 (frame.right, bounds.right),
                 (frame.bottom, bounds.bottom),
+            )
+        )
+        if not frame_covers_monitor:
+            return False
+
+        client = api.RECT()
+        if not api.GetClientRect(hwnd, ctypes.byref(client)):
+            return False
+        client_top_left = api.wintypes.POINT(client.left, client.top)
+        client_bottom_right = api.wintypes.POINT(client.right, client.bottom)
+        if not api.ClientToScreen(hwnd, ctypes.byref(client_top_left)):
+            return False
+        if not api.ClientToScreen(hwnd, ctypes.byref(client_bottom_right)):
+            return False
+        return all(
+            abs(actual - expected) <= tolerance
+            for actual, expected in (
+                (client_top_left.x, bounds.left),
+                (client_top_left.y, bounds.top),
+                (client_bottom_right.x, bounds.right),
+                (client_bottom_right.y, bounds.bottom),
             )
         )
 

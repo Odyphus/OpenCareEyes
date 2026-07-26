@@ -21,7 +21,21 @@ if not defined APP_VERSION (
     echo ERROR: Could not read the project version from pyproject.toml.
     exit /b 1
 )
+set "WINDOWS_VERSION="
+set "IS_PRERELEASE="
+"%PYTHON%" scripts\release_version.py "%APP_VERSION%" --batch-output "build\release-version.env"
+if errorlevel 1 goto :error
+for /f "usebackq tokens=1,* delims==" %%A in ("build\release-version.env") do set "%%A=%%B"
+if not defined WINDOWS_VERSION (
+    echo ERROR: Could not resolve the Windows file version.
+    exit /b 1
+)
+if not "%IS_PRERELEASE%"=="0" if not "%IS_PRERELEASE%"=="1" (
+    echo ERROR: Could not resolve the pre-release state.
+    exit /b 1
+)
 echo       Version: %APP_VERSION%
+echo       Windows file version: %WINDOWS_VERSION%
 set "INSTALLER_ARTIFACT=installer_output\OpenCareEyes_Setup_%APP_VERSION%.exe"
 set "PORTABLE_ARCHIVE=OpenCareEyes_Portable_%APP_VERSION%.zip"
 set "WINGET_ARCHIVE=OpenCareEyes_WinGet_%APP_VERSION%.zip"
@@ -68,7 +82,7 @@ if not defined ISCC (
     goto :checksum
 )
 
-"%ISCC%" /DMyAppVersion=%APP_VERSION% installer.iss
+"%ISCC%" /DMyAppVersion=%APP_VERSION% /DMyWindowsVersion=%WINDOWS_VERSION% installer.iss
 if errorlevel 1 goto :error
 if not exist "%INSTALLER_ARTIFACT%" (
     echo ERROR: %INSTALLER_ARTIFACT% was not created.
@@ -79,17 +93,21 @@ set "BUILT_INSTALLER=1"
 :checksum
 echo [5/6] Packaging portable ZIP and version-pinned WinGet manifests...
 if "%EXE_ONLY%"=="0" (
-    powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference = 'Stop'; Compress-Archive -LiteralPath @('dist\OpenCareEyes.exe', 'README.md', '使用说明.md', 'LICENSE', 'THIRD_PARTY_NOTICES.md', 'licenses') -DestinationPath '%PORTABLE_ARCHIVE%' -Force"
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference = 'Stop'; $guideName = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('5L2/55So6K+05piOLm1k')); $files = @('dist\OpenCareEyes.exe', 'README.md', (Join-Path $PWD $guideName), 'LICENSE', 'THIRD_PARTY_NOTICES.md', 'licenses'); Compress-Archive -LiteralPath $files -DestinationPath '%PORTABLE_ARCHIVE%' -Force"
     if errorlevel 1 goto :error
     set "BUILT_PORTABLE=1"
 )
 
 if "%BUILT_INSTALLER%"=="1" (
-    "%PYTHON%" scripts\generate_winget_manifest.py "%INSTALLER_ARTIFACT%" --version "%APP_VERSION%"
-    if errorlevel 1 goto :error
-    powershell -NoProfile -ExecutionPolicy Bypass -Command "Compress-Archive -Path 'winget_output\manifests' -DestinationPath '%WINGET_ARCHIVE%' -Force"
-    if errorlevel 1 goto :error
-    set "BUILT_WINGET=1"
+    if "%IS_PRERELEASE%"=="1" (
+        echo       Pre-release build; WinGet generation skipped.
+    ) else (
+        "%PYTHON%" scripts\generate_winget_manifest.py "%INSTALLER_ARTIFACT%" --version "%APP_VERSION%"
+        if errorlevel 1 goto :error
+        powershell -NoProfile -ExecutionPolicy Bypass -Command "Compress-Archive -Path 'winget_output\manifests' -DestinationPath '%WINGET_ARCHIVE%' -Force"
+        if errorlevel 1 goto :error
+        set "BUILT_WINGET=1"
+    )
 ) else (
     echo       No installer was produced in this run; WinGet generation skipped.
 )

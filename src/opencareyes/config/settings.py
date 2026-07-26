@@ -18,7 +18,7 @@ from opencareyes.config.presets import PRESETS
 from opencareyes.constants import APP_NAME, ORG_NAME
 
 
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
 
 logger = logging.getLogger(__name__)
 
@@ -291,6 +291,9 @@ class SettingsMigrator:
             if version < 6:
                 self._migrate_v5_to_v6(existing_profile)
                 version = 6
+            if version < 7:
+                self._migrate_v6_to_v7(existing_profile)
+                version = 7
             self._sync_checked()
             _clear_pending_snapshot(self._store)
         except Exception as exc:
@@ -477,6 +480,37 @@ class SettingsMigrator:
                 ),
             )
         self._store.setValue('meta/schema_version', 6)
+
+    def _migrate_v6_to_v7(self, existing_profile: bool) -> None:
+        if existing_profile:
+            raw_preferences = self._store.value(
+                'companion/pet_preferences_json', '{}'
+            )
+            try:
+                decoded = (
+                    json.loads(raw_preferences)
+                    if isinstance(raw_preferences, str)
+                    else raw_preferences
+                )
+            except (TypeError, ValueError):
+                decoded = {}
+            has_manual_accessories = bool(
+                isinstance(decoded, Mapping)
+                and any(
+                    isinstance(slots, Mapping) and bool(slots)
+                    for slots in decoded.values()
+                )
+            )
+            if self._store.value('companion/wardrobe_mode', None) is None:
+                self._store.setValue(
+                    'companion/wardrobe_mode',
+                    'accessories' if has_manual_accessories else 'automatic',
+                )
+            if self._store.value(
+                'companion/outfit_preferences_json', None
+            ) is None:
+                self._store.setValue('companion/outfit_preferences_json', '{}')
+        self._store.setValue('meta/schema_version', 7)
 
     def _sync_checked(self) -> None:
         _sync_store_checked(self._store)
@@ -1399,6 +1433,52 @@ class Settings:
             normalized[pet_id] = slots
         self._set_value(
             'companion/pet_preferences_json',
+            json.dumps(normalized, ensure_ascii=True, separators=(',', ':')),
+        )
+
+    @property
+    def wardrobe_mode(self) -> str:
+        mode = str(
+            self._s.value('companion/wardrobe_mode', 'automatic')
+        ).strip().lower()
+        return mode if mode in {'automatic', 'outfit', 'accessories'} else 'automatic'
+
+    @wardrobe_mode.setter
+    def wardrobe_mode(self, value: str) -> None:
+        mode = str(value).strip().lower()
+        if mode not in {'automatic', 'outfit', 'accessories'}:
+            raise ValueError('Unknown wardrobe mode')
+        self._set_value('companion/wardrobe_mode', mode)
+
+    @property
+    def outfit_preferences(self) -> dict[str, str]:
+        raw = self._s.value('companion/outfit_preferences_json', '{}')
+        try:
+            decoded = json.loads(raw) if isinstance(raw, str) else raw
+        except (TypeError, ValueError):
+            return {}
+        if not isinstance(decoded, Mapping):
+            return {}
+        result: dict[str, str] = {}
+        for raw_pet_id, raw_outfit_id in tuple(decoded.items())[:32]:
+            try:
+                pet_id = _validated_pet_id(raw_pet_id)
+                outfit_id = _validated_item_id(raw_outfit_id)
+            except ValueError:
+                continue
+            result[pet_id] = outfit_id
+        return result
+
+    @outfit_preferences.setter
+    def outfit_preferences(self, value: Mapping[str, object]) -> None:
+        if len(value) > 32:
+            raise ValueError('At most 32 outfit preference entries may be stored')
+        normalized = {
+            _validated_pet_id(raw_pet_id): _validated_item_id(raw_outfit_id)
+            for raw_pet_id, raw_outfit_id in value.items()
+        }
+        self._set_value(
+            'companion/outfit_preferences_json',
             json.dumps(normalized, ensure_ascii=True, separators=(',', ':')),
         )
 

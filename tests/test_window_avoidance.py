@@ -113,7 +113,7 @@ def test_active_monitor_migration_supports_negative_coordinates_and_multiple_scr
     assert request.position[0] < 0
 
 
-def test_maximised_window_uses_low_obstruction_edge_peek():
+def test_maximised_window_keeps_pet_visible_at_its_anchor():
     clock = FakeClock()
     monitor = _monitor("main", 0, 0, 1000, 800)
     pet = ScreenRect(800, 600, 900, 700)
@@ -130,9 +130,8 @@ def test_maximised_window_uses_low_obstruction_edge_peek():
 
     request = _settle(service, clock)
 
-    assert request == MovementRequest((976, 600), "edge_peek")
-    moved = ScreenRect(976, 600, 1076, 700)
-    assert moved.intersection_area(foreground) == 24 * 100
+    assert request is None
+    assert pet == ScreenRect(800, 600, 900, 700)
 
 
 def test_drag_rest_and_hidden_gate_all_movement_through_can_move():

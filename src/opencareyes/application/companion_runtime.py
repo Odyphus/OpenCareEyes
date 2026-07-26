@@ -67,6 +67,10 @@ class CompanionRuntime:
         self._window_avoidance = None
         self._window_avoidance_running = False
 
+        attach_surface = getattr(controller, 'attach_companion_surface', None)
+        if callable(attach_surface):
+            attach_surface(surface)
+
         bubble.start_due_requested.connect(controller.start_due_break)
         bubble.snooze_requested.connect(controller.snooze_break)
         bubble.skip_requested.connect(controller.skip_break)
@@ -152,7 +156,7 @@ class CompanionRuntime:
 
         if self._started:
             self._sync_appearance_and_chime(state)
-            self._sync_anchor(state)
+            self._sync_anchor()
 
     def sync_presentation(self, presentation) -> None:
         if self._shutdown:
@@ -160,19 +164,28 @@ class CompanionRuntime:
         if self._companion is not None and presentation.pet_id != self._surface.pet_id:
             if self._asset_repository is not None:
                 self._asset_repository.preload_manifest(self._companion.manifest)
-            if not self._surface.set_pack(
+            pack_applied = self._surface.set_pack(
                 presentation.pet_id,
                 self._companion.manifest,
-            ):
-                return
-            visual_theme = getattr(self._companion.manifest, 'visual_theme', None)
-            if self._application is not None:
-                self._application.set_pet_accent(
-                    getattr(visual_theme, 'accent', '#65BFA5')
+            )
+            if pack_applied:
+                visual_theme = getattr(
+                    self._companion.manifest,
+                    'visual_theme',
+                    None,
                 )
+                if self._application is not None:
+                    self._application.set_pet_accent(
+                        getattr(visual_theme, 'accent', '#65BFA5')
+                    )
 
         self._surface.set_scale_percent(presentation.scale_percent)
+        set_outfit = getattr(self._surface, 'set_outfit', None)
+        if callable(set_outfit):
+            set_outfit(getattr(presentation, 'outfit_id', ''))
         self._surface.set_appearance(presentation.appearance)
+        if self._started:
+            self._sync_anchor()
         self._surface.set_suppressed(bool(presentation.suppressed_by))
         self._surface.set_presentation_visible(presentation.visible)
 
@@ -222,7 +235,7 @@ class CompanionRuntime:
             self._stop_autonomous_action(complete=True)
             if self._cursor_timer is not None:
                 self._cursor_timer.stop()
-            self._stop_window_avoidance()
+            self._stop_window_avoidance(restore=False)
             if not self._surface.is_dragging:
                 self.restore_permanent_anchor()
         self._refresh_timer_state()
@@ -232,7 +245,7 @@ class CompanionRuntime:
             return
         self._shutdown = True
         self._last_break_semantic = None
-        self._stop_window_avoidance()
+        self._stop_window_avoidance(restore=False)
         self._stop_all_timers()
         self._bubble.clear_rest_prompt()
         self._bubble.hide()
@@ -262,19 +275,31 @@ class CompanionRuntime:
     def permanent_pet_rect(self) -> ScreenRect:
         anchor = self._controller.state.companion.anchor
         if anchor.edge == 'free' and anchor.x is not None and anchor.y is not None:
+            width = self._surface.width()
+            height = self._surface.height()
+            x = int(anchor.x)
+            y = int(anchor.y)
+            screen = self._screen_for_point(
+                QPoint(x + width // 2, y + height // 2)
+            )
+            if screen is not None:
+                area = screen.availableGeometry()
+                x = max(
+                    area.left(),
+                    min(x, area.left() + max(0, area.width() - width)),
+                )
+                y = max(
+                    area.top(),
+                    min(y, area.top() + max(0, area.height() - height)),
+                )
             return ScreenRect(
-                int(anchor.x),
-                int(anchor.y),
-                int(anchor.x) + self._surface.width(),
-                int(anchor.y) + self._surface.height(),
+                x,
+                y,
+                x + width,
+                y + height,
             )
         current = self._surface.frameGeometry()
-        screen = None
-        if self._application is not None:
-            screen = (
-                self._application.screenAt(current.center())
-                or self._application.primaryScreen()
-            )
+        screen = self._screen_for_point(current.center())
         if screen is None:
             return self.current_pet_rect()
         area = screen.availableGeometry()
@@ -287,10 +312,21 @@ class CompanionRuntime:
         y = top if anchor.edge.startswith('top') else bottom
         return ScreenRect(x, y, x + self._surface.width(), y + self._surface.height())
 
+    def _screen_for_point(self, point: QPoint):
+        if self._application is None:
+            return None
+        screen_at = getattr(self._application, 'screenAt', None)
+        primary_screen = getattr(self._application, 'primaryScreen', None)
+        screen = screen_at(point) if callable(screen_at) else None
+        if screen is None and callable(primary_screen):
+            screen = primary_screen()
+        return screen
+
     def can_move_for_window_avoidance(self) -> bool:
         state = self._controller.state
         return (
             bool(state.companion.visible)
+            and self._surface.isVisible()
             and state.breaks.phase != 'resting'
             and not self._motion_reduced
             and not self._surface.is_dragging
@@ -304,6 +340,19 @@ class CompanionRuntime:
         self._surface.setProperty('serviceTransientPlacement', False)
         anchor = self.permanent_pet_rect()
         self._surface.move(anchor.left, anchor.top)
+        self._pet_positioned = True
+
+    def refresh_display_topology(self, *_args) -> None:
+        '''Recover the persisted anchor after monitor or DPI topology changes.'''
+
+        if self._shutdown or not self._started or self._surface.is_dragging:
+            return
+        self._surface.setProperty('serviceTransientPlacement', False)
+        self._pet_positioned = False
+        self._sync_anchor()
+        reposition = getattr(self._bubble, 'reposition', None)
+        if self._bubble.isVisible() and callable(reposition):
+            reposition(self._surface)
 
     def dispatch_pet_event(self, kind: str, payload=None) -> bool:
         if self._companion is None:
@@ -361,6 +410,12 @@ class CompanionRuntime:
             )
         )
         self._surface.pack_switch_failed.connect(self._handle_pack_switch_failure)
+        outfit_failed = getattr(self._surface, 'outfit_switch_failed', None)
+        if outfit_failed is not None:
+            outfit_failed.connect(self._handle_outfit_switch_failure)
+        layer_failed = getattr(self._surface, 'outfit_layer_failed', None)
+        if layer_failed is not None:
+            layer_failed.connect(self._handle_outfit_layer_failure)
         self._surface.animator.animation_finished.connect(self._finish_pet_action)
         self._surface.bubble_requested.connect(self._toggle_pet_bubble)
         self._bubble.dismissed.connect(self._dismiss_pet_bubble)
@@ -377,7 +432,6 @@ class CompanionRuntime:
 
     def _reset_pet_anchor(self) -> None:
         self._surface.setProperty('serviceTransientPlacement', False)
-        self._controller.set_pet_anchor('bottom_right', 24)
         self._controller.reset_pet_position()
 
     def _handle_pack_switch_failure(self, _pet_id: str, _detail: str) -> None:
@@ -388,6 +442,34 @@ class CompanionRuntime:
         self._controller.operation_failed.emit(
             'pet_pack_surface',
             '新伙伴的画面无法加载，已恢复切换前的伙伴。',
+        )
+
+    def _handle_outfit_switch_failure(
+        self,
+        outfit_id: str,
+        detail: str,
+    ) -> None:
+        reporter = getattr(
+            self._controller,
+            'report_wardrobe_surface_failure',
+            None,
+        )
+        if callable(reporter):
+            reporter(str(outfit_id), str(detail))
+            return
+        self._controller.operation_failed.emit(
+            'pet_outfit_surface',
+            str(detail),
+        )
+
+    def _handle_outfit_layer_failure(
+        self,
+        _outfit_id: str,
+        detail: str,
+    ) -> None:
+        self._controller.operation_failed.emit(
+            'pet_outfit_layer',
+            str(detail),
         )
 
     def _finish_pet_action(self, action_id: str) -> None:
@@ -434,6 +516,19 @@ class CompanionRuntime:
             return
         if self._companion.start_autonomous_action():
             action_id = self._companion.current_action.action_id
+            has_action = getattr(self._surface, 'has_action', None)
+            if (
+                action_id == 'move'
+                and callable(has_action)
+                and not has_action('move')
+            ):
+                if self._companion.complete_action(action_id):
+                    self._surface.play_action(
+                        self._companion.current_action.action_id
+                    )
+                    self._controller.refresh_companion_presentation(force=True)
+                self._schedule_autonomous_action()
+                return
             self._surface.play_action(action_id, restart=True)
             self._controller.refresh_companion_presentation(force=True)
             if action_id == 'move':
@@ -489,10 +584,18 @@ class CompanionRuntime:
         distance = (position - self._surface.geometry().center()).manhattanLength()
         if distance <= 180:
             self._set_cursor_interval(100)
-            self._surface.face_towards_cursor(position)
+            horizontal = position.x() - self._surface.geometry().center().x()
+            gaze = 'center'
+            if horizontal < -12:
+                gaze = 'left'
+            elif horizontal > 12:
+                gaze = 'right'
+            set_gaze = getattr(self._surface, 'set_gaze_direction', None)
+            if callable(set_gaze):
+                set_gaze(gaze)
             if now - self._last_cursor_reaction >= 2.0:
                 self._last_cursor_reaction = now
-                self.dispatch_pet_event('cursor.near')
+                self.dispatch_pet_event('cursor.near', {'gaze': gaze})
         elif (
             now - self._last_cursor_motion >= 45
             and self._companion.state.behavior.event_kind == 'autonomous.idle'
@@ -560,10 +663,10 @@ class CompanionRuntime:
         self._window_avoidance.start()
         self._window_avoidance_running = True
 
-    def _stop_window_avoidance(self) -> None:
+    def _stop_window_avoidance(self, *, restore: bool = True) -> None:
         if self._window_avoidance is None or not self._window_avoidance_running:
             return
-        self._window_avoidance.stop(restore=False)
+        self._window_avoidance.stop(restore=restore)
         self._window_avoidance_running = False
 
     def _dismiss_pet_bubble(self) -> None:
@@ -673,21 +776,20 @@ class CompanionRuntime:
             and state.breaks.phase != 'resting'
         )
 
-    def _sync_anchor(self, state) -> None:
-        anchor = state.companion.anchor
+    def _sync_anchor(self) -> None:
         if (
-            anchor.edge == 'free'
-            and anchor.x is not None
-            and anchor.y is not None
-            and not self._surface.is_dragging
-            and not bool(self._surface.property('autonomousMoving'))
-            and not bool(self._surface.property('serviceTransientPlacement'))
+            self._surface.is_dragging
+            or bool(self._surface.property('autonomousMoving'))
+            or bool(self._surface.property('serviceTransientPlacement'))
         ):
-            self._surface.move(int(anchor.x), int(anchor.y))
-            self._pet_positioned = True
-        elif not self._pet_positioned:
-            self._surface.move_to_default()
-            self._pet_positioned = True
+            return
+        anchor = self.permanent_pet_rect()
+        if (
+            not self._pet_positioned
+            or self._surface.pos() != QPoint(anchor.left, anchor.top)
+        ):
+            self._surface.move(anchor.left, anchor.top)
+        self._pet_positioned = True
 
     def _apply_motion_preference(self, enabled: bool) -> None:
         self.set_motion_reduced(not bool(enabled))

@@ -6,6 +6,11 @@
   #error MyAppVersion must be supplied by build.bat or the release workflow
 #endif
 
+#ifndef MyWindowsVersion
+  ; Stable release workflows may continue supplying only MyAppVersion.
+  #define MyWindowsVersion MyAppVersion
+#endif
+
 #define MyAppName "OpenCareEyes"
 #define MyAppPublisher "Odyphus"
 #define MyAppURL "https://github.com/Odyphus/OpenCareEyes"
@@ -21,7 +26,7 @@ AppComments=Windows 桌面陪伴与护眼助手
 AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppURL}/issues
 AppUpdatesURL={#MyAppURL}/releases
-VersionInfoVersion={#MyAppVersion}
+VersionInfoVersion={#MyWindowsVersion}
 DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
@@ -36,7 +41,11 @@ WizardStyle=modern
 PrivilegesRequired=lowest
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
-CloseApplications=yes
+; OpenCareEyes normally remains in the notification area. Its Qt tray process does not reliably
+; respond to Restart Manager graceful close on every supported Windows build, leaving the EXE
+; locked during an upgrade. Restrict forced closing to the OpenCareEyes executable only.
+CloseApplications=force
+CloseApplicationsFilter={#MyAppExeName}
 RestartApplications=no
 SetupLogging=yes
 

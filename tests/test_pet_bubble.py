@@ -14,6 +14,7 @@ def test_bubble_has_quick_tools_and_no_private_countdown_timer(qtbot):
     bubble = PetBubble()
     qtbot.addWidget(bubble)
     requested = QSignalSpy(bubble.tool_requested)
+    original_position = QPoint(bubble.pos())
 
     assert bubble.windowFlags() & Qt.Tool
     assert bubble.testAttribute(Qt.WA_ShowWithoutActivating)
@@ -25,6 +26,7 @@ def test_bubble_has_quick_tools_and_no_private_countdown_timer(qtbot):
 
     qtbot.mouseClick(bubble.tool_buttons['timer'], Qt.LeftButton)
     assert requested.at(0) == ['timer']
+    assert bubble.pos() == original_position
 
 
 def test_break_tick_only_changes_text(qtbot):
@@ -62,6 +64,12 @@ def test_focusable_entry_activates_first_action_but_mouse_entry_does_not(qtbot):
 
     bubble.show_for(anchor)
     assert bubble.testAttribute(Qt.WA_ShowWithoutActivating)
+    original_position = QPoint(bubble.pos())
+    qtbot.mousePress(bubble, Qt.LeftButton, pos=QPoint(32, 32))
+    qtbot.mouseMove(bubble, QPoint(92, 72))
+    qtbot.mouseRelease(bubble, Qt.LeftButton, pos=QPoint(92, 72))
+    assert bubble.pos() != original_position
+    assert bubble.testAttribute(Qt.WA_ShowWithoutActivating)
     bubble.hide()
 
     bubble.toggle_for(anchor, focusable=True)
@@ -84,6 +92,17 @@ def test_rest_prompt_mode_exposes_due_break_actions(qtbot):
     assert not bubble._tools_widget.isVisible()
     assert bubble._rest_actions_widget.isVisible()
     assert set(bubble._snooze_actions) == {5, 10, 30}
+
+    original_position = QPoint(bubble.pos())
+    qtbot.mousePress(bubble, Qt.LeftButton, pos=QPoint(32, 32))
+    qtbot.mouseMove(bubble, QPoint(82, 62))
+    qtbot.mouseRelease(bubble, Qt.LeftButton, pos=QPoint(82, 62))
+    assert bubble.pos() != original_position
+    assert bubble.isVisible()
+    assert bubble.mode == 'rest_prompt'
+    assert started.count() == 0
+    assert snoozed.count() == 0
+    assert skipped.count() == 0
 
     bubble.set_status('普通状态', '不应覆盖休息提醒')
     assert bubble._title.text() == '该休息一下眼睛了'
@@ -157,3 +176,34 @@ def test_bubble_apply_theme_alias_supports_light_dark_and_high_contrast(qtbot):
     ):
         assert button.focusPolicy() == Qt.StrongFocus
         assert button.accessibleName()
+
+
+def test_drag_release_clamps_to_negative_logical_screen_geometry(qtbot):
+    bubble = PetBubble()
+    qtbot.addWidget(bubble)
+    logical_screen = QRect(-1920, 0, 1920, 1080)
+
+    assert bubble._clamp_to_area(
+        QPoint(-5000, -200),
+        logical_screen,
+    ) == QPoint(-1920, 0)
+    assert bubble._clamp_to_area(
+        QPoint(500, 2000),
+        logical_screen,
+    ) == QPoint(-342, 860)
+
+
+def test_hiding_during_drag_clears_pointer_state(qtbot):
+    bubble = PetBubble()
+    qtbot.addWidget(bubble)
+    bubble.show_for(QRect(40, 40, 96, 112))
+
+    qtbot.mousePress(bubble, Qt.LeftButton, pos=QPoint(32, 32))
+    assert bubble._dragging is True
+    assert bubble._drag_offset is not None
+
+    bubble.hide()
+
+    assert bubble._dragging is False
+    assert bubble._drag_offset is None
+    assert bubble.cursor().shape() == Qt.OpenHandCursor

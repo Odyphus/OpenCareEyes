@@ -4,7 +4,7 @@
 
 **Windows 桌面陪伴与护眼助手**
 
-[![Version](https://img.shields.io/badge/version-0.7.0-5B8DEF.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.8.0b2-5B8DEF.svg)](CHANGELOG.md)
 [![Windows CI](https://github.com/Odyphus/OpenCareEyes/actions/workflows/windows-ci.yml/badge.svg)](https://github.com/Odyphus/OpenCareEyes/actions/workflows/windows-ci.yml)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
@@ -13,12 +13,15 @@
 
 </div>
 
-OpenCareEyes 以桌面宠物为日常入口：第一只官方伙伴白鼬“鼬鼬”会回应点击、拖动、光标靠近、休息到点、天气和学习场景。夜间色温、屏幕明暗、活动加权休息、专注与自动化作为“伙伴小屋”中的基础能力。v0.7 聚焦休息与伙伴状态闭环、显示事务可靠性、减少动画和高 DPI 可用性。应用不需要账号，不包含遥测，天气关闭时核心功能离线工作。
+OpenCareEyes 以桌面宠物为日常入口：第一只官方伙伴白鼬“鼬鼬”会回应点击、拖动、光标靠近、休息到点、天气和学习场景。夜间色温、屏幕明暗、活动加权休息、专注与自动化作为“伙伴小屋”中的基础能力。v0.8 Beta 新增通用完整造型衣橱和首套 29 帧“雪坡滑雪客”。应用不需要账号，不包含遥测，天气关闭时核心功能离线工作。
 
 > 从 v0.2 起，`main` 是包含完整源码的规范分支。`master` 仅保留迁移提示，不再接收功能更新。
 
-## v0.7「稳态伙伴」重点
+## v0.8 Beta「百变衣橱」重点
 
+- **完整造型衣橱**：自动搭配、整套造型和单件配饰三种模式互斥切换；加载或设置失败时保持原造型。
+- **雪坡滑雪客**：首套正式造型覆盖待机、睡眠、移动、点击、拖拽、右键、休息提醒、玩耍和左/中/右视线共 29 帧。
+- **纯本地素材流程**：白毛透明边缘使用 NumPy + Pillow 离线精细 Alpha 处理，不依赖在线图像 API；构建会阻止色键残留和错误切帧进入安装包。
 - **休息操作一致**：浮动伙伴提醒与普通休息卡都提供“现在休息、稍后 5/10/30 分钟、本次跳过”，并消费同一个休息状态机。
 - **伙伴状态闭环**：自然结束、按钮结束、`Esc`、跳过、关闭提醒、全局暂停或安全情境抑制后，伙伴会撤销休息动作并恢复一次 `idle`，不会持续保持睡眠姿势。
 - **运行时收敛**：`CompanionRuntime` 统一管理光标、自主行为、位置动画、窗口避让、气泡和伙伴同步；倒计时、动画帧、光标与工具计时使用轻量信号，不高频重建完整状态。
@@ -28,13 +31,15 @@ OpenCareEyes 以桌面宠物为日常入口：第一只官方伙伴白鼬“鼬�
 - **减少动画更彻底**：启用后停止自主移动、位置动画和非必要定时器，伙伴返回永久锚点并显示静态最终帧。
 - **键盘入口明确**：鼠标单击伙伴仍不抢焦点；从托盘或键盘入口打开气泡时可使用 `Tab`、`Enter` 和 `Esc`，并显示焦点环。
 - **职责边界更清晰**：Controller 的公开命令按显示、休息与专注、自动化、宠物与工具拆分，原有界面命令与信号保持兼容。
-- **schema 与隐私边界不扩张**：配置继续使用 schema v6；无账号、云同步、广告、遥测和持久化互动统计，不保存鼠标轨迹、窗口标题、完整程序路径、天气结果或前台应用历史。
+- **schema 与隐私边界不扩张**：配置使用 schema v7；无账号、云同步、广告、遥测和持久化互动统计，不保存鼠标轨迹、窗口标题、完整程序路径、天气结果或前台应用历史。
 
-v0.7.0 同时只运行一只随软件发布的官方宠物；不提供第三方宠物导入、宠物商店、多宠物常驻、等级/积分/打卡、自动安装更新、账号、云同步、遥测或 AI 推荐。产品边界见 [PRODUCT.md](PRODUCT.md)，视觉与性能约束见 [DESIGN.md](DESIGN.md)，完整变更见 [CHANGELOG.md](CHANGELOG.md)。
+v0.8.0b2 同时只运行一只随软件发布的官方宠物；不提供第三方宠物导入、宠物商店、多宠物常驻、等级/积分/打卡、自动安装更新、账号、云同步、遥测或 AI 推荐。产品边界见 [PRODUCT.md](PRODUCT.md)，视觉与性能约束见 [DESIGN.md](DESIGN.md)，完整变更见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## 宠物预览
 
 ![白鼬“鼬鼬”官方宠物包预览](assets/pets/snow_ferret/preview.png)
+
+![雪坡滑雪客完整造型预览](assets/pets/snow_ferret/outfits/snow_slope_skier/preview.png)
 
 ### v0.6 伙伴小屋
 
@@ -126,16 +131,16 @@ OpenCareEyes 不是医疗器械，也不用于诊断、治疗或预防眼病。�
 | 层 | 实现 |
 |---|---|
 | 桌面界面 | Python 3.10+、PySide6 Widgets / Qt |
-| 宠物系统 | 声明式 JSON 宠物包 schema v1/v2、透明 PNG/2x atlas、通用语义事件与有界 DPR 缓存 |
+| 宠物系统 | 声明式 JSON 宠物包 schema v1/v2/v3、完整造型与单件配饰、透明 PNG/2x atlas、通用语义事件与有界 DPR 缓存 |
 | 色温 | Windows GDI `SetDeviceGammaRamp`、DisplayConfig HDR/Advanced Color 探测 |
 | 调暗与专注 | PySide6 透明窗口、Win32 API (`ctypes`) |
 | 自动化与天气 | Qt 定时器、Astral 日出日落计算、QtNetwork / Open-Meteo（显式授权） |
 | 情境与原生事件 | WinEventHook、WTS/电源/显示/时间消息、`GetLastInputInfo` |
 | 热键与主题 | Win32 `RegisterHotKey`、`ThemeSnapshot`、`darkdetect` |
 | 打包 | PyInstaller onefile、Inno Setup 6 |
-| 配置 | Qt `QSettings`，schema v6（从 v1/v2/v3/v4/v5 无损迁移） |
+| 配置 | Qt `QSettings`，schema v7（从 v1/v2/v3/v4/v5/v6 无损迁移） |
 
-Windows 10/11 是 v0.7 的唯一受支持平台。Gamma Ramp 可能被显卡驱动、远程桌面、显示设备或其他程序拒绝/覆盖；HDR 下不调用该接口。能力探测不可用时会明确标记“未完全验证”，而不是假定成功。
+Windows 10/11 是 v0.8 Beta 的唯一受支持平台。Gamma Ramp 可能被显卡驱动、远程桌面、显示设备或其他程序拒绝/覆盖；HDR 下不调用该接口。能力探测不可用时会明确标记“未完全验证”，而不是假定成功。
 
 ## 开发与构建
 
