@@ -51,7 +51,9 @@ v0.8.0b2 同时只运行一只随软件发布的官方宠物；不提供第三�
 
 ### v0.8 更新介绍视频
 
-[▶ 观看 OpenCareEyes 0.8 版本更新介绍视频](docs/images/OpenCareEyes-0.8版本更新介绍视频.mp4)
+[▶ 在线播放 OpenCareEyes 0.8 版本更新介绍视频](https://github.com/user-attachments/assets/ecbe8d4b-4750-4be5-9ffe-80b6f3c7fc16)
+
+[下载 1080p 高清原版](docs/images/OpenCareEyes-0.8版本更新介绍视频.mp4)
 
 60 秒视频集中介绍桌面伙伴、屏幕舒适度、休息节奏、智能免打扰、学习小工具、自动日程，以及原版宠物和“雪坡滑雪客”造型动作。
 
