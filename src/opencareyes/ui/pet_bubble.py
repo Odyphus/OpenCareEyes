@@ -41,7 +41,6 @@ class PetBubble(QWidget):
     '''Non-modal companion toolbar with no private countdown timer.'''
 
     tool_requested = Signal(str)
-    item_requested = Signal(str)
     start_due_requested = Signal()
     snooze_requested = Signal(int)
     skip_requested = Signal()
@@ -70,7 +69,7 @@ class PetBubble(QWidget):
         self.setAttribute(Qt.WA_TranslucentBackground)
         self.setAttribute(Qt.WA_ShowWithoutActivating)
         self.setAttribute(Qt.WA_DeleteOnClose, False)
-        self.setFixedSize(342, 220)
+        self.setFixedSize(342, 194)
         self.setAccessibleName('桌面伙伴快捷气泡')
         self.setToolTip('按住空白处可拖动快捷气泡')
         self.setCursor(Qt.OpenHandCursor)
@@ -85,10 +84,6 @@ class PetBubble(QWidget):
     @property
     def tool_buttons(self) -> dict[str, QPushButton]:
         return dict(self._tool_buttons)
-
-    @property
-    def item_buttons(self) -> dict[str, QPushButton]:
-        return dict(self._item_buttons)
 
     @property
     def mode(self) -> str:
@@ -157,25 +152,6 @@ class PetBubble(QWidget):
             )
             tools.addWidget(button, 0, column)
             self._tool_buttons[tool_id] = button
-        self._item_buttons: dict[str, QPushButton] = {}
-        for column, (item_id, label) in enumerate(
-            (
-                ('yarn_ball', '毛线球'),
-                ('hot_cocoa', '热可可'),
-                ('pine_cone', '松果'),
-            )
-        ):
-            button = QPushButton(label)
-            button.setCursor(Qt.PointingHandCursor)
-            button.setAccessibleName(f'给伙伴{label}')
-            button.setFocusPolicy(Qt.StrongFocus)
-            button.clicked.connect(
-                lambda _checked=False, selected=item_id: self.item_requested.emit(
-                    selected
-                )
-            )
-            tools.addWidget(button, 1, column)
-            self._item_buttons[item_id] = button
         layout.addWidget(self._tools_widget)
 
         self._rest_actions_widget = QWidget(self)
@@ -304,7 +280,6 @@ class PetBubble(QWidget):
         )
         for button in (
             *self._tool_buttons.values(),
-            *self._item_buttons.values(),
             self._start_due_button,
             self._snooze_button,
             self._skip_button,

@@ -26,13 +26,16 @@ def test_official_snow_ferret_pack_is_complete_and_buildable():
 
     assert REQUIRED_ACTIONS.issubset(manifest.actions)
     assert manifest.event_bindings['click'] == 'click_reaction'
-    assert manifest.appearance_rules['weather.snow']['neckwear']
-    assert manifest.appearance_rules['holiday.christmas']['scene']
+    assert manifest.appearance_rules == {}
     assert manifest.schema_version == 3
-    assert set(manifest.outfits) == {'snow_slope_skier'}
+    assert 'snow_slope_skier' in manifest.outfits
+    assert {'round_shades', 'star_shades'} <= set(manifest.outfits)
     assert len(manifest.outfits['snow_slope_skier'].actions) == 10
     assert manifest.asset_scale == 2
     assert manifest.visual_theme.accent == '#6B9EEA'
+
+    legacy_accessories = Path(PETS_DIR) / 'snow_ferret' / 'accessories'
+    assert not legacy_accessories.exists()
     assert any(
         frame.source_rect is not None
         for action in manifest.actions.values()

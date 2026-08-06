@@ -34,9 +34,6 @@ class CompanionCoordinator:
         self._registry = registry
         self._clock = clock
         self._random = random_source or random.Random()
-        self._manual_appearance: dict[str, str] = {}
-        self._interactive_appearance: dict[str, str] = {}
-        self._appearance_conditions: tuple[str, ...] = ()
         self._wardrobe_mode = 'automatic'
         self._selected_outfit_id = ''
         if active_pet_id is None:
@@ -86,9 +83,6 @@ class CompanionCoordinator:
             return self._state
         previous = self._state
         self._manifest = candidate
-        self._manual_appearance.clear()
-        self._interactive_appearance.clear()
-        self._appearance_conditions = ()
         self._wardrobe_mode = 'automatic'
         self._selected_outfit_id = ''
         self._state = PetState(
@@ -110,13 +104,13 @@ class CompanionCoordinator:
             raise ValueError(f'Unknown pet outfit: {selected!r}')
         self._wardrobe_mode = 'outfit' if selected else 'automatic'
         self._selected_outfit_id = selected
-        self._interactive_appearance.clear()
         self._state = replace(
             self._state,
             outfit_id=selected,
             behavior=self._idle_behavior(),
+            appearance=PetAppearance(),
         )
-        return self.apply_appearance_conditions(self._appearance_conditions)
+        return self._state
 
     def set_wardrobe_mode(
         self,
@@ -126,7 +120,7 @@ class CompanionCoordinator:
         normalized = str(mode).strip().lower()
         if normalized == 'outfit':
             return self.set_outfit(outfit_id)
-        if normalized not in {'automatic', 'accessories'}:
+        if normalized != 'automatic':
             raise ValueError(f'Unknown wardrobe mode: {mode!r}')
         self._wardrobe_mode = normalized
         self._selected_outfit_id = ''
@@ -134,87 +128,14 @@ class CompanionCoordinator:
             self._state,
             outfit_id='',
             behavior=self._idle_behavior(),
+            appearance=PetAppearance(),
         )
-        return self.apply_appearance_conditions(self._appearance_conditions)
+        return self._state
 
     def select_pet(self, pet_id: str) -> PetState:
         '''Compatibility command used by the application controller.'''
 
         return self.set_active_pet(pet_id)
-
-    def set_manual_accessory(self, slot: str, item_id: str | None) -> PetState:
-        if slot not in APPEARANCE_SLOTS:
-            raise ValueError(f'Unsupported appearance slot: {slot}')
-        if item_id in {None, ''}:
-            self._manual_appearance.pop(slot, None)
-        else:
-            item = str(item_id).strip().lower()
-            rule = self._manifest.appearance_rules.get(
-                f'accessory.{item}',
-                {},
-            )
-            resource = rule.get(slot) if isinstance(rule, Mapping) else None
-            if not resource:
-                raise ValueError(
-                    f'Accessory {item!r} is not declared for slot {slot!r}'
-                )
-            self._manual_appearance[slot] = str(resource)
-        self._wardrobe_mode = 'accessories'
-        self._selected_outfit_id = ''
-        self._state = replace(self._state, outfit_id='')
-        return self.apply_appearance_conditions(self._appearance_conditions)
-
-    def offer_item(self, item_id: str) -> bool:
-        item = str(item_id).strip().lower()
-        changed = self.dispatch_kind('item.offered', {'item_id': item})
-        if not changed:
-            return False
-        rule = self._manifest.appearance_rules.get(f'item.{item}', {})
-        if isinstance(rule, Mapping):
-            self.apply_appearance_conditions(
-                self._appearance_conditions,
-                interactive=rule,
-            )
-        return True
-
-    def apply_appearance_conditions(
-        self,
-        conditions: tuple[str, ...],
-        *,
-        interactive: Mapping[str, str] | None = None,
-    ) -> PetState:
-        '''Resolve semantic layers without making assumptions about anatomy.'''
-
-        self._appearance_conditions = tuple(str(value) for value in conditions)
-        resolved: dict[str, str] = {}
-        if self._wardrobe_mode != 'outfit':
-            for condition in self._appearance_conditions:
-                rule = self._manifest.appearance_rules.get(str(condition), {})
-                if not isinstance(rule, Mapping):
-                    continue
-                for slot, resource in rule.items():
-                    if slot in APPEARANCE_SLOTS and resource:
-                        resolved[str(slot)] = str(resource)
-            if self._wardrobe_mode == 'accessories':
-                resolved.update(self._manual_appearance)
-        if interactive is not None:
-            self._interactive_appearance = {
-                str(slot): str(resource)
-                for slot, resource in interactive.items()
-                if slot in APPEARANCE_SLOTS and resource
-            }
-        resolved.update(self._interactive_appearance)
-        self._state = replace(
-            self._state,
-            appearance=PetAppearance(
-                **{slot: resolved.get(slot, '') for slot in APPEARANCE_SLOTS}
-            ),
-        )
-        return self._state
-
-    def clear_interactive_appearance(self) -> PetState:
-        self._interactive_appearance.clear()
-        return self.apply_appearance_conditions(self._appearance_conditions)
 
     def dispatch_kind(
         self,
@@ -259,9 +180,6 @@ class CompanionCoordinator:
             return False
         if self._state.behavior.event_kind == 'autonomous.idle':
             return False
-        if self._state.behavior.event_kind == 'item.offered':
-            self._interactive_appearance.clear()
-            self.apply_appearance_conditions(self._appearance_conditions)
         self._state = replace(self._state, behavior=self._idle_behavior())
         return True
 

@@ -190,7 +190,7 @@ def test_drag_release_clamps_to_negative_logical_screen_geometry(qtbot):
     assert bubble._clamp_to_area(
         QPoint(500, 2000),
         logical_screen,
-    ) == QPoint(-342, 860)
+    ) == QPoint(-bubble.width(), logical_screen.bottom() - bubble.height() + 1)
 
 
 def test_hiding_during_drag_clears_pointer_state(qtbot):

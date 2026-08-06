@@ -30,7 +30,6 @@ class CompanionRuntime:
         asset_repository=None,
         pet_registry=None,
         settings=None,
-        holiday_service=None,
         chime_service=None,
         status_projector: Callable = StatusPresenter.project,
         monotonic: Callable[[], float] = time.monotonic,
@@ -44,14 +43,12 @@ class CompanionRuntime:
         self._asset_repository = asset_repository
         self._pet_registry = pet_registry
         self._settings = settings
-        self._holiday_service = holiday_service
         self._chime_service = chime_service
         self._status_projector = status_projector
         self._monotonic = monotonic
         self._cursor_position = cursor_position
 
         self._last_break_semantic = None
-        self._last_appearance_conditions = None
         self._last_cursor_position = None
         self._last_cursor_motion = self._monotonic()
         self._last_cursor_reaction = 0.0
@@ -155,7 +152,7 @@ class CompanionRuntime:
         self._bubble.set_quick_actions(state.quick_tools.quick_actions)
 
         if self._started:
-            self._sync_appearance_and_chime(state)
+            self._sync_chime(state)
             self._sync_anchor()
 
     def sync_presentation(self, presentation) -> None:
@@ -420,7 +417,6 @@ class CompanionRuntime:
         self._surface.bubble_requested.connect(self._toggle_pet_bubble)
         self._bubble.dismissed.connect(self._dismiss_pet_bubble)
         self._bubble.tool_requested.connect(self._handle_pet_tool)
-        self._bubble.item_requested.connect(self._offer_pet_item)
 
     def _apply_temporary_move(self, request) -> None:
         self._surface.setProperty('serviceTransientPlacement', True)
@@ -682,10 +678,6 @@ class CompanionRuntime:
         mapped = {'note': 'notes', 'status': 'system'}.get(tool_id, tool_id)
         self._controller.show_quick_tool(mapped)
 
-    def _offer_pet_item(self, item_id: str) -> None:
-        if self._controller.offer_pet_item(item_id):
-            self._bubble.hide()
-
     def _handle_hourly_chime(self, hour: int, may_play_sound: bool) -> None:
         if not self.dispatch_pet_event('reminder.hourly', {'hour': int(hour)}):
             return
@@ -720,47 +712,7 @@ class CompanionRuntime:
         except (ImportError, OSError, RuntimeError, ValueError):
             log.warning('Companion chime could not be played')
 
-    def _sync_appearance_and_chime(self, state) -> None:
-        if self._companion is not None:
-            conditions: list[str] = []
-            app_id = str(getattr(state.context, 'foreground_app_id', '')).lower()
-            rules = getattr(self._settings, 'app_prop_rules', ())
-            custom_prop = next(
-                (
-                    str(rule.get('prop_id', ''))
-                    for rule in rules
-                    if str(rule.get('app_id', '')).lower() == app_id
-                ),
-                '',
-            )
-            if custom_prop:
-                conditions.append(f'application.{custom_prop}')
-            elif app_id in {'winword.exe', 'wps.exe', 'wpscloudsvr.exe'}:
-                conditions.append('application.writing')
-            elif app_id in {'calculator.exe', 'calc.exe'}:
-                conditions.append('application.calculator')
-            elif app_id in {
-                'kicad.exe',
-                'pcbnew.exe',
-                'altiumdesigner.exe',
-                'easyeda.exe',
-            }:
-                conditions.append('application.eda')
-            if state.weather.status in {'ready', 'stale'}:
-                conditions.append(f'weather.{state.weather.condition}')
-            if self._holiday_service is not None:
-                holiday_pack = getattr(self._settings, 'holiday_pack', 'default')
-                for holiday in self._holiday_service.current_events(
-                    pack=holiday_pack
-                ):
-                    conditions.append(holiday.appearance_key)
-            condition_tuple = tuple(conditions)
-            signature = (state.companion.pet_id, condition_tuple)
-            if signature != self._last_appearance_conditions:
-                self._last_appearance_conditions = signature
-                self._companion.apply_appearance_conditions(condition_tuple)
-                self._controller.refresh_companion_presentation(force=True)
-
+    def _sync_chime(self, state) -> None:
         if self._chime_service is None:
             return
         self._chime_service.configure(

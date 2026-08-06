@@ -1,17 +1,25 @@
 {
   "license": "Apache-2.0",
   "reference_only": "59848788a598c01be7f1302cd1631308.jpg",
+  "supplemental_references": [
+    "72542c19384c95b9155ddf747e7c5c85.jpg",
+    "7a34ace8afc74d0fa85180745f60bd83.jpg",
+    "d61292596f0ead7feb9a30f47ca5057d.jpg",
+    "ba7c0c858468e01bf89bbf599c56b44c.jpg"
+  ],
   "outfits": [
-    {"outfit_id": "snow_slope_skier", "display_name": "雪坡滑雪客", "description": "薄荷绿滑雪外套、浅蓝护目镜、滑雪板背包与雪板组成的冬日滑雪造型。", "source": "22238f7d66cd2853e84539adac7a8979.jpg", "status": "sample_review"},
-    {"outfit_id": "lulu_little_ferret", "display_name": "噜噜小鼬", "description": "头顶圆润小橘子、身穿暖橙短裤的软萌草地造型。", "source": "69498b6c2c47a884af3c27dc26c2f722.jpg", "status": "planned"},
-    {"outfit_id": "caramel_pastry_chef", "display_name": "焦糖甜点师", "description": "奶黄色花边围裙、焦糖布丁、甜点桌与小狗伙伴组成的烘焙造型。", "source": "764185b267fd836a5e33e9bb2a9ea8e2.jpg", "status": "planned"},
-    {"outfit_id": "thunder_mage", "display_name": "雷系小巫师", "description": "紫黑镶金斗篷、星光饰件、法杖与淡紫闪电组成的魔法造型。", "source": "4b66de92777c5155c0b4bdee520f321d.jpg", "status": "planned"},
-    {"outfit_id": "silverfrost_swordsman", "display_name": "银霜剑士", "description": "镶金蓝白披风、肩头佩剑与复古符文阵组成的冰雪剑士造型。", "source": "3e559cc37f73edd6b82dd000115e5dbc.jpg", "status": "planned"},
-    {"outfit_id": "forest_detective", "display_name": "林间探长", "description": "棕褐猎鹿帽、复古斗篷、放大镜与调查卷宗组成的侦探造型。", "source": "9bc6afc91a068ef7d7b3f41c2dde91d4.jpg", "status": "planned"},
-    {"outfit_id": "christmas_ferret", "display_name": "圣诞小鼬", "description": "圣诞红帽毛绒斗篷、橄榄绿围巾和彩色装饰球组成的节日造型。", "source": "0b3fcb11fe07e170b5f2ebf29c0fdae9.jpg", "status": "planned"},
-    {"outfit_id": "icecream_vendor", "display_name": "甜筒贩卖员", "description": "浅色鸭舌帽、薄荷绿围裙与草莓巨型甜筒组成的夏日店员造型。", "source": "d310d7c6ce3ada9a8f17f8edaffc6d20.jpg", "status": "planned"},
-    {"outfit_id": "beach_vacation", "display_name": "海滩度假鼬", "description": "双层墨镜、粉色游泳圈、贝壳与海边浅滩组成的度假造型。", "source": "eb0db10e2e10b79b051d0eb4cff114e3.jpg", "status": "planned"},
-    {"outfit_id": "navy_scarf", "display_name": "蓝围巾小鼬", "description": "藏蓝厚大衣与米白围巾组成的安静落雪造型。", "source": "1b9164027191ac496b3e4899f7e83dff.jpg", "status": "planned"},
-    {"outfit_id": "blue_scarf_sprint", "display_name": "蓝围奔雪", "description": "蓝色针织围巾随奔跑甩动、尾巴扬起雪沫的动态造型。", "source": "d0816fff70ebe2cbb190cc5903f9d2dc.jpg", "status": "planned"}
+    {"outfit_id": "snow_slope_skier", "display_name": "雪坡滑雪客", "description": "薄荷绿滑雪外套、浅蓝护目镜、滑雪板背包与雪板组成的冬日滑雪造型。", "source": "22238f7d66cd2853e84539adac7a8979.jpg", "status": "complete"},
+    {"outfit_id": "lulu_little_ferret", "display_name": "噜噜小鼬", "description": "头顶圆润小橘子、身穿暖橙短裤的软萌草地造型。", "source": "69498b6c2c47a884af3c27dc26c2f722.jpg", "status": "complete"},
+    {"outfit_id": "caramel_pastry_chef", "display_name": "焦糖甜点师", "description": "奶黄色花边围裙、焦糖布丁、甜点桌与小狗伙伴组成的烘焙造型。", "source": "764185b267fd836a5e33e9bb2a9ea8e2.jpg", "status": "complete"},
+    {"outfit_id": "thunder_mage", "display_name": "雷系小巫师", "description": "紫黑镶金斗篷、星光饰件、法杖与淡紫闪电组成的魔法造型。", "source": "4b66de92777c5155c0b4bdee520f321d.jpg", "status": "complete"},
+    {"outfit_id": "silverfrost_swordsman", "display_name": "银霜剑士", "description": "镶金蓝白披风、肩头佩剑与复古符文阵组成的冰雪剑士造型。", "source": "3e559cc37f73edd6b82dd000115e5dbc.jpg", "status": "complete"},
+    {"outfit_id": "forest_detective", "display_name": "林间探长", "description": "棕褐猎鹿帽、复古斗篷、放大镜与调查卷宗组成的侦探造型。", "source": "9bc6afc91a068ef7d7b3f41c2dde91d4.jpg", "status": "complete"},
+    {"outfit_id": "christmas_ferret", "display_name": "圣诞小鼬", "description": "圣诞红帽毛绒斗篷、橄榄绿围巾和彩色装饰球组成的节日造型。", "source": "0b3fcb11fe07e170b5f2ebf29c0fdae9.jpg", "status": "complete"},
+    {"outfit_id": "icecream_vendor", "display_name": "甜筒贩卖员", "description": "浅色鸭舌帽、薄荷绿围裙与草莓巨型甜筒组成的夏日店员造型。", "source": "d310d7c6ce3ada9a8f17f8edaffc6d20.jpg", "status": "complete"},
+    {"outfit_id": "beach_vacation", "display_name": "海滩度假鼬", "description": "双层墨镜、粉色游泳圈、贝壳与海边浅滩组成的度假造型。", "source": "eb0db10e2e10b79b051d0eb4cff114e3.jpg", "status": "complete"},
+    {"outfit_id": "navy_scarf", "display_name": "蓝围巾小鼬", "description": "藏蓝厚大衣与米白围巾组成的安静落雪造型。", "source": "1b9164027191ac496b3e4899f7e83dff.jpg", "status": "complete"},
+    {"outfit_id": "blue_scarf_sprint", "display_name": "蓝围奔雪", "description": "蓝色针织围巾随奔跑甩动、尾巴扬起雪沫的动态造型。", "source": "d0816fff70ebe2cbb190cc5903f9d2dc.jpg", "status": "complete"},
+    {"outfit_id": "round_shades", "display_name": "圆镜酷鼬", "description": "原版鼬鼬佩戴圆润黑色墨镜的酷感造型，待机时沉稳，互动时会抬爪回应。", "source": "4da187a10415206ed891c0d26be0920a.jpg", "action_reference": "5443567126d1cba70dfaf858b0a5509f.jpg", "status": "complete"},
+    {"outfit_id": "star_shades", "display_name": "星光墨镜鼬", "description": "原版鼬鼬佩戴亮黄色星星墨镜的活泼造型，互动时会开心挥爪。", "source": "6c39a0ac49ee672778ba381ae567d9ea.jpg", "action_reference": "6e02c4634a152733dfb4899cfa840a27.jpg", "status": "complete"}
   ]
 }

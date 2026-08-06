@@ -5,7 +5,6 @@ from types import SimpleNamespace
 
 from opencareyes.__main__ import (
     _load_companion,
-    _restore_startup_accessories,
     _restore_startup_outfit,
 )
 from opencareyes.application.pet_pack_registry import PetPackRegistry
@@ -102,20 +101,9 @@ def test_broken_default_pack_keeps_preferences_untouched(tmp_path):
 
 
 class StartupCompanion:
-    def __init__(self, *, invalid_accessories=()):
+    def __init__(self):
         self.state = SimpleNamespace(pet_id='snow_ferret', outfit_id='')
-        self.invalid_accessories = set(invalid_accessories)
-        self.mode_calls = []
-        self.accessory_calls = []
         self.outfit_calls = []
-
-    def set_wardrobe_mode(self, mode):
-        self.mode_calls.append(mode)
-
-    def set_manual_accessory(self, slot, item_id):
-        if item_id in self.invalid_accessories:
-            raise KeyError(item_id)
-        self.accessory_calls.append((slot, item_id))
 
     def set_outfit(self, outfit_id):
         self.outfit_calls.append(outfit_id)
@@ -133,24 +121,6 @@ class RecordingController:
 class RejectingOutfitRepository:
     def request_outfit_preload(self, _manifest, _outfit_id, _request_id):
         return False
-
-
-def test_startup_restores_accessories_individually_and_reports_failures():
-    settings = Settings(MemoryStore())
-    settings.wardrobe_mode = 'accessories'
-    settings.pet_preferences = {
-        'snow_ferret': {
-            'neckwear': 'scarf',
-            'headwear': 'missing_hat',
-        },
-    }
-    companion = StartupCompanion(invalid_accessories={'missing_hat'})
-
-    error = _restore_startup_accessories(settings, companion)
-
-    assert companion.mode_calls == ['accessories']
-    assert companion.accessory_calls == [('neckwear', 'scarf')]
-    assert error == '部分单件配饰恢复失败（1 项），已跳过不可用配饰。'
 
 
 def test_startup_outfit_is_only_restored_through_public_controller_command():

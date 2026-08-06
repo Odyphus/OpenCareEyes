@@ -20,6 +20,7 @@ from PySide6.QtGui import (
     QPainter,
     QPainterPath,
     QPen,
+    QPixmap,
 )
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -30,20 +31,17 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QListView,
-    QMessageBox,
     QPushButton,
     QSlider,
     QSizePolicy,
     QStyle,
     QStyledItemDelegate,
     QTabWidget,
-    QToolButton,
     QVBoxLayout,
     QWidget,
 )
 
 from opencareyes.application.status_presenter import StatusPresenter
-from opencareyes.ui.automation_page import AutomationPage, _basename_app_id
 from opencareyes.ui.blue_light_page import BlueLightPage
 from opencareyes.ui.break_page import BreakPage
 from opencareyes.ui.focus_page import FocusPage
@@ -372,21 +370,35 @@ class _WardrobeDelegate(QStyledItemDelegate):
         loading = bool(index.data(_WardrobeModel.LoadingRole))
         current = bool(option.state & QStyle.State_Selected)
         focused = bool(option.state & QStyle.State_HasFocus)
+        hovered = bool(option.state & QStyle.State_MouseOver)
+        pressed = bool(option.state & QStyle.State_Sunken)
 
         painter.save()
         painter.setRenderHint(QPainter.Antialiasing)
         card = QRectF(option.rect).adjusted(4, 4, -4, -4)
         palette = option.palette
-        background = palette.alternateBase().color() if current else palette.base().color()
-        border = palette.highlight().color() if effective else palette.mid().color()
+        background = palette.window().color()
+        if effective:
+            background = QColor(palette.highlight().color())
+            background.setAlpha(34)
+        elif current or hovered:
+            background = QColor(palette.highlight().color())
+            background.setAlpha(20 if current else 12)
+        if pressed:
+            background = background.darker(106)
+        border = (
+            palette.highlight().color()
+            if effective or current
+            else palette.mid().color()
+        )
         painter.setBrush(background)
-        painter.setPen(QPen(border, 2 if effective else 1))
-        painter.drawRoundedRect(card, 11, 11)
+        painter.setPen(QPen(border, 3 if effective else (2 if current else 1)))
+        painter.drawRoundedRect(card, 12, 12)
 
-        image_size = max(96.0, min(160.0, card.width() - 24.0))
+        image_size = max(112.0, min(184.0, card.width() - 20.0))
         image_rect = QRectF(
             card.center().x() - image_size / 2,
-            card.top() + 12,
+            card.top() + 10,
             image_size,
             image_size,
         )
@@ -417,7 +429,12 @@ class _WardrobeDelegate(QStyledItemDelegate):
         font.setBold(True)
         painter.setFont(font)
         painter.setPen(palette.text().color() if available else palette.placeholderText().color())
-        name_rect = QRectF(card.left() + 10, image_rect.bottom() + 8, card.width() - 20, 24)
+        name_rect = QRectF(
+            card.left() + 10,
+            image_rect.bottom() + 8,
+            card.width() - 20,
+            24,
+        )
         painter.drawText(name_rect, Qt.AlignCenter, display_name)
 
         status_rect = QRectF(card.left() + 10, name_rect.bottom() + 2, card.width() - 20, 20)
@@ -429,6 +446,9 @@ class _WardrobeDelegate(QStyledItemDelegate):
         elif effective:
             painter.setPen(palette.highlight().color())
             painter.drawText(status_rect, Qt.AlignCenter, '✓  已穿戴')
+        elif current and available:
+            painter.setPen(palette.highlight().color())
+            painter.drawText(status_rect, Qt.AlignCenter, '双击立即穿戴')
         elif not available:
             painter.setPen(palette.placeholderText().color())
             painter.drawText(status_rect, Qt.AlignCenter, '资源不可用')
@@ -441,11 +461,20 @@ class _WardrobeDelegate(QStyledItemDelegate):
         painter.restore()
 
     def sizeHint(self, _option, _index) -> QSize:
-        return QSize(168, 218)
+        return QSize(188, 264)
 
 
 class _WardrobeListView(QListView):
     wear_requested = Signal()
+
+    def mouseDoubleClickEvent(self, event) -> None:
+        index = self.indexAt(event.position().toPoint())
+        if index.isValid():
+            self.setCurrentIndex(index)
+            self.wear_requested.emit()
+            event.accept()
+            return
+        super().mouseDoubleClickEvent(event)
 
     def keyPressEvent(self, event) -> None:
         if event.key() in (Qt.Key_Return, Qt.Key_Enter, Qt.Key_Space):
@@ -485,20 +514,17 @@ class CompanionHomePage(ScrollPage):
         self._name.setObjectName('pageTitle')
         self._status = QLabel('正在安静陪伴')
         self._status.setObjectName('statusValue')
-        self._detail = QLabel('天气关闭 · 不联网 · 所有数据仅保存在本机')
+        self._detail = QLabel('本地运行 · 所有数据仅保存在本机')
         self._detail.setWordWrap(True)
         copy.addWidget(self._name)
         copy.addWidget(self._status)
         copy.addWidget(self._detail)
         copy.addStretch()
         actions = QHBoxLayout()
-        play = QPushButton('和它玩一下')
-        play.setObjectName('secondaryButton')
-        play.clicked.connect(lambda: controller.offer_pet_item('yarn_ball'))
         rest = QPushButton('现在休息')
         rest.setObjectName('primaryButton')
         rest.clicked.connect(self._start_rest)
-        actions.addWidget(play)
+        actions.addStretch()
         actions.addWidget(rest)
         copy.addLayout(actions)
         self._hero_layout.addLayout(copy, 42)
@@ -612,18 +638,8 @@ class CompanionHomePage(ScrollPage):
         if self._status.text() != status_text:
             self._status.setText(status_text)
 
-        weather_status = str(
-            first_state_value(state, 'weather.status', default='disabled')
-        )
-        weather_text = {
-            'disabled': '天气关闭',
-            'loading': '天气更新中',
-            'ready': '天气装扮已更新',
-            'stale': '正在使用稍早天气',
-            'failed': '天气暂不可用',
-        }.get(weather_status, '天气待更新')
         detail_text = (
-            f'{presentation.detail}\n{weather_text} · 不保存互动和应用使用历史'
+            f'{presentation.detail}\n本地运行 · 不保存互动或应用使用历史'
         )
         if self._detail.text() != detail_text:
             self._detail.setText(detail_text)
@@ -707,17 +723,6 @@ class PetCatalogPage(ScrollPage):
         appearance.body.addLayout(countdown_row)
         self.layout.addWidget(appearance)
 
-        environment = Card(
-            '天气与节日',
-            '天气默认关闭；开启后会把已配置的经纬度和网络 IP 发送给 Open-Meteo。',
-        )
-        self._weather = QCheckBox('根据天气自动换装')
-        environment.body.addWidget(self._weather)
-        source = QLabel('天气数据来源：Open-Meteo · 不记录请求地址和历史天气')
-        source.setWordWrap(True)
-        environment.body.addWidget(source)
-        self.layout.addWidget(environment)
-
         self.layout.addStretch()
         self._pet_combo.currentIndexChanged.connect(self._select_pet)
         self._enabled.toggled.connect(self._toggle_enabled)
@@ -748,7 +753,6 @@ class PetCatalogPage(ScrollPage):
         self._countdown_display.currentIndexChanged.connect(
             self._countdown_display_changed
         )
-        self._weather.toggled.connect(self._toggle_weather)
         controller.state_changed.connect(self.render)
         wardrobe_changed = getattr(controller, 'wardrobe_changed', None)
         if wardrobe_changed is not None and hasattr(wardrobe_changed, 'connect'):
@@ -766,9 +770,9 @@ class PetCatalogPage(ScrollPage):
     def _build_wardrobe_card(self) -> Card:
         wardrobe = Card(
             '百变衣橱',
-            '浏览不会立即换装；按 Enter、Space 或“穿戴这套”后才会锁定。',
+            '单击查看大图，双击立即穿戴；也可按 Enter 或 Space 应用当前造型。',
         )
-        self._wardrobe_status = QLabel('当前：自动搭配')
+        self._wardrobe_status = QLabel('当前：默认外观')
         self._wardrobe_status.setObjectName('statusValue')
         self._wardrobe_status.setAccessibleName('当前造型状态')
         wardrobe.body.addWidget(self._wardrobe_status)
@@ -781,11 +785,21 @@ class PetCatalogPage(ScrollPage):
         self._wardrobe_content_layout = content_layout
 
         self._wardrobe_detail_panel = QWidget()
+        self._wardrobe_detail_panel.setObjectName('wardrobeDetailPanel')
         self._wardrobe_detail_panel.setMinimumWidth(220)
         self._wardrobe_detail_panel.setMaximumWidth(280)
         detail_layout = QVBoxLayout(self._wardrobe_detail_panel)
-        detail_layout.setContentsMargins(0, 0, 0, 0)
-        detail_layout.setSpacing(8)
+        detail_layout.setContentsMargins(16, 16, 16, 16)
+        detail_layout.setSpacing(10)
+        self._wardrobe_detail_preview = QLabel('选择造型查看大图')
+        self._wardrobe_detail_preview.setObjectName('wardrobeDetailPreview')
+        self._wardrobe_detail_preview.setAccessibleName('当前浏览造型预览')
+        self._wardrobe_detail_preview.setAlignment(Qt.AlignCenter)
+        self._wardrobe_detail_preview.setMinimumHeight(180)
+        self._wardrobe_detail_preview.setSizePolicy(
+            QSizePolicy.Expanding,
+            QSizePolicy.Fixed,
+        )
         self._wardrobe_detail_title = QLabel('选择一套造型查看详情')
         self._wardrobe_detail_title.setObjectName('cardHeading')
         self._wardrobe_detail = QLabel('')
@@ -795,6 +809,7 @@ class PetCatalogPage(ScrollPage):
         self._wardrobe_error.setObjectName('errorLabel')
         self._wardrobe_error.setAccessibleName('衣橱资源错误')
         self._wardrobe_error.setWordWrap(True)
+        detail_layout.addWidget(self._wardrobe_detail_preview)
         detail_layout.addWidget(self._wardrobe_detail_title)
         detail_layout.addWidget(self._wardrobe_detail)
         detail_layout.addWidget(self._wardrobe_error)
@@ -805,18 +820,20 @@ class PetCatalogPage(ScrollPage):
         self._wear_outfit.setObjectName('primaryButton')
         self._wear_outfit.setAccessibleName('穿戴当前浏览的整套造型')
         self._wear_outfit.setMinimumHeight(40)
-        self._restore_outfit = QPushButton('恢复自动搭配')
+        self._restore_outfit = QPushButton('恢复默认外观')
         self._restore_outfit.setObjectName('quietButton')
-        self._restore_outfit.setAccessibleName('恢复天气与节日自动搭配')
+        self._restore_outfit.setAccessibleName('恢复伙伴默认外观')
         self._restore_outfit.setMinimumHeight(40)
         action_row.addWidget(self._wear_outfit)
         action_row.addWidget(self._restore_outfit)
         detail_layout.addLayout(action_row)
 
-        self._wardrobe_weather_note = QLabel('天气与节日装扮会自动生效。')
-        self._wardrobe_weather_note.setObjectName('statusDetail')
-        self._wardrobe_weather_note.setWordWrap(True)
-        detail_layout.addWidget(self._wardrobe_weather_note)
+        self._wardrobe_mode_note = QLabel(
+            '完整造型只改变伙伴外观，不影响休息、专注和互动逻辑。'
+        )
+        self._wardrobe_mode_note.setObjectName('statusDetail')
+        self._wardrobe_mode_note.setWordWrap(True)
+        detail_layout.addWidget(self._wardrobe_mode_note)
         detail_layout.addStretch()
         content_layout.addWidget(self._wardrobe_detail_panel)
 
@@ -832,7 +849,7 @@ class PetCatalogPage(ScrollPage):
         self._wardrobe_view.setObjectName('wardrobeGallery')
         self._wardrobe_view.setAccessibleName('整套造型图鉴')
         self._wardrobe_view.setAccessibleDescription(
-            '方向键浏览，Enter 或 Space 穿戴当前造型。'
+            '单击查看大图，双击穿戴；也可用方向键浏览并按 Enter 或 Space 穿戴。'
         )
         self._wardrobe_view.setModel(self._wardrobe_model)
         self._wardrobe_view.setItemDelegate(_WardrobeDelegate(self._wardrobe_view))
@@ -842,12 +859,13 @@ class PetCatalogPage(ScrollPage):
         self._wardrobe_view.setResizeMode(QListView.Adjust)
         self._wardrobe_view.setMovement(QListView.Static)
         self._wardrobe_view.setUniformItemSizes(True)
+        self._wardrobe_view.setMouseTracking(True)
         self._wardrobe_view.setSelectionMode(QAbstractItemView.SingleSelection)
         self._wardrobe_view.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self._wardrobe_view.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self._wardrobe_view.setSpacing(8)
         self._wardrobe_empty = QLabel(
-            '当前伙伴尚未提供整套造型，可继续使用自动搭配或单件配饰。'
+            '当前伙伴尚未提供完整造型，将继续使用默认外观。'
         )
         self._wardrobe_empty.setObjectName('statusDetail')
         self._wardrobe_empty.setAccessibleName('衣橱空状态')
@@ -857,53 +875,6 @@ class PetCatalogPage(ScrollPage):
         content_layout.addWidget(self._wardrobe_gallery, 1)
         wardrobe.body.addWidget(self._wardrobe_content)
 
-        self._advanced_accessories_toggle = QToolButton()
-        self._advanced_accessories_toggle.setObjectName('wardrobeAdvancedToggle')
-        self._advanced_accessories_toggle.setText('单件配饰（高级）')
-        self._advanced_accessories_toggle.setCheckable(True)
-        self._advanced_accessories_toggle.setArrowType(Qt.RightArrow)
-        self._advanced_accessories_toggle.setToolButtonStyle(
-            Qt.ToolButtonTextBesideIcon
-        )
-        self._advanced_accessories_toggle.setAccessibleName('展开单件配饰高级设置')
-        self._advanced_accessories_toggle.setMinimumHeight(40)
-        wardrobe.body.addWidget(self._advanced_accessories_toggle)
-
-        self._advanced_accessories = QWidget()
-        wardrobe_row = QBoxLayout(QBoxLayout.LeftToRight)
-        wardrobe_row.setContentsMargins(0, 0, 0, 0)
-        self._advanced_accessories.setLayout(wardrobe_row)
-        self._wardrobe_layout = wardrobe_row
-        self._accessory_buttons: dict[tuple[str, str], QPushButton] = {}
-        self._accessory_labels: dict[tuple[str, str], str] = {}
-        for label, slot, item_id in (
-            ('墨镜', 'headwear', 'sunglasses'),
-            ('蓝围巾', 'neckwear', 'scarf'),
-            ('红围巾', 'neckwear', 'red_scarf'),
-        ):
-            button = QPushButton(label)
-            button.setCheckable(True)
-            button.setAccessibleName(f'装扮：{label}')
-            button.setMinimumHeight(40)
-            button.clicked.connect(
-                lambda checked=False, selected_slot=slot, selected_item=item_id: (
-                    self._set_accessory(selected_slot, selected_item, checked)
-                )
-            )
-            key = (slot, item_id)
-            self._accessory_buttons[key] = button
-            self._accessory_labels[key] = label
-            wardrobe_row.addWidget(button)
-        self._clear_accessories = QPushButton('清除单件配饰')
-        self._clear_accessories.setMinimumHeight(40)
-        self._clear_accessories.clicked.connect(self._clear_manual_accessories)
-        wardrobe_row.addWidget(self._clear_accessories)
-        self._advanced_accessories.hide()
-        wardrobe.body.addWidget(self._advanced_accessories)
-
-        self._advanced_accessories_toggle.toggled.connect(
-            self._toggle_advanced_accessories
-        )
         self._wardrobe_view.selectionModel().currentChanged.connect(
             lambda _current, _previous: self._update_wardrobe_detail()
         )
@@ -933,7 +904,6 @@ class PetCatalogPage(ScrollPage):
             self._selector_layout,
             self._scale_layout,
             self._countdown_layout,
-            self._wardrobe_layout,
             self._wardrobe_action_layout,
         ):
             layout.setDirection(direction)
@@ -964,32 +934,23 @@ class PetCatalogPage(ScrollPage):
             margins = 32 if self._compact else 56
             gallery_width = max(240, int(available_width) - reserved - margins)
         if self._compact:
-            columns = 1 if gallery_width < 390 else 2
-        elif gallery_width < 480:
+            columns = 1 if gallery_width < 380 else 2
+        elif gallery_width < 380:
+            columns = 1
+        elif gallery_width < 620:
             columns = 2
-        elif gallery_width < 720:
-            columns = 3
         else:
-            columns = 4
+            columns = 3
         spacing = self._wardrobe_view.spacing()
         cell_width = max(
-            150,
+            176,
             (gallery_width - spacing * (columns - 1)) // columns,
         )
-        cell_height = 218
+        cell_height = 264
         self._wardrobe_columns = columns
         self._wardrobe_view.setGridSize(QSize(cell_width, cell_height))
         rows = (self._wardrobe_model.rowCount() + columns - 1) // columns
         self._wardrobe_view.setFixedHeight(rows * cell_height + 4)
-
-    def _toggle_advanced_accessories(self, expanded: bool) -> None:
-        self._advanced_accessories.setVisible(expanded)
-        self._advanced_accessories_toggle.setArrowType(
-            Qt.DownArrow if expanded else Qt.RightArrow
-        )
-        self._advanced_accessories_toggle.setAccessibleName(
-            f'{"收起" if expanded else "展开"}单件配饰高级设置'
-        )
 
     def focus_wardrobe(self) -> None:
         '''Reveal the wardrobe and focus the effective or first outfit.'''
@@ -1030,11 +991,15 @@ class PetCatalogPage(ScrollPage):
         entry = self._selected_outfit_entry()
         if entry is None:
             empty = self._wardrobe_model.rowCount() == 0
+            self._wardrobe_detail_preview.clear()
+            self._wardrobe_detail_preview.setText(
+                '暂无造型' if empty else '选择造型查看大图'
+            )
             self._wardrobe_detail_title.setText(
                 '暂无整套造型' if empty else '选择一套造型查看详情'
             )
             self._wardrobe_detail.setText(
-                '当前伙伴仍可使用自动搭配和单件配饰。' if empty else ''
+                '当前伙伴将继续使用默认外观。' if empty else ''
             )
             self._wear_outfit.setEnabled(False)
             self._wear_outfit.setText('穿戴这套')
@@ -1045,6 +1010,21 @@ class PetCatalogPage(ScrollPage):
         available = self._wardrobe_model.is_available(current)
         effective = bool(current.data(_WardrobeModel.EffectiveRole))
         loading = bool(self._loading_outfit_id)
+        self._wardrobe_model.ensure_thumbnail(current)
+        image = self._wardrobe_model.thumbnail(current)
+        self._wardrobe_detail_preview.clear()
+        if image.isNull():
+            self._wardrobe_detail_preview.setText(
+                self._wardrobe_model.thumbnail_placeholder(current)
+            )
+        else:
+            pixmap = QPixmap.fromImage(image).scaled(
+                220,
+                180,
+                Qt.KeepAspectRatio,
+                Qt.SmoothTransformation,
+            )
+            self._wardrobe_detail_preview.setPixmap(pixmap)
         self._wardrobe_detail_title.setText(display_name)
         self._wardrobe_detail.setText(
             description if available else f'{description}\n资源不可用，当前造型不会改变。'
@@ -1115,20 +1095,17 @@ class PetCatalogPage(ScrollPage):
             wardrobe_status = (
                 f'已锁定：{names.get(effective_outfit, effective_outfit)}'
             )
-        elif wardrobe_mode == 'accessories':
-            wardrobe_status = '当前：单件配饰'
         else:
-            wardrobe_status = '当前：自动搭配'
+            wardrobe_status = '当前：默认外观'
         self._wardrobe_status.setText(wardrobe_status)
 
         wardrobe_error = str(getattr(wardrobe_state, 'error', ''))
         self._wardrobe_error.setText(wardrobe_error)
         self._wardrobe_error.setVisible(bool(wardrobe_error))
-        locked = wardrobe_mode == 'outfit' and bool(effective_outfit)
-        self._wardrobe_weather_note.setText(
-            '天气与节日装扮当前因整套造型暂停。'
-            if locked
-            else '天气与节日装扮会自动生效。'
+        self._wardrobe_mode_note.setText(
+            '双击其他造型即可直接切换；休息和互动逻辑保持不变。'
+            if wardrobe_mode == 'outfit' and bool(effective_outfit)
+            else '完整造型只改变伙伴外观，不影响休息、专注和互动逻辑。'
         )
         self._restore_outfit.setEnabled(
             wardrobe_mode != 'automatic' and not loading_outfit
@@ -1162,51 +1139,12 @@ class PetCatalogPage(ScrollPage):
     def _preview_scale(self, value: int) -> None:
         self._scale_value.setText(f'{value}%')
 
-    def _toggle_weather(self, enabled: bool) -> None:
-        if self._rendering:
-            return
-        consent = False
-        if enabled:
-            answer = QMessageBox.question(
-                self,
-                '开启天气装扮',
-                '天气查询会向 Open-Meteo 发送你设置的经纬度和网络 IP，是否继续？',
-                QMessageBox.Yes | QMessageBox.No,
-                QMessageBox.No,
-            )
-            consent = answer == QMessageBox.Yes
-            if not consent:
-                self._rendering = True
-                self._weather.setChecked(False)
-                self._rendering = False
-                return
-        if not self._controller.set_weather_enabled(enabled, consent=consent):
-            self.render(self._controller.state)
-
     def _countdown_display_changed(self, _index: int) -> None:
         if self._rendering:
             return
         setter = getattr(self._controller, 'set_break_countdown_display', None)
         if callable(setter):
             setter(str(self._countdown_display.currentData()))
-
-    def _set_accessory(self, slot: str, item_id: str, checked: bool) -> None:
-        if self._rendering:
-            return
-        if checked:
-            for (other_slot, _), button in self._accessory_buttons.items():
-                if other_slot == slot and button is not self.sender():
-                    with QSignalBlocker(button):
-                        button.setChecked(False)
-        self._controller.set_pet_accessory(slot, item_id if checked else None)
-
-    def _clear_manual_accessories(self) -> None:
-        clear_all = getattr(self._controller, 'clear_pet_accessories', None)
-        if callable(clear_all):
-            clear_all()
-            return
-        for slot in ('headwear', 'neckwear', 'bodywear', 'held_item', 'scene', 'effect'):
-            self._controller.set_pet_accessory(slot, None)
 
     def render(self, state) -> None:
         previous_rendering = self._rendering
@@ -1291,97 +1229,6 @@ class PetCatalogPage(ScrollPage):
         if countdown_index >= 0:
             with QSignalBlocker(self._countdown_display):
                 self._countdown_display.setCurrentIndex(countdown_index)
-        weather_status = str(first_state_value(state, 'weather.status', default='disabled'))
-        with QSignalBlocker(self._weather):
-            self._weather.setChecked(weather_status != 'disabled')
-        for (slot, item_id), button in self._accessory_buttons.items():
-            selected = str(
-                first_state_value(state, f'companion.appearance.{slot}', default='')
-            ).replace('\\', '/').lower()
-            selected = selected.rsplit('/', 1)[-1].removesuffix('.png')
-            is_selected = selected == item_id
-            with QSignalBlocker(button):
-                button.setChecked(is_selected)
-            label = self._accessory_labels[(slot, item_id)]
-            button.setText(f'✓ {label} · 已佩戴' if is_selected else label)
-            button.setAccessibleName(
-                f'装扮：{label}，{"已佩戴" if is_selected else "未佩戴"}'
-            )
-            object_name = 'secondaryButton' if is_selected else ''
-            if button.objectName() != object_name:
-                button.setObjectName(object_name)
-                button.style().unpolish(button)
-                button.style().polish(button)
-
-
-class AppPropRulesCard(Card):
-    """Application-specific companion props, colocated with automation rules."""
-
-    def __init__(self, controller, parent=None):
-        super().__init__(
-            '应用场景道具',
-            '仅保存小写 EXE 文件名，不保存窗口标题、完整路径或使用历史。',
-            parent,
-        )
-        self._controller = controller
-        self._current_app_id = ''
-        self._app_label = QLabel('当前没有可识别的应用')
-        self._app_label.setWordWrap(True)
-        self.body.addWidget(self._app_label)
-        row = QHBoxLayout()
-        self._combo = QComboBox()
-        self._combo.addItem('铅笔和尺子', 'writing')
-        self._combo.addItem('计算器', 'calculator')
-        self._combo.addItem('PCB 元件', 'eda')
-        self._save = QPushButton('用于当前应用')
-        self._save.setObjectName('secondaryButton')
-        self._remove = QPushButton('恢复自动识别')
-        self._remove.setObjectName('quietButton')
-        self._save.clicked.connect(self._save_rule)
-        self._remove.clicked.connect(self._remove_rule)
-        row.addWidget(self._combo, 1)
-        row.addWidget(self._save)
-        row.addWidget(self._remove)
-        self.body.addLayout(row)
-
-    def _save_rule(self) -> None:
-        if self._current_app_id:
-            self._controller.upsert_app_prop_rule(
-                self._current_app_id,
-                str(self._combo.currentData()),
-            )
-
-    def _remove_rule(self) -> None:
-        if self._current_app_id:
-            self._controller.remove_app_prop_rule(self._current_app_id)
-
-    def render(self, state) -> None:
-        foreground = first_state_value(
-            state, 'context.foreground_app_id', default=''
-        )
-        recent = first_state_value(state, 'context.recent_app_id', default='')
-        self._current_app_id = _basename_app_id(foreground) or _basename_app_id(recent)
-        available = bool(self._current_app_id.endswith('.exe'))
-        text = (
-            f'当前应用：{self._current_app_id}'
-            if available
-            else '当前没有可识别的应用'
-        )
-        if self._app_label.text() != text:
-            self._app_label.setText(text)
-        self._save.setEnabled(available)
-        self._remove.setEnabled(available)
-
-
-class CompanionAutomationPage(AutomationPage):
-    """Automation with companion application-prop rules in one ownership area."""
-
-    def __init__(self, controller, parent=None):
-        super().__init__(controller, parent)
-        self._app_props = AppPropRulesCard(controller)
-        self.layout.insertWidget(max(0, self.layout.count() - 1), self._app_props)
-        controller.state_changed.connect(self._app_props.render)
-        self._app_props.render(controller.state)
 
 
 class CompanionBreakPage(BreakPage):

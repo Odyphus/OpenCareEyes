@@ -277,13 +277,7 @@ class StateProjector:
             pet_catalog=pet_catalog or self._default_pet_catalog(),
             pet_wardrobe=pet_wardrobe or self._default_pet_wardrobe(),
             companion=companion or self._default_companion_state(context),
-            weather=weather or WeatherState(
-                status=(
-                    'idle'
-                    if bool(getattr(settings, 'weather_enabled', False))
-                    else 'disabled'
-                )
-            ),
+            weather=weather or WeatherState(status='disabled'),
             quick_tools=quick_tools or QuickToolsState(
                 hourly_chime_enabled=bool(
                     getattr(settings, 'hourly_chime_enabled', False)
@@ -327,7 +321,7 @@ class StateProjector:
             else ''
         )
         return PetWardrobeState(
-            mode=(mode if mode in {'automatic', 'outfit', 'accessories'} else 'automatic'),
+            mode=(mode if mode in {'automatic', 'outfit'} else 'automatic'),
             selected_outfit_id=selected,
             effective_outfit_id=selected if mode == 'outfit' else '',
         )
@@ -338,16 +332,7 @@ class StateProjector:
     ) -> PetState:
         settings = self._settings
         pet_id = str(getattr(settings, 'active_pet_id', 'snow_ferret'))
-        preferences = getattr(settings, 'pet_preferences', {})
-        slots = preferences.get(pet_id, {}) if isinstance(preferences, dict) else {}
-        appearance = PetAppearanceState(
-            headwear=str(slots.get('headwear', '')),
-            neckwear=str(slots.get('neckwear', '')),
-            bodywear=str(slots.get('bodywear', '')),
-            held_item=str(slots.get('held_item', '')),
-            scene=str(slots.get('scene', '')),
-            effect=str(slots.get('effect', '')),
-        )
+        appearance = PetAppearanceState()
         active_context = context or ContextState()
         suppressed: list[str] = []
         if active_context.session in {'locked', 'suspended'}:

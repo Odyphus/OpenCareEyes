@@ -256,13 +256,7 @@ class AppController(QObject):
         self._automation_commands = AutomationCommands(self)
         self._companion_commands = CompanionToolCommands(self)
         self._update_state = self._update_checker.state
-        self._weather_state = WeatherState(
-            status=(
-                'idle'
-                if bool(getattr(settings, 'weather_enabled', False))
-                else 'disabled'
-            )
-        )
+        self._weather_state = WeatherState(status='disabled')
         self._context_runtime = None
         self._restored = False
         self._in_transaction = False
@@ -460,9 +454,6 @@ class AppController(QObject):
 
         if self._hotkeys is not None:
             success = self._register_hotkeys() and success
-
-        if bool(getattr(self._settings, 'weather_enabled', False)):
-            success = self._refresh_weather() and success
 
         self._restored = True
         self.refresh_state()
@@ -867,20 +858,8 @@ class AppController(QObject):
     ) -> bool:
         return self._companion_commands.set_pet_anchor(edge, offset, x, y)
 
-    def set_pet_accessory(self, slot: str, item_id: str | None) -> bool:
-        return self._companion_commands.set_pet_accessory(slot, item_id)
-
-    def clear_pet_accessories(self) -> bool:
-        return self._companion_commands.clear_pet_accessories()
-
     def set_pet_outfit(self, outfit_id: str | None) -> bool:
         return self._companion_commands.set_pet_outfit(outfit_id)
-
-    def upsert_app_prop_rule(self, app_id: str, prop_id: str) -> bool:
-        return self._companion_commands.upsert_app_prop_rule(app_id, prop_id)
-
-    def remove_app_prop_rule(self, app_id: str) -> bool:
-        return self._companion_commands.remove_app_prop_rule(app_id)
 
     def set_follow_active_monitor(self, enabled: bool) -> bool:
         return self._companion_commands.set_follow_active_monitor(enabled)
@@ -894,17 +873,11 @@ class AppController(QObject):
     def set_hourly_chime_enabled(self, enabled: bool) -> bool:
         return self._companion_commands.set_hourly_chime_enabled(enabled)
 
-    def set_weather_enabled(self, enabled: bool, consent: bool = False) -> bool:
-        return self._companion_commands.set_weather_enabled(enabled, consent)
-
     def show_quick_tool(self, tool_id: str) -> bool:
         return self._companion_commands.show_quick_tool(tool_id)
 
     def set_quick_actions(self, actions) -> bool:
         return self._companion_commands.set_quick_actions(actions)
-
-    def offer_pet_item(self, item_id: str) -> bool:
-        return self._companion_commands.offer_pet_item(item_id)
 
     def select_rest_scene(self, scene_id: str) -> bool:
         return self._companion_commands.select_rest_scene(scene_id)
@@ -2660,7 +2633,7 @@ class AppController(QObject):
             else ''
         )
         mode = str(getattr(self._settings, 'wardrobe_mode', 'automatic'))
-        if mode not in {'automatic', 'outfit', 'accessories'}:
+        if mode not in {'automatic', 'outfit'}:
             mode = 'automatic'
         runtime = getattr(self._companion, 'state', None)
         effective = str(getattr(runtime, 'outfit_id', ''))

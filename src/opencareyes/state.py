@@ -244,7 +244,7 @@ class PetOutfitEntryState:
 @dataclass(frozen=True, slots=True)
 class PetWardrobeState:
     available_outfits: tuple[PetOutfitEntryState, ...] = ()
-    mode: Literal['automatic', 'outfit', 'accessories'] = 'automatic'
+    mode: Literal['automatic', 'outfit'] = 'automatic'
     selected_outfit_id: str = ''
     effective_outfit_id: str = ''
     loading_outfit_id: str = ''

@@ -17,14 +17,12 @@ from opencareyes.application.companion_coordinator import CompanionCoordinator
 from opencareyes.application.companion_runtime import CompanionRuntime
 from opencareyes.application.context_coordinator import ContextCoordinator
 from opencareyes.application.effect_coordinator import EffectCoordinator
-from opencareyes.application.holiday_service import HolidayService
 from opencareyes.application.hourly_chime_service import HourlyChimeService
 from opencareyes.application.note_repository import NoteRepository
 from opencareyes.application.pet_asset_repository import PetAssetRepository
 from opencareyes.application.pet_pack_registry import PetPackRegistry
 from opencareyes.application.system_metrics import SystemMetricsService
 from opencareyes.application.utility_timer import UtilityTimerService
-from opencareyes.application.weather_service import WeatherService
 from opencareyes.application.window_avoidance import WindowAvoidanceService
 from opencareyes.config.settings import PreferencesRepository
 from opencareyes.constants import PETS_DIR
@@ -99,38 +97,6 @@ def _load_companion(settings, registry):
     return companion, None, False
 
 
-def _restore_startup_accessories(settings, companion) -> str:
-    """Restore valid single accessories without making startup fragile."""
-
-    if companion is None or str(
-        getattr(settings, "wardrobe_mode", "automatic")
-    ) != "accessories":
-        return ""
-
-    pet_id = str(companion.state.pet_id)
-    preferences = getattr(settings, "pet_preferences", {})
-    selected = (
-        preferences.get(pet_id, {}) if isinstance(preferences, dict) else {}
-    )
-    failures = 0
-    try:
-        companion.set_wardrobe_mode("accessories")
-    except Exception:
-        failures += 1
-        log.exception("The accessory wardrobe mode could not be restored")
-
-    for slot, item_id in selected.items():
-        try:
-            companion.set_manual_accessory(str(slot), str(item_id))
-        except Exception:
-            failures += 1
-            log.exception("A saved pet accessory could not be restored")
-
-    if failures:
-        return f"部分单件配饰恢复失败（{failures} 项），已跳过不可用配饰。"
-    return ""
-
-
 def _restore_startup_outfit(settings, companion, controller) -> bool:
     """Restore a saved outfit through the public atomic command boundary."""
 
@@ -166,8 +132,6 @@ def main() -> None:
 
     settings = PreferencesRepository()
     local_data = Path(QStandardPaths.writableLocation(QStandardPaths.AppLocalDataLocation))
-    weather_service = WeatherService()
-    holiday_service = HolidayService()
     utility_timer = UtilityTimerService()
     note_repository = NoteRepository(local_data / "notes.json")
     system_metrics = SystemMetricsService()
@@ -181,10 +145,6 @@ def main() -> None:
     initial_wardrobe_error = ""
     if companion is not None:
         pet_assets.preload_manifest(companion.manifest)
-        initial_wardrobe_error = _restore_startup_accessories(
-            settings,
-            companion,
-        )
     elif pet_load_error is not None:
         log.error("The selected bundled pet pack could not be loaded: %s", pet_load_error)
     event_hub = WindowsEventHub.shared()
@@ -220,7 +180,6 @@ def main() -> None:
         effect_coordinator=effect_coordinator,
         companion=companion,
         pet_asset_repository=pet_assets,
-        weather_service=weather_service,
         utility_timer=utility_timer,
         note_repository=note_repository,
         system_metrics=system_metrics,
@@ -257,7 +216,6 @@ def main() -> None:
         asset_repository=pet_assets,
         pet_registry=pet_registry,
         settings=settings,
-        holiday_service=holiday_service,
         chime_service=chime_service,
     )
     if companion is not None:
@@ -376,7 +334,6 @@ def main() -> None:
     def on_exit() -> None:
         context_runtime.stop()
         chime_service.stop()
-        weather_service.cancel()
         system_metrics.stop()
         companion_runtime.shutdown()
         if not pet_assets.shutdown():
