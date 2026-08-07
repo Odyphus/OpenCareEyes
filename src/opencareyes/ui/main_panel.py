@@ -22,8 +22,8 @@ from PySide6.QtWidgets import (
 )
 
 from opencareyes.constants import ICONS_DIR
+from opencareyes.ui.automation_page import AutomationPage
 from opencareyes.ui.companion_pages import (
-    CompanionAutomationPage,
     CompanionBreakPage,
     CompanionHomePage,
     PetCatalogPage,
@@ -38,7 +38,7 @@ _PAGES = (
     ('宠物图鉴', PetCatalogPage, 'nav-focus.svg'),
     ('学习桌', StudyDeskPage, 'nav-display.svg'),
     ('休息角', CompanionBreakPage, 'nav-breaks.svg'),
-    ('自动日程', CompanionAutomationPage, 'nav-automation.svg'),
+    ('自动日程', AutomationPage, 'nav-automation.svg'),
     ('设置', SettingsPage, 'nav-settings.svg'),
 )
 

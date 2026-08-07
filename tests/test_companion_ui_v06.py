@@ -18,8 +18,6 @@ from PySide6.QtTest import QTest  # noqa: E402
 
 import opencareyes.ui.main_panel as main_panel_module  # noqa: E402
 from opencareyes.ui.companion_pages import (  # noqa: E402
-    AppPropRulesCard,
-    CompanionAutomationPage,
     CompanionBreakPage,
     CompanionHomePage,
     FerretPreview,
@@ -95,7 +93,7 @@ def _state():
             sound_enabled=False,
             appearance=SimpleNamespace(
                 headwear='',
-                neckwear='red_scarf',
+                neckwear='',
                 bodywear='',
                 held_item='',
                 scene='',
@@ -244,29 +242,17 @@ def test_preview_uses_repository_and_ignores_late_previous_pet():
     preview.close()
 
 
-def test_catalog_render_is_differential_and_reflects_accessory_selection():
+def test_catalog_render_is_differential_and_has_no_legacy_accessory_controls():
     controller = _Controller()
     page = PetCatalogPage(controller)
     assert page._pet_combo.count() == 2
-    selected = page._accessory_buttons[('neckwear', 'red_scarf')]
-    assert selected.isChecked()
-    assert selected.objectName() == 'secondaryButton'
-    assert '✓' in selected.text()
-    assert '已佩戴' in selected.text()
-    assert '已佩戴' in selected.accessibleName()
+    assert not hasattr(page, '_accessory_buttons')
+    assert not hasattr(page, '_advanced_accessories_toggle')
     assert page._countdown_display.currentData() == 'floating'
-    assert not page.findChildren(AppPropRulesCard)
     assert controller.calls == []
 
     page.render(controller.state)
     assert controller.calls == []
-    page._accessory_buttons[('neckwear', 'scarf')].click()
-    assert controller.calls[-1][0] == 'set_pet_accessory'
-    assert controller.calls[-1][1] == ('neckwear', 'scarf')
-
-    controller.calls.clear()
-    page._clear_manual_accessories()
-    assert controller.calls == [('clear_pet_accessories', (), {})]
 
 
 def test_catalog_empty_loading_state_uses_active_pet_without_species_hard_coding():
@@ -318,6 +304,30 @@ def test_wardrobe_is_manifest_driven_and_only_explicit_activation_wears_outfit(
 
     page._restore_outfit.click()
     assert controller.calls[-1] == ('set_pet_outfit', (None,), {})
+    page.close()
+
+
+def test_wardrobe_double_click_wears_the_clicked_outfit():
+    app = _app()
+    controller = _Controller()
+    page = PetCatalogPage(controller)
+    page.resize(900, 700)
+    page.show()
+    app.processEvents()
+
+    index = page._wardrobe_model.index(1, 0)
+    target = page._wardrobe_view.visualRect(index)
+    assert target.isValid() and not target.isEmpty()
+    controller.calls.clear()
+    QTest.mouseDClick(
+        page._wardrobe_view.viewport(),
+        Qt.LeftButton,
+        Qt.NoModifier,
+        target.center(),
+    )
+    app.processEvents()
+
+    assert controller.calls[-1] == ('set_pet_outfit', ('thunder_mage',), {})
     page.close()
 
 
@@ -382,11 +392,11 @@ def test_wardrobe_lightweight_failure_keeps_current_outfit_and_exposes_error():
     page.close()
 
 
-def test_wardrobe_thumbnails_are_requested_by_visible_delegate_not_model_reset():
+def test_wardrobe_loads_selected_detail_then_visible_card_thumbnails_lazily():
     app = _app()
     repository = _PreviewRepository()
     page = PetCatalogPage(_Controller(), asset_repository=repository)
-    assert repository.calls == []
+    assert len(repository.calls) == 1
 
     page.resize(900, 700)
     page.show()
@@ -403,7 +413,8 @@ def test_catalog_reflows_controls_below_640_pixels():
     page.show()
     app.processEvents()
     assert page._selector_layout.direction() == QBoxLayout.TopToBottom
-    assert page._wardrobe_layout.direction() == QBoxLayout.TopToBottom
+    assert page._wardrobe_content_layout.direction() == QBoxLayout.TopToBottom
+    assert page._wardrobe_action_layout.direction() == QBoxLayout.TopToBottom
     assert page._wardrobe_columns == 2
     assert page.horizontalScrollBar().maximum() == 0
     page.close()
@@ -461,16 +472,8 @@ def test_learning_desk_has_no_duplicate_overview_tab():
     ]
 
 
-def test_app_prop_rules_live_under_automation_and_break_page_is_focused():
+def test_break_page_is_focused_without_legacy_application_props():
     controller = _Controller()
-    automation = CompanionAutomationPage(controller)
-    app_props = automation.findChild(AppPropRulesCard)
-    assert app_props is not None
-    controller.state.context.foreground_app_id = r'C:\\Office\\WINWORD.EXE'
-    app_props.render(controller.state)
-    assert app_props._current_app_id == 'winword.exe'
-    assert 'C:' not in app_props._app_label.text()
-
     rest = CompanionBreakPage(controller)
     hidden_titles = {
         label.text()

@@ -239,20 +239,6 @@ class FakeOutfitSurface:
         return True
 
 
-class FakeWeatherService:
-    def __init__(self):
-        self.started_with = None
-        self.stopped = False
-
-    def start(self, latitude, longitude):
-        self.started_with = (latitude, longitude)
-        return True
-
-    def stop(self):
-        self.stopped = True
-        return True
-
-
 @pytest.fixture
 def controller(qapp):
     settings = Settings(MemoryStore())
@@ -306,12 +292,20 @@ def test_companion_commands_persist_and_update_runtime(qapp):
     assert instance.set_pet_scale(125) is True
     assert settings.pet_scale_percent == 125
     assert companion.scale == 125
-    assert instance.set_pet_accessory('neckwear', 'red_scarf') is True
-    assert settings.pet_preferences == {
-        'snow_ferret': {'neckwear': 'red_scarf'},
-    }
-    assert instance.offer_pet_item('yarn_ball') is True
-    assert companion.items == ['yarn_ball']
+
+
+def test_removed_legacy_appearance_commands_are_not_public(qapp):
+    instance = AppController(Settings(MemoryStore()))
+
+    for method_name in (
+        'set_pet_accessory',
+        'clear_pet_accessories',
+        'upsert_app_prop_rule',
+        'remove_app_prop_rule',
+        'set_weather_enabled',
+        'offer_pet_item',
+    ):
+        assert not hasattr(instance, method_name)
 
 
 def test_reset_pet_position_is_one_atomic_anchor_reset(qapp):
@@ -533,44 +527,6 @@ def test_initial_wardrobe_error_is_visible_in_first_state(qapp):
     assert instance.state.pet_wardrobe.error == '启动恢复造型失败。'
 
 
-def test_clear_pet_accessories_is_one_atomic_state_change(qapp):
-    settings = Settings(MemoryStore())
-    companion = FakeCompanion()
-    instance = AppController(settings, companion=companion)
-    assert instance.set_pet_accessory('headwear', 'sunglasses') is True
-    assert instance.set_pet_accessory('neckwear', 'red_scarf') is True
-    spy = QSignalSpy(instance.state_changed)
-
-    assert instance.clear_pet_accessories() is True
-
-    assert settings.pet_preferences == {'snow_ferret': {}}
-    assert companion.accessories == {}
-    assert spy.count() == 1
-
-
-def test_clear_pet_accessories_sync_failure_restores_all_slots(qapp):
-    store = FailingSyncStore()
-    settings = Settings(store)
-    companion = FakeCompanion()
-    instance = AppController(settings, companion=companion)
-    assert instance.set_pet_accessory('headwear', 'sunglasses') is True
-    assert instance.set_pet_accessory('neckwear', 'red_scarf') is True
-    store.fail_next_sync = True
-
-    assert instance.clear_pet_accessories() is False
-
-    assert settings.pet_preferences == {
-        'snow_ferret': {
-            'headwear': 'sunglasses',
-            'neckwear': 'red_scarf',
-        }
-    }
-    assert companion.accessories == {
-        'headwear': 'sunglasses',
-        'neckwear': 'red_scarf',
-    }
-
-
 @pytest.mark.parametrize(
     ("method_name", "args"),
     (
@@ -578,18 +534,13 @@ def test_clear_pet_accessories_sync_failure_restores_all_slots(qapp):
         ("set_active_pet", ("snow_ferret",)),
         ("set_pet_scale", (125,)),
         ("set_pet_anchor", ("free", 8, 120, 240)),
-        ("set_pet_accessory", ("neckwear", "red_scarf")),
         ("set_pet_outfit", ("snow_slope_skier",)),
-        ("upsert_app_prop_rule", ("winword.exe", "writing")),
-        ("remove_app_prop_rule", ("winword.exe",)),
         ("set_follow_active_monitor", (True,)),
         ("set_window_avoidance_enabled", (True,)),
         ("set_companion_sound_enabled", (True,)),
         ("set_hourly_chime_enabled", (True,)),
-        ("set_weather_enabled", (True, True)),
         ("show_quick_tool", ("timer",)),
         ("set_quick_actions", (("rest", "notes"),)),
-        ("offer_pet_item", ("yarn_ball",)),
         ("select_rest_scene", ("stretch",)),
     ),
 )
@@ -862,19 +813,6 @@ def test_set_feature_enabled_still_routes_through_public_facade(
     assert calls == [True]
 
 
-def test_instant_pet_action_uses_presentation_signal_not_full_state(qapp):
-    settings = Settings(MemoryStore())
-    companion = FakeCompanion()
-    instance = AppController(settings, companion=companion)
-    state_changes = QSignalSpy(instance.state_changed)
-    presentation_changes = QSignalSpy(instance.companion_presentation_changed)
-
-    assert instance.offer_pet_item('yarn_ball') is True
-
-    assert state_changes.count() == 0
-    assert presentation_changes.count() == 1
-
-
 def test_quick_actions_are_saved_atomically(qapp):
     settings = Settings(MemoryStore())
     instance = AppController(settings)
@@ -894,40 +832,6 @@ def test_missing_pet_rolls_back_persisted_selection(qapp):
     assert settings.active_pet_id == 'snow_ferret'
     assert companion.pet_id == 'snow_ferret'
     assert failure.count() == 1
-
-
-def test_application_prop_rules_keep_only_safe_exe_basenames(qapp):
-    settings = Settings(MemoryStore())
-    instance = AppController(settings)
-
-    assert instance.upsert_app_prop_rule('WINWORD.EXE', 'writing') is True
-    assert settings.app_prop_rules == (
-        {'app_id': 'winword.exe', 'prop_id': 'writing'},
-    )
-    assert instance.upsert_app_prop_rule('winword.exe', 'calculator') is True
-    assert settings.app_prop_rules == (
-        {'app_id': 'winword.exe', 'prop_id': 'calculator'},
-    )
-    assert instance.upsert_app_prop_rule(r'C:\\Office\\winword.exe', 'writing') is False
-    assert settings.app_prop_rules[0]['prop_id'] == 'calculator'
-    assert instance.remove_app_prop_rule('winword.exe') is True
-    assert settings.app_prop_rules == ()
-
-
-def test_weather_requires_explicit_consent_and_location(qapp):
-    settings = Settings(MemoryStore())
-    weather = FakeWeatherService()
-    instance = AppController(settings, weather_service=weather)
-
-    assert instance.set_weather_enabled(True, consent=False) is False
-    assert settings.weather_enabled is False
-    assert instance.set_weather_enabled(True, consent=True) is False
-    settings.latitude = 36.6512
-    settings.longitude = 117.1201
-    settings.location_configured = True
-    assert instance.set_weather_enabled(True, consent=True) is True
-    assert settings.weather_enabled is True
-    assert weather.started_with == (36.6512, 117.1201)
 
 
 def test_quick_tools_and_rest_scene_validate_requests(qapp):

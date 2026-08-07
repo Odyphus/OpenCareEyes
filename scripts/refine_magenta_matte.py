@@ -12,8 +12,11 @@ from PIL import Image
 BORDER_SAMPLE = 32
 SURE_BACKGROUND_ALPHA = 0.06
 TRUSTED_FOREGROUND_ALPHA = 0.85
-BACKGROUND_GROW_STEPS = 4
-FOREGROUND_GROW_STEPS = 6
+# Image-generated watercolor edges can span several pixels at the source
+# resolution.  Keep enough neighbourhood for the local colour-line solver to
+# reach the real fur/clothing colour instead of reusing keyed fringe pixels.
+BACKGROUND_GROW_STEPS = 12
+FOREGROUND_GROW_STEPS = 12
 MIN_VISIBLE_ALPHA = 0.012
 LINE_RESIDUAL_LIMIT = 0.07
 

@@ -6,7 +6,10 @@
   "min_app_version": "0.8.0b1",
   "author": "OpenCareEyes Contributors",
   "license": "Apache-2.0",
-  "canvas_size": [192, 192],
+  "canvas_size": [
+    192,
+    192
+  ],
   "asset_scale": 2,
   "default_scale": 100,
   "preview_path": "preview.png",
@@ -28,81 +31,333 @@
     "idle": {
       "loop": true,
       "frames": [
-        {"path": "sprites/ferret_atlas_2x.png", "duration_ms": 1800, "source_rect": [0, 0, 384, 384]},
-        {"path": "sprites/ferret_atlas_2x.png", "duration_ms": 160, "source_rect": [384, 0, 384, 384]},
-        {"path": "sprites/ferret_atlas_2x.png", "duration_ms": 2100, "source_rect": [0, 0, 384, 384]},
-        {"path": "sprites/ferret_atlas_2x.png", "duration_ms": 700, "source_rect": [768, 0, 384, 384]}
+        {
+          "path": "sprites/ferret_atlas_2x.png",
+          "duration_ms": 1800,
+          "source_rect": [
+            0,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/ferret_atlas_2x.png",
+          "duration_ms": 160,
+          "source_rect": [
+            384,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/ferret_atlas_2x.png",
+          "duration_ms": 2100,
+          "source_rect": [
+            0,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/ferret_atlas_2x.png",
+          "duration_ms": 700,
+          "source_rect": [
+            768,
+            0,
+            384,
+            384
+          ]
+        }
       ]
     },
     "sleep": {
       "loop": true,
       "frames": [
-        {"path": "sprites/ferret_atlas_2x.png", "duration_ms": 1600, "source_rect": [768, 768, 384, 384]}
+        {
+          "path": "sprites/ferret_atlas_2x.png",
+          "duration_ms": 1600,
+          "source_rect": [
+            768,
+            768,
+            384,
+            384
+          ]
+        }
       ]
     },
     "move": {
       "loop": true,
       "frames": [
-        {"path": "sprites/ferret_atlas_2x.png", "duration_ms": 240, "source_rect": [0, 384, 384, 384]},
-        {"path": "sprites/ferret_atlas_2x.png", "duration_ms": 240, "source_rect": [384, 384, 384, 384]}
+        {
+          "path": "sprites/ferret_atlas_2x.png",
+          "duration_ms": 240,
+          "source_rect": [
+            0,
+            384,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/ferret_atlas_2x.png",
+          "duration_ms": 240,
+          "source_rect": [
+            384,
+            384,
+            384,
+            384
+          ]
+        }
       ]
     },
     "click_reaction": {
       "frames": [
-        {"path": "sprites/ferret_atlas_2x.png", "duration_ms": 320, "source_rect": [1152, 768, 384, 384]},
-        {"path": "sprites/ferret_atlas_2x.png", "duration_ms": 260, "source_rect": [1152, 384, 384, 384]},
-        {"path": "sprites/ferret_atlas_2x.png", "duration_ms": 160, "source_rect": [0, 0, 384, 384]}
+        {
+          "path": "sprites/ferret_atlas_2x.png",
+          "duration_ms": 320,
+          "source_rect": [
+            1152,
+            768,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/ferret_atlas_2x.png",
+          "duration_ms": 260,
+          "source_rect": [
+            1152,
+            384,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/ferret_atlas_2x.png",
+          "duration_ms": 160,
+          "source_rect": [
+            0,
+            0,
+            384,
+            384
+          ]
+        }
       ]
     },
     "drag_hold": {
       "loop": true,
       "frames": [
-        {"path": "sprites/ferret_atlas_2x.png", "duration_ms": 420, "source_rect": [0, 1152, 384, 384]}
+        {
+          "path": "sprites/ferret_atlas_2x.png",
+          "duration_ms": 420,
+          "source_rect": [
+            0,
+            1152,
+            384,
+            384
+          ]
+        }
       ]
     },
     "drag_release": {
       "frames": [
-        {"path": "sprites/ferret_atlas_2x.png", "duration_ms": 650, "source_rect": [384, 1152, 384, 384]},
-        {"path": "sprites/ferret_atlas_2x.png", "duration_ms": 180, "source_rect": [0, 0, 384, 384]}
+        {
+          "path": "sprites/ferret_atlas_2x.png",
+          "duration_ms": 650,
+          "source_rect": [
+            384,
+            1152,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/ferret_atlas_2x.png",
+          "duration_ms": 180,
+          "source_rect": [
+            0,
+            0,
+            384,
+            384
+          ]
+        }
       ]
     },
     "right_click_reaction": {
       "frames": [
-        {"path": "sprites/ferret_atlas_2x.png", "duration_ms": 1100, "source_rect": [768, 1152, 384, 384]},
-        {"path": "sprites/ferret_atlas_2x.png", "duration_ms": 180, "source_rect": [0, 0, 384, 384]}
+        {
+          "path": "sprites/ferret_atlas_2x.png",
+          "duration_ms": 1100,
+          "source_rect": [
+            768,
+            1152,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/ferret_atlas_2x.png",
+          "duration_ms": 180,
+          "source_rect": [
+            0,
+            0,
+            384,
+            384
+          ]
+        }
       ]
     },
     "rest_prompt": {
       "frames": [
-        {"path": "sprites/ferret_atlas_2x.png", "duration_ms": 420, "source_rect": [768, 384, 384, 384]},
-        {"path": "sprites/ferret_atlas_2x.png", "duration_ms": 1100, "source_rect": [1152, 1152, 384, 384]},
-        {"path": "sprites/ferret_atlas_2x.png", "duration_ms": 180, "source_rect": [0, 0, 384, 384]}
+        {
+          "path": "sprites/ferret_atlas_2x.png",
+          "duration_ms": 420,
+          "source_rect": [
+            768,
+            384,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/ferret_atlas_2x.png",
+          "duration_ms": 1100,
+          "source_rect": [
+            1152,
+            1152,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/ferret_atlas_2x.png",
+          "duration_ms": 180,
+          "source_rect": [
+            0,
+            0,
+            384,
+            384
+          ]
+        }
       ]
     },
     "play": {
       "frames": [
-        {"path": "sprites/ferret_atlas_2x.png", "duration_ms": 280, "source_rect": [1152, 384, 384, 384]},
-        {"path": "sprites/ferret_atlas_2x.png", "duration_ms": 420, "source_rect": [0, 768, 384, 384]},
-        {"path": "sprites/ferret_atlas_2x.png", "duration_ms": 520, "source_rect": [384, 768, 384, 384]},
-        {"path": "sprites/ferret_atlas_2x.png", "duration_ms": 180, "source_rect": [0, 0, 384, 384]}
+        {
+          "path": "sprites/ferret_atlas_2x.png",
+          "duration_ms": 280,
+          "source_rect": [
+            1152,
+            384,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/ferret_atlas_2x.png",
+          "duration_ms": 420,
+          "source_rect": [
+            0,
+            768,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/ferret_atlas_2x.png",
+          "duration_ms": 520,
+          "source_rect": [
+            384,
+            768,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/ferret_atlas_2x.png",
+          "duration_ms": 180,
+          "source_rect": [
+            0,
+            0,
+            384,
+            384
+          ]
+        }
       ]
     },
     "yawn": {
       "frames": [
-        {"path": "sprites/ferret_atlas_2x.png", "duration_ms": 950, "source_rect": [1152, 0, 384, 384]},
-        {"path": "sprites/ferret_atlas_2x.png", "duration_ms": 180, "source_rect": [0, 0, 384, 384]}
+        {
+          "path": "sprites/ferret_atlas_2x.png",
+          "duration_ms": 950,
+          "source_rect": [
+            1152,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/ferret_atlas_2x.png",
+          "duration_ms": 180,
+          "source_rect": [
+            0,
+            0,
+            384,
+            384
+          ]
+        }
       ]
     },
     "edge_paw": {
       "frames": [
-        {"path": "sprites/ferret_atlas_2x.png", "duration_ms": 1000, "source_rect": [768, 384, 384, 384]},
-        {"path": "sprites/ferret_atlas_2x.png", "duration_ms": 180, "source_rect": [0, 0, 384, 384]}
+        {
+          "path": "sprites/ferret_atlas_2x.png",
+          "duration_ms": 1000,
+          "source_rect": [
+            768,
+            384,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/ferret_atlas_2x.png",
+          "duration_ms": 180,
+          "source_rect": [
+            0,
+            0,
+            384,
+            384
+          ]
+        }
       ]
     },
     "look_cursor": {
       "frames": [
-        {"path": "sprites/ferret_atlas_2x.png", "duration_ms": 620, "source_rect": [768, 0, 384, 384]},
-        {"path": "sprites/ferret_atlas_2x.png", "duration_ms": 180, "source_rect": [0, 0, 384, 384]}
+        {
+          "path": "sprites/ferret_atlas_2x.png",
+          "duration_ms": 620,
+          "source_rect": [
+            768,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/ferret_atlas_2x.png",
+          "duration_ms": 180,
+          "source_rect": [
+            0,
+            0,
+            384,
+            384
+          ]
+        }
       ]
     }
   },
@@ -124,109 +379,4500 @@
     "autonomous.sleep": "sleep"
   },
   "attachment_points": {
-    "headwear": [96, 38],
-    "neckwear": [96, 82],
-    "bodywear": [96, 112],
-    "held_item": [136, 116],
-    "scene": [96, 96],
-    "effect": [96, 96]
+    "headwear": [
+      96,
+      38
+    ],
+    "neckwear": [
+      96,
+      82
+    ],
+    "bodywear": [
+      96,
+      112
+    ],
+    "held_item": [
+      136,
+      116
+    ],
+    "scene": [
+      96,
+      96
+    ],
+    "effect": [
+      96,
+      96
+    ]
   },
-  "appearance_rules": {
-    "weather.clear": {"headwear": "accessories/sunglasses.png"},
-    "weather.rain": {"bodywear": "accessories/raincoat.png", "held_item": "accessories/umbrella.png"},
-    "weather.snow": {"neckwear": "accessories/scarf.png", "effect": "accessories/snow_effect.png"},
-    "weather.thunder": {"bodywear": "accessories/raincoat.png"},
-    "holiday.christmas": {"neckwear": "accessories/red_scarf.png", "scene": "accessories/christmas_tree.png"},
-    "holiday.lantern": {"held_item": "accessories/lantern.png"},
-    "application.writing": {"held_item": "accessories/pencil_ruler.png"},
-    "application.calculator": {"held_item": "accessories/calculator.png"},
-    "application.eda": {"held_item": "accessories/pcb.png"},
-    "item.yarn_ball": {"held_item": "accessories/yarn_ball.png"},
-    "item.hot_cocoa": {"held_item": "accessories/hot_cocoa.png"},
-    "item.pine_cone": {"held_item": "accessories/pine_cone.png"},
-    "accessory.sunglasses": {"headwear": "accessories/sunglasses.png"},
-    "accessory.scarf": {"neckwear": "accessories/scarf.png"},
-    "accessory.red_scarf": {"neckwear": "accessories/red_scarf.png"}
-  },
+  "appearance_rules": {},
   "outfits": {
     "snow_slope_skier": {
       "display_name": "雪坡滑雪客",
-      "description": "薄荷绿滑雪外套搭配浅蓝护目镜和雪板背包，陪鼬鼬轻快滑过松软雪坡。",
+      "description": "薄荷绿滑雪外套、浅蓝护目镜、滑雪板背包与雪板组成的冬日滑雪造型。",
       "thumbnail_path": "outfits/snow_slope_skier/thumbnail.png",
       "preview_path": "outfits/snow_slope_skier/preview.png",
       "actions": {
         "idle": {
-          "loop": true,
           "frames": [
-            {"path": "outfits/snow_slope_skier/snow_slope_skier_atlas_1.png", "duration_ms": 900, "source_rect": [0, 0, 384, 384]},
-            {"path": "outfits/snow_slope_skier/snow_slope_skier_atlas_1.png", "duration_ms": 180, "source_rect": [384, 0, 384, 384]},
-            {"path": "outfits/snow_slope_skier/snow_slope_skier_atlas_1.png", "duration_ms": 1100, "source_rect": [768, 0, 384, 384]}
-          ]
+            {
+              "path": "outfits/snow_slope_skier/snow_slope_skier_atlas_1.png",
+              "duration_ms": 900,
+              "source_rect": [
+                0,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/snow_slope_skier/snow_slope_skier_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                384,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/snow_slope_skier/snow_slope_skier_atlas_1.png",
+              "duration_ms": 1100,
+              "source_rect": [
+                768,
+                0,
+                384,
+                384
+              ]
+            }
+          ],
+          "loop": true
         },
         "sleep": {
-          "loop": true,
           "frames": [
-            {"path": "outfits/snow_slope_skier/snow_slope_skier_atlas_1.png", "duration_ms": 1250, "source_rect": [1152, 0, 384, 384]},
-            {"path": "outfits/snow_slope_skier/snow_slope_skier_atlas_1.png", "duration_ms": 1250, "source_rect": [0, 384, 384, 384]}
-          ]
+            {
+              "path": "outfits/snow_slope_skier/snow_slope_skier_atlas_1.png",
+              "duration_ms": 1250,
+              "source_rect": [
+                1152,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/snow_slope_skier/snow_slope_skier_atlas_1.png",
+              "duration_ms": 1250,
+              "source_rect": [
+                0,
+                384,
+                384,
+                384
+              ]
+            }
+          ],
+          "loop": true
         },
         "move": {
-          "loop": true,
           "frames": [
-            {"path": "outfits/snow_slope_skier/snow_slope_skier_atlas_1.png", "duration_ms": 180, "source_rect": [384, 384, 384, 384]},
-            {"path": "outfits/snow_slope_skier/snow_slope_skier_atlas_1.png", "duration_ms": 180, "source_rect": [768, 384, 384, 384]},
-            {"path": "outfits/snow_slope_skier/snow_slope_skier_atlas_1.png", "duration_ms": 180, "source_rect": [1152, 384, 384, 384]},
-            {"path": "outfits/snow_slope_skier/snow_slope_skier_atlas_1.png", "duration_ms": 180, "source_rect": [0, 768, 384, 384]}
-          ]
+            {
+              "path": "outfits/snow_slope_skier/snow_slope_skier_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                384,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/snow_slope_skier/snow_slope_skier_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                768,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/snow_slope_skier/snow_slope_skier_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                1152,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/snow_slope_skier/snow_slope_skier_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                0,
+                768,
+                384,
+                384
+              ]
+            }
+          ],
+          "loop": true
         },
         "click_reaction": {
           "frames": [
-            {"path": "outfits/snow_slope_skier/snow_slope_skier_atlas_1.png", "duration_ms": 160, "source_rect": [384, 768, 384, 384]},
-            {"path": "outfits/snow_slope_skier/snow_slope_skier_atlas_1.png", "duration_ms": 160, "source_rect": [768, 768, 384, 384]},
-            {"path": "outfits/snow_slope_skier/snow_slope_skier_atlas_1.png", "duration_ms": 300, "source_rect": [1152, 768, 384, 384]}
+            {
+              "path": "outfits/snow_slope_skier/snow_slope_skier_atlas_1.png",
+              "duration_ms": 160,
+              "source_rect": [
+                384,
+                768,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/snow_slope_skier/snow_slope_skier_atlas_1.png",
+              "duration_ms": 160,
+              "source_rect": [
+                768,
+                768,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/snow_slope_skier/snow_slope_skier_atlas_1.png",
+              "duration_ms": 300,
+              "source_rect": [
+                1152,
+                768,
+                384,
+                384
+              ]
+            }
           ]
         },
         "drag_hold": {
-          "loop": true,
           "frames": [
-            {"path": "outfits/snow_slope_skier/snow_slope_skier_atlas_1.png", "duration_ms": 500, "source_rect": [0, 1152, 384, 384]}
-          ]
+            {
+              "path": "outfits/snow_slope_skier/snow_slope_skier_atlas_1.png",
+              "duration_ms": 500,
+              "source_rect": [
+                0,
+                1152,
+                384,
+                384
+              ]
+            }
+          ],
+          "loop": true
         },
         "drag_release": {
           "frames": [
-            {"path": "outfits/snow_slope_skier/snow_slope_skier_atlas_1.png", "duration_ms": 180, "source_rect": [384, 1152, 384, 384]},
-            {"path": "outfits/snow_slope_skier/snow_slope_skier_atlas_1.png", "duration_ms": 240, "source_rect": [768, 1152, 384, 384]},
-            {"path": "outfits/snow_slope_skier/snow_slope_skier_atlas_1.png", "duration_ms": 520, "source_rect": [1152, 1152, 384, 384]}
+            {
+              "path": "outfits/snow_slope_skier/snow_slope_skier_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                384,
+                1152,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/snow_slope_skier/snow_slope_skier_atlas_1.png",
+              "duration_ms": 240,
+              "source_rect": [
+                768,
+                1152,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/snow_slope_skier/snow_slope_skier_atlas_1.png",
+              "duration_ms": 520,
+              "source_rect": [
+                1152,
+                1152,
+                384,
+                384
+              ]
+            }
           ]
         },
         "right_click_reaction": {
           "frames": [
-            {"path": "outfits/snow_slope_skier/snow_slope_skier_atlas_2.png", "duration_ms": 260, "source_rect": [0, 0, 384, 384]},
-            {"path": "outfits/snow_slope_skier/snow_slope_skier_atlas_2.png", "duration_ms": 720, "source_rect": [384, 0, 384, 384]},
-            {"path": "outfits/snow_slope_skier/snow_slope_skier_atlas_2.png", "duration_ms": 260, "source_rect": [768, 0, 384, 384]}
+            {
+              "path": "outfits/snow_slope_skier/snow_slope_skier_atlas_2.png",
+              "duration_ms": 260,
+              "source_rect": [
+                0,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/snow_slope_skier/snow_slope_skier_atlas_2.png",
+              "duration_ms": 720,
+              "source_rect": [
+                384,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/snow_slope_skier/snow_slope_skier_atlas_2.png",
+              "duration_ms": 260,
+              "source_rect": [
+                768,
+                0,
+                384,
+                384
+              ]
+            }
           ]
         },
         "rest_prompt": {
-          "loop": true,
           "frames": [
-            {"path": "outfits/snow_slope_skier/snow_slope_skier_atlas_2.png", "duration_ms": 480, "source_rect": [1152, 0, 384, 384]},
-            {"path": "outfits/snow_slope_skier/snow_slope_skier_atlas_2.png", "duration_ms": 620, "source_rect": [0, 384, 384, 384]},
-            {"path": "outfits/snow_slope_skier/snow_slope_skier_atlas_2.png", "duration_ms": 760, "source_rect": [384, 384, 384, 384]}
-          ]
+            {
+              "path": "outfits/snow_slope_skier/snow_slope_skier_atlas_2.png",
+              "duration_ms": 480,
+              "source_rect": [
+                1152,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/snow_slope_skier/snow_slope_skier_atlas_2.png",
+              "duration_ms": 620,
+              "source_rect": [
+                0,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/snow_slope_skier/snow_slope_skier_atlas_2.png",
+              "duration_ms": 760,
+              "source_rect": [
+                384,
+                384,
+                384,
+                384
+              ]
+            }
+          ],
+          "loop": true
         },
         "play": {
           "frames": [
-            {"path": "outfits/snow_slope_skier/snow_slope_skier_atlas_2.png", "duration_ms": 180, "source_rect": [768, 384, 384, 384]},
-            {"path": "outfits/snow_slope_skier/snow_slope_skier_atlas_2.png", "duration_ms": 220, "source_rect": [1152, 384, 384, 384]},
-            {"path": "outfits/snow_slope_skier/snow_slope_skier_atlas_2.png", "duration_ms": 260, "source_rect": [0, 768, 384, 384]},
-            {"path": "outfits/snow_slope_skier/snow_slope_skier_atlas_2.png", "duration_ms": 320, "source_rect": [384, 768, 384, 384]}
+            {
+              "path": "outfits/snow_slope_skier/snow_slope_skier_atlas_2.png",
+              "duration_ms": 180,
+              "source_rect": [
+                768,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/snow_slope_skier/snow_slope_skier_atlas_2.png",
+              "duration_ms": 220,
+              "source_rect": [
+                1152,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/snow_slope_skier/snow_slope_skier_atlas_2.png",
+              "duration_ms": 260,
+              "source_rect": [
+                0,
+                768,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/snow_slope_skier/snow_slope_skier_atlas_2.png",
+              "duration_ms": 320,
+              "source_rect": [
+                384,
+                768,
+                384,
+                384
+              ]
+            }
           ]
         },
         "look_cursor": {
           "frames": [
-            {"path": "outfits/snow_slope_skier/snow_slope_skier_atlas_2.png", "duration_ms": 600, "source_rect": [768, 768, 384, 384]},
-            {"path": "outfits/snow_slope_skier/snow_slope_skier_atlas_2.png", "duration_ms": 600, "source_rect": [1152, 768, 384, 384]},
-            {"path": "outfits/snow_slope_skier/snow_slope_skier_atlas_2.png", "duration_ms": 600, "source_rect": [0, 1152, 384, 384]}
+            {
+              "path": "outfits/snow_slope_skier/snow_slope_skier_atlas_2.png",
+              "duration_ms": 600,
+              "source_rect": [
+                768,
+                768,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/snow_slope_skier/snow_slope_skier_atlas_2.png",
+              "duration_ms": 600,
+              "source_rect": [
+                1152,
+                768,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/snow_slope_skier/snow_slope_skier_atlas_2.png",
+              "duration_ms": 600,
+              "source_rect": [
+                0,
+                1152,
+                384,
+                384
+              ]
+            }
+          ]
+        }
+      },
+      "ambient_layers": {}
+    },
+    "lulu_little_ferret": {
+      "display_name": "噜噜小鼬",
+      "description": "头顶圆润小橘子、身穿暖橙短裤的软萌草地造型。",
+      "thumbnail_path": "outfits/lulu_little_ferret/thumbnail.png",
+      "preview_path": "outfits/lulu_little_ferret/preview.png",
+      "actions": {
+        "idle": {
+          "frames": [
+            {
+              "path": "outfits/lulu_little_ferret/lulu_little_ferret_atlas_1.png",
+              "duration_ms": 900,
+              "source_rect": [
+                0,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/lulu_little_ferret/lulu_little_ferret_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                384,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/lulu_little_ferret/lulu_little_ferret_atlas_1.png",
+              "duration_ms": 1100,
+              "source_rect": [
+                768,
+                0,
+                384,
+                384
+              ]
+            }
+          ],
+          "loop": true
+        },
+        "sleep": {
+          "frames": [
+            {
+              "path": "outfits/lulu_little_ferret/lulu_little_ferret_atlas_1.png",
+              "duration_ms": 1250,
+              "source_rect": [
+                1152,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/lulu_little_ferret/lulu_little_ferret_atlas_1.png",
+              "duration_ms": 1250,
+              "source_rect": [
+                0,
+                384,
+                384,
+                384
+              ]
+            }
+          ],
+          "loop": true
+        },
+        "move": {
+          "frames": [
+            {
+              "path": "outfits/lulu_little_ferret/lulu_little_ferret_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                384,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/lulu_little_ferret/lulu_little_ferret_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                768,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/lulu_little_ferret/lulu_little_ferret_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                1152,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/lulu_little_ferret/lulu_little_ferret_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                0,
+                768,
+                384,
+                384
+              ]
+            }
+          ],
+          "loop": true
+        },
+        "click_reaction": {
+          "frames": [
+            {
+              "path": "outfits/lulu_little_ferret/lulu_little_ferret_atlas_1.png",
+              "duration_ms": 160,
+              "source_rect": [
+                384,
+                768,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/lulu_little_ferret/lulu_little_ferret_atlas_1.png",
+              "duration_ms": 160,
+              "source_rect": [
+                768,
+                768,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/lulu_little_ferret/lulu_little_ferret_atlas_1.png",
+              "duration_ms": 300,
+              "source_rect": [
+                1152,
+                768,
+                384,
+                384
+              ]
+            }
+          ]
+        },
+        "drag_hold": {
+          "frames": [
+            {
+              "path": "outfits/lulu_little_ferret/lulu_little_ferret_atlas_1.png",
+              "duration_ms": 500,
+              "source_rect": [
+                0,
+                1152,
+                384,
+                384
+              ]
+            }
+          ],
+          "loop": true
+        },
+        "drag_release": {
+          "frames": [
+            {
+              "path": "outfits/lulu_little_ferret/lulu_little_ferret_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                384,
+                1152,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/lulu_little_ferret/lulu_little_ferret_atlas_1.png",
+              "duration_ms": 240,
+              "source_rect": [
+                768,
+                1152,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/lulu_little_ferret/lulu_little_ferret_atlas_1.png",
+              "duration_ms": 520,
+              "source_rect": [
+                1152,
+                1152,
+                384,
+                384
+              ]
+            }
+          ]
+        },
+        "right_click_reaction": {
+          "frames": [
+            {
+              "path": "outfits/lulu_little_ferret/lulu_little_ferret_atlas_2.png",
+              "duration_ms": 260,
+              "source_rect": [
+                0,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/lulu_little_ferret/lulu_little_ferret_atlas_2.png",
+              "duration_ms": 720,
+              "source_rect": [
+                384,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/lulu_little_ferret/lulu_little_ferret_atlas_2.png",
+              "duration_ms": 260,
+              "source_rect": [
+                768,
+                0,
+                384,
+                384
+              ]
+            }
+          ]
+        },
+        "rest_prompt": {
+          "frames": [
+            {
+              "path": "outfits/lulu_little_ferret/lulu_little_ferret_atlas_2.png",
+              "duration_ms": 480,
+              "source_rect": [
+                1152,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/lulu_little_ferret/lulu_little_ferret_atlas_2.png",
+              "duration_ms": 620,
+              "source_rect": [
+                0,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/lulu_little_ferret/lulu_little_ferret_atlas_2.png",
+              "duration_ms": 760,
+              "source_rect": [
+                384,
+                384,
+                384,
+                384
+              ]
+            }
+          ],
+          "loop": true
+        },
+        "play": {
+          "frames": [
+            {
+              "path": "outfits/lulu_little_ferret/lulu_little_ferret_atlas_2.png",
+              "duration_ms": 180,
+              "source_rect": [
+                768,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/lulu_little_ferret/lulu_little_ferret_atlas_2.png",
+              "duration_ms": 220,
+              "source_rect": [
+                1152,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/lulu_little_ferret/lulu_little_ferret_atlas_2.png",
+              "duration_ms": 260,
+              "source_rect": [
+                0,
+                768,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/lulu_little_ferret/lulu_little_ferret_atlas_2.png",
+              "duration_ms": 320,
+              "source_rect": [
+                384,
+                768,
+                384,
+                384
+              ]
+            }
+          ]
+        },
+        "look_cursor": {
+          "frames": [
+            {
+              "path": "outfits/lulu_little_ferret/lulu_little_ferret_atlas_2.png",
+              "duration_ms": 600,
+              "source_rect": [
+                768,
+                768,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/lulu_little_ferret/lulu_little_ferret_atlas_2.png",
+              "duration_ms": 600,
+              "source_rect": [
+                1152,
+                768,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/lulu_little_ferret/lulu_little_ferret_atlas_2.png",
+              "duration_ms": 600,
+              "source_rect": [
+                0,
+                1152,
+                384,
+                384
+              ]
+            }
+          ]
+        }
+      },
+      "ambient_layers": {}
+    },
+    "caramel_pastry_chef": {
+      "display_name": "焦糖甜点师",
+      "description": "奶黄色花边围裙、焦糖布丁、甜点桌与小狗伙伴组成的烘焙造型。",
+      "thumbnail_path": "outfits/caramel_pastry_chef/thumbnail.png",
+      "preview_path": "outfits/caramel_pastry_chef/preview.png",
+      "actions": {
+        "idle": {
+          "frames": [
+            {
+              "path": "outfits/caramel_pastry_chef/caramel_pastry_chef_atlas_1.png",
+              "duration_ms": 900,
+              "source_rect": [
+                0,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/caramel_pastry_chef/caramel_pastry_chef_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                384,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/caramel_pastry_chef/caramel_pastry_chef_atlas_1.png",
+              "duration_ms": 1100,
+              "source_rect": [
+                768,
+                0,
+                384,
+                384
+              ]
+            }
+          ],
+          "loop": true
+        },
+        "sleep": {
+          "frames": [
+            {
+              "path": "outfits/caramel_pastry_chef/caramel_pastry_chef_atlas_1.png",
+              "duration_ms": 1250,
+              "source_rect": [
+                1152,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/caramel_pastry_chef/caramel_pastry_chef_atlas_1.png",
+              "duration_ms": 1250,
+              "source_rect": [
+                0,
+                384,
+                384,
+                384
+              ]
+            }
+          ],
+          "loop": true
+        },
+        "move": {
+          "frames": [
+            {
+              "path": "outfits/caramel_pastry_chef/caramel_pastry_chef_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                384,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/caramel_pastry_chef/caramel_pastry_chef_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                768,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/caramel_pastry_chef/caramel_pastry_chef_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                1152,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/caramel_pastry_chef/caramel_pastry_chef_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                0,
+                768,
+                384,
+                384
+              ]
+            }
+          ],
+          "loop": true
+        },
+        "click_reaction": {
+          "frames": [
+            {
+              "path": "outfits/caramel_pastry_chef/caramel_pastry_chef_atlas_1.png",
+              "duration_ms": 160,
+              "source_rect": [
+                384,
+                768,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/caramel_pastry_chef/caramel_pastry_chef_atlas_1.png",
+              "duration_ms": 160,
+              "source_rect": [
+                768,
+                768,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/caramel_pastry_chef/caramel_pastry_chef_atlas_1.png",
+              "duration_ms": 300,
+              "source_rect": [
+                1152,
+                768,
+                384,
+                384
+              ]
+            }
+          ]
+        },
+        "drag_hold": {
+          "frames": [
+            {
+              "path": "outfits/caramel_pastry_chef/caramel_pastry_chef_atlas_1.png",
+              "duration_ms": 500,
+              "source_rect": [
+                0,
+                1152,
+                384,
+                384
+              ]
+            }
+          ],
+          "loop": true
+        },
+        "drag_release": {
+          "frames": [
+            {
+              "path": "outfits/caramel_pastry_chef/caramel_pastry_chef_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                384,
+                1152,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/caramel_pastry_chef/caramel_pastry_chef_atlas_1.png",
+              "duration_ms": 240,
+              "source_rect": [
+                768,
+                1152,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/caramel_pastry_chef/caramel_pastry_chef_atlas_1.png",
+              "duration_ms": 520,
+              "source_rect": [
+                1152,
+                1152,
+                384,
+                384
+              ]
+            }
+          ]
+        },
+        "right_click_reaction": {
+          "frames": [
+            {
+              "path": "outfits/caramel_pastry_chef/caramel_pastry_chef_atlas_2.png",
+              "duration_ms": 260,
+              "source_rect": [
+                0,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/caramel_pastry_chef/caramel_pastry_chef_atlas_2.png",
+              "duration_ms": 720,
+              "source_rect": [
+                384,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/caramel_pastry_chef/caramel_pastry_chef_atlas_2.png",
+              "duration_ms": 260,
+              "source_rect": [
+                768,
+                0,
+                384,
+                384
+              ]
+            }
+          ]
+        },
+        "rest_prompt": {
+          "frames": [
+            {
+              "path": "outfits/caramel_pastry_chef/caramel_pastry_chef_atlas_2.png",
+              "duration_ms": 480,
+              "source_rect": [
+                1152,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/caramel_pastry_chef/caramel_pastry_chef_atlas_2.png",
+              "duration_ms": 620,
+              "source_rect": [
+                0,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/caramel_pastry_chef/caramel_pastry_chef_atlas_2.png",
+              "duration_ms": 760,
+              "source_rect": [
+                384,
+                384,
+                384,
+                384
+              ]
+            }
+          ],
+          "loop": true
+        },
+        "play": {
+          "frames": [
+            {
+              "path": "outfits/caramel_pastry_chef/caramel_pastry_chef_atlas_2.png",
+              "duration_ms": 180,
+              "source_rect": [
+                768,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/caramel_pastry_chef/caramel_pastry_chef_atlas_2.png",
+              "duration_ms": 220,
+              "source_rect": [
+                1152,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/caramel_pastry_chef/caramel_pastry_chef_atlas_2.png",
+              "duration_ms": 260,
+              "source_rect": [
+                0,
+                768,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/caramel_pastry_chef/caramel_pastry_chef_atlas_2.png",
+              "duration_ms": 320,
+              "source_rect": [
+                384,
+                768,
+                384,
+                384
+              ]
+            }
+          ]
+        },
+        "look_cursor": {
+          "frames": [
+            {
+              "path": "outfits/caramel_pastry_chef/caramel_pastry_chef_atlas_2.png",
+              "duration_ms": 600,
+              "source_rect": [
+                768,
+                768,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/caramel_pastry_chef/caramel_pastry_chef_atlas_2.png",
+              "duration_ms": 600,
+              "source_rect": [
+                1152,
+                768,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/caramel_pastry_chef/caramel_pastry_chef_atlas_2.png",
+              "duration_ms": 600,
+              "source_rect": [
+                0,
+                1152,
+                384,
+                384
+              ]
+            }
+          ]
+        }
+      },
+      "ambient_layers": {}
+    },
+    "thunder_mage": {
+      "display_name": "雷系小巫师",
+      "description": "紫黑镶金斗篷、星光饰件、法杖与淡紫闪电组成的魔法造型。",
+      "thumbnail_path": "outfits/thunder_mage/thumbnail.png",
+      "preview_path": "outfits/thunder_mage/preview.png",
+      "actions": {
+        "idle": {
+          "frames": [
+            {
+              "path": "outfits/thunder_mage/thunder_mage_atlas_1.png",
+              "duration_ms": 900,
+              "source_rect": [
+                0,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/thunder_mage/thunder_mage_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                384,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/thunder_mage/thunder_mage_atlas_1.png",
+              "duration_ms": 1100,
+              "source_rect": [
+                768,
+                0,
+                384,
+                384
+              ]
+            }
+          ],
+          "loop": true
+        },
+        "sleep": {
+          "frames": [
+            {
+              "path": "outfits/thunder_mage/thunder_mage_atlas_1.png",
+              "duration_ms": 1250,
+              "source_rect": [
+                1152,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/thunder_mage/thunder_mage_atlas_1.png",
+              "duration_ms": 1250,
+              "source_rect": [
+                0,
+                384,
+                384,
+                384
+              ]
+            }
+          ],
+          "loop": true
+        },
+        "move": {
+          "frames": [
+            {
+              "path": "outfits/thunder_mage/thunder_mage_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                384,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/thunder_mage/thunder_mage_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                768,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/thunder_mage/thunder_mage_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                1152,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/thunder_mage/thunder_mage_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                0,
+                768,
+                384,
+                384
+              ]
+            }
+          ],
+          "loop": true
+        },
+        "click_reaction": {
+          "frames": [
+            {
+              "path": "outfits/thunder_mage/thunder_mage_atlas_1.png",
+              "duration_ms": 160,
+              "source_rect": [
+                384,
+                768,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/thunder_mage/thunder_mage_atlas_1.png",
+              "duration_ms": 160,
+              "source_rect": [
+                768,
+                768,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/thunder_mage/thunder_mage_atlas_1.png",
+              "duration_ms": 300,
+              "source_rect": [
+                1152,
+                768,
+                384,
+                384
+              ]
+            }
+          ]
+        },
+        "drag_hold": {
+          "frames": [
+            {
+              "path": "outfits/thunder_mage/thunder_mage_atlas_1.png",
+              "duration_ms": 500,
+              "source_rect": [
+                0,
+                1152,
+                384,
+                384
+              ]
+            }
+          ],
+          "loop": true
+        },
+        "drag_release": {
+          "frames": [
+            {
+              "path": "outfits/thunder_mage/thunder_mage_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                384,
+                1152,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/thunder_mage/thunder_mage_atlas_1.png",
+              "duration_ms": 240,
+              "source_rect": [
+                768,
+                1152,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/thunder_mage/thunder_mage_atlas_1.png",
+              "duration_ms": 520,
+              "source_rect": [
+                1152,
+                1152,
+                384,
+                384
+              ]
+            }
+          ]
+        },
+        "right_click_reaction": {
+          "frames": [
+            {
+              "path": "outfits/thunder_mage/thunder_mage_atlas_2.png",
+              "duration_ms": 260,
+              "source_rect": [
+                0,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/thunder_mage/thunder_mage_atlas_2.png",
+              "duration_ms": 720,
+              "source_rect": [
+                384,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/thunder_mage/thunder_mage_atlas_2.png",
+              "duration_ms": 260,
+              "source_rect": [
+                768,
+                0,
+                384,
+                384
+              ]
+            }
+          ]
+        },
+        "rest_prompt": {
+          "frames": [
+            {
+              "path": "outfits/thunder_mage/thunder_mage_atlas_2.png",
+              "duration_ms": 480,
+              "source_rect": [
+                1152,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/thunder_mage/thunder_mage_atlas_2.png",
+              "duration_ms": 620,
+              "source_rect": [
+                0,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/thunder_mage/thunder_mage_atlas_2.png",
+              "duration_ms": 760,
+              "source_rect": [
+                384,
+                384,
+                384,
+                384
+              ]
+            }
+          ],
+          "loop": true
+        },
+        "play": {
+          "frames": [
+            {
+              "path": "outfits/thunder_mage/thunder_mage_atlas_2.png",
+              "duration_ms": 180,
+              "source_rect": [
+                768,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/thunder_mage/thunder_mage_atlas_2.png",
+              "duration_ms": 220,
+              "source_rect": [
+                1152,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/thunder_mage/thunder_mage_atlas_2.png",
+              "duration_ms": 260,
+              "source_rect": [
+                0,
+                768,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/thunder_mage/thunder_mage_atlas_2.png",
+              "duration_ms": 320,
+              "source_rect": [
+                384,
+                768,
+                384,
+                384
+              ]
+            }
+          ]
+        },
+        "look_cursor": {
+          "frames": [
+            {
+              "path": "outfits/thunder_mage/thunder_mage_atlas_2.png",
+              "duration_ms": 600,
+              "source_rect": [
+                768,
+                768,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/thunder_mage/thunder_mage_atlas_2.png",
+              "duration_ms": 600,
+              "source_rect": [
+                1152,
+                768,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/thunder_mage/thunder_mage_atlas_2.png",
+              "duration_ms": 600,
+              "source_rect": [
+                0,
+                1152,
+                384,
+                384
+              ]
+            }
+          ]
+        }
+      },
+      "ambient_layers": {}
+    },
+    "silverfrost_swordsman": {
+      "display_name": "银霜剑士",
+      "description": "镶金蓝白披风、肩头佩剑与复古符文阵组成的冰雪剑士造型。",
+      "thumbnail_path": "outfits/silverfrost_swordsman/thumbnail.png",
+      "preview_path": "outfits/silverfrost_swordsman/preview.png",
+      "actions": {
+        "idle": {
+          "frames": [
+            {
+              "path": "outfits/silverfrost_swordsman/silverfrost_swordsman_atlas_1.png",
+              "duration_ms": 900,
+              "source_rect": [
+                0,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/silverfrost_swordsman/silverfrost_swordsman_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                384,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/silverfrost_swordsman/silverfrost_swordsman_atlas_1.png",
+              "duration_ms": 1100,
+              "source_rect": [
+                768,
+                0,
+                384,
+                384
+              ]
+            }
+          ],
+          "loop": true
+        },
+        "sleep": {
+          "frames": [
+            {
+              "path": "outfits/silverfrost_swordsman/silverfrost_swordsman_atlas_1.png",
+              "duration_ms": 1250,
+              "source_rect": [
+                1152,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/silverfrost_swordsman/silverfrost_swordsman_atlas_1.png",
+              "duration_ms": 1250,
+              "source_rect": [
+                0,
+                384,
+                384,
+                384
+              ]
+            }
+          ],
+          "loop": true
+        },
+        "move": {
+          "frames": [
+            {
+              "path": "outfits/silverfrost_swordsman/silverfrost_swordsman_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                384,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/silverfrost_swordsman/silverfrost_swordsman_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                768,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/silverfrost_swordsman/silverfrost_swordsman_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                1152,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/silverfrost_swordsman/silverfrost_swordsman_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                0,
+                768,
+                384,
+                384
+              ]
+            }
+          ],
+          "loop": true
+        },
+        "click_reaction": {
+          "frames": [
+            {
+              "path": "outfits/silverfrost_swordsman/silverfrost_swordsman_atlas_1.png",
+              "duration_ms": 160,
+              "source_rect": [
+                384,
+                768,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/silverfrost_swordsman/silverfrost_swordsman_atlas_1.png",
+              "duration_ms": 160,
+              "source_rect": [
+                768,
+                768,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/silverfrost_swordsman/silverfrost_swordsman_atlas_1.png",
+              "duration_ms": 300,
+              "source_rect": [
+                1152,
+                768,
+                384,
+                384
+              ]
+            }
+          ]
+        },
+        "drag_hold": {
+          "frames": [
+            {
+              "path": "outfits/silverfrost_swordsman/silverfrost_swordsman_atlas_1.png",
+              "duration_ms": 500,
+              "source_rect": [
+                0,
+                1152,
+                384,
+                384
+              ]
+            }
+          ],
+          "loop": true
+        },
+        "drag_release": {
+          "frames": [
+            {
+              "path": "outfits/silverfrost_swordsman/silverfrost_swordsman_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                384,
+                1152,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/silverfrost_swordsman/silverfrost_swordsman_atlas_1.png",
+              "duration_ms": 240,
+              "source_rect": [
+                768,
+                1152,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/silverfrost_swordsman/silverfrost_swordsman_atlas_1.png",
+              "duration_ms": 520,
+              "source_rect": [
+                1152,
+                1152,
+                384,
+                384
+              ]
+            }
+          ]
+        },
+        "right_click_reaction": {
+          "frames": [
+            {
+              "path": "outfits/silverfrost_swordsman/silverfrost_swordsman_atlas_2.png",
+              "duration_ms": 260,
+              "source_rect": [
+                0,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/silverfrost_swordsman/silverfrost_swordsman_atlas_2.png",
+              "duration_ms": 720,
+              "source_rect": [
+                384,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/silverfrost_swordsman/silverfrost_swordsman_atlas_2.png",
+              "duration_ms": 260,
+              "source_rect": [
+                768,
+                0,
+                384,
+                384
+              ]
+            }
+          ]
+        },
+        "rest_prompt": {
+          "frames": [
+            {
+              "path": "outfits/silverfrost_swordsman/silverfrost_swordsman_atlas_2.png",
+              "duration_ms": 480,
+              "source_rect": [
+                1152,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/silverfrost_swordsman/silverfrost_swordsman_atlas_2.png",
+              "duration_ms": 620,
+              "source_rect": [
+                0,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/silverfrost_swordsman/silverfrost_swordsman_atlas_2.png",
+              "duration_ms": 760,
+              "source_rect": [
+                384,
+                384,
+                384,
+                384
+              ]
+            }
+          ],
+          "loop": true
+        },
+        "play": {
+          "frames": [
+            {
+              "path": "outfits/silverfrost_swordsman/silverfrost_swordsman_atlas_2.png",
+              "duration_ms": 180,
+              "source_rect": [
+                768,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/silverfrost_swordsman/silverfrost_swordsman_atlas_2.png",
+              "duration_ms": 220,
+              "source_rect": [
+                1152,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/silverfrost_swordsman/silverfrost_swordsman_atlas_2.png",
+              "duration_ms": 260,
+              "source_rect": [
+                0,
+                768,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/silverfrost_swordsman/silverfrost_swordsman_atlas_2.png",
+              "duration_ms": 320,
+              "source_rect": [
+                384,
+                768,
+                384,
+                384
+              ]
+            }
+          ]
+        },
+        "look_cursor": {
+          "frames": [
+            {
+              "path": "outfits/silverfrost_swordsman/silverfrost_swordsman_atlas_2.png",
+              "duration_ms": 600,
+              "source_rect": [
+                768,
+                768,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/silverfrost_swordsman/silverfrost_swordsman_atlas_2.png",
+              "duration_ms": 600,
+              "source_rect": [
+                1152,
+                768,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/silverfrost_swordsman/silverfrost_swordsman_atlas_2.png",
+              "duration_ms": 600,
+              "source_rect": [
+                0,
+                1152,
+                384,
+                384
+              ]
+            }
+          ]
+        }
+      },
+      "ambient_layers": {}
+    },
+    "forest_detective": {
+      "display_name": "林间探长",
+      "description": "棕褐猎鹿帽、复古斗篷、放大镜与调查卷宗组成的侦探造型。",
+      "thumbnail_path": "outfits/forest_detective/thumbnail.png",
+      "preview_path": "outfits/forest_detective/preview.png",
+      "actions": {
+        "idle": {
+          "frames": [
+            {
+              "path": "outfits/forest_detective/forest_detective_atlas_1.png",
+              "duration_ms": 900,
+              "source_rect": [
+                0,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/forest_detective/forest_detective_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                384,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/forest_detective/forest_detective_atlas_1.png",
+              "duration_ms": 1100,
+              "source_rect": [
+                768,
+                0,
+                384,
+                384
+              ]
+            }
+          ],
+          "loop": true
+        },
+        "sleep": {
+          "frames": [
+            {
+              "path": "outfits/forest_detective/forest_detective_atlas_1.png",
+              "duration_ms": 1250,
+              "source_rect": [
+                1152,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/forest_detective/forest_detective_atlas_1.png",
+              "duration_ms": 1250,
+              "source_rect": [
+                0,
+                384,
+                384,
+                384
+              ]
+            }
+          ],
+          "loop": true
+        },
+        "move": {
+          "frames": [
+            {
+              "path": "outfits/forest_detective/forest_detective_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                384,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/forest_detective/forest_detective_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                768,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/forest_detective/forest_detective_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                1152,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/forest_detective/forest_detective_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                0,
+                768,
+                384,
+                384
+              ]
+            }
+          ],
+          "loop": true
+        },
+        "click_reaction": {
+          "frames": [
+            {
+              "path": "outfits/forest_detective/forest_detective_atlas_1.png",
+              "duration_ms": 160,
+              "source_rect": [
+                384,
+                768,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/forest_detective/forest_detective_atlas_1.png",
+              "duration_ms": 160,
+              "source_rect": [
+                768,
+                768,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/forest_detective/forest_detective_atlas_1.png",
+              "duration_ms": 300,
+              "source_rect": [
+                1152,
+                768,
+                384,
+                384
+              ]
+            }
+          ]
+        },
+        "drag_hold": {
+          "frames": [
+            {
+              "path": "outfits/forest_detective/forest_detective_atlas_1.png",
+              "duration_ms": 500,
+              "source_rect": [
+                0,
+                1152,
+                384,
+                384
+              ]
+            }
+          ],
+          "loop": true
+        },
+        "drag_release": {
+          "frames": [
+            {
+              "path": "outfits/forest_detective/forest_detective_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                384,
+                1152,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/forest_detective/forest_detective_atlas_1.png",
+              "duration_ms": 240,
+              "source_rect": [
+                768,
+                1152,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/forest_detective/forest_detective_atlas_1.png",
+              "duration_ms": 520,
+              "source_rect": [
+                1152,
+                1152,
+                384,
+                384
+              ]
+            }
+          ]
+        },
+        "right_click_reaction": {
+          "frames": [
+            {
+              "path": "outfits/forest_detective/forest_detective_atlas_2.png",
+              "duration_ms": 260,
+              "source_rect": [
+                0,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/forest_detective/forest_detective_atlas_2.png",
+              "duration_ms": 720,
+              "source_rect": [
+                384,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/forest_detective/forest_detective_atlas_2.png",
+              "duration_ms": 260,
+              "source_rect": [
+                768,
+                0,
+                384,
+                384
+              ]
+            }
+          ]
+        },
+        "rest_prompt": {
+          "frames": [
+            {
+              "path": "outfits/forest_detective/forest_detective_atlas_2.png",
+              "duration_ms": 480,
+              "source_rect": [
+                1152,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/forest_detective/forest_detective_atlas_2.png",
+              "duration_ms": 620,
+              "source_rect": [
+                0,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/forest_detective/forest_detective_atlas_2.png",
+              "duration_ms": 760,
+              "source_rect": [
+                384,
+                384,
+                384,
+                384
+              ]
+            }
+          ],
+          "loop": true
+        },
+        "play": {
+          "frames": [
+            {
+              "path": "outfits/forest_detective/forest_detective_atlas_2.png",
+              "duration_ms": 180,
+              "source_rect": [
+                768,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/forest_detective/forest_detective_atlas_2.png",
+              "duration_ms": 220,
+              "source_rect": [
+                1152,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/forest_detective/forest_detective_atlas_2.png",
+              "duration_ms": 260,
+              "source_rect": [
+                0,
+                768,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/forest_detective/forest_detective_atlas_2.png",
+              "duration_ms": 320,
+              "source_rect": [
+                384,
+                768,
+                384,
+                384
+              ]
+            }
+          ]
+        },
+        "look_cursor": {
+          "frames": [
+            {
+              "path": "outfits/forest_detective/forest_detective_atlas_2.png",
+              "duration_ms": 600,
+              "source_rect": [
+                768,
+                768,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/forest_detective/forest_detective_atlas_2.png",
+              "duration_ms": 600,
+              "source_rect": [
+                1152,
+                768,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/forest_detective/forest_detective_atlas_2.png",
+              "duration_ms": 600,
+              "source_rect": [
+                0,
+                1152,
+                384,
+                384
+              ]
+            }
+          ]
+        }
+      },
+      "ambient_layers": {}
+    },
+    "christmas_ferret": {
+      "display_name": "圣诞小鼬",
+      "description": "圣诞红帽毛绒斗篷、橄榄绿围巾和彩色装饰球组成的节日造型。",
+      "thumbnail_path": "outfits/christmas_ferret/thumbnail.png",
+      "preview_path": "outfits/christmas_ferret/preview.png",
+      "actions": {
+        "idle": {
+          "frames": [
+            {
+              "path": "outfits/christmas_ferret/christmas_ferret_atlas_1.png",
+              "duration_ms": 900,
+              "source_rect": [
+                0,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/christmas_ferret/christmas_ferret_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                384,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/christmas_ferret/christmas_ferret_atlas_1.png",
+              "duration_ms": 1100,
+              "source_rect": [
+                768,
+                0,
+                384,
+                384
+              ]
+            }
+          ],
+          "loop": true
+        },
+        "sleep": {
+          "frames": [
+            {
+              "path": "outfits/christmas_ferret/christmas_ferret_atlas_1.png",
+              "duration_ms": 1250,
+              "source_rect": [
+                1152,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/christmas_ferret/christmas_ferret_atlas_1.png",
+              "duration_ms": 1250,
+              "source_rect": [
+                0,
+                384,
+                384,
+                384
+              ]
+            }
+          ],
+          "loop": true
+        },
+        "move": {
+          "frames": [
+            {
+              "path": "outfits/christmas_ferret/christmas_ferret_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                384,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/christmas_ferret/christmas_ferret_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                768,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/christmas_ferret/christmas_ferret_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                1152,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/christmas_ferret/christmas_ferret_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                0,
+                768,
+                384,
+                384
+              ]
+            }
+          ],
+          "loop": true
+        },
+        "click_reaction": {
+          "frames": [
+            {
+              "path": "outfits/christmas_ferret/christmas_ferret_atlas_1.png",
+              "duration_ms": 160,
+              "source_rect": [
+                384,
+                768,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/christmas_ferret/christmas_ferret_atlas_1.png",
+              "duration_ms": 160,
+              "source_rect": [
+                768,
+                768,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/christmas_ferret/christmas_ferret_atlas_1.png",
+              "duration_ms": 300,
+              "source_rect": [
+                1152,
+                768,
+                384,
+                384
+              ]
+            }
+          ]
+        },
+        "drag_hold": {
+          "frames": [
+            {
+              "path": "outfits/christmas_ferret/christmas_ferret_atlas_1.png",
+              "duration_ms": 500,
+              "source_rect": [
+                0,
+                1152,
+                384,
+                384
+              ]
+            }
+          ],
+          "loop": true
+        },
+        "drag_release": {
+          "frames": [
+            {
+              "path": "outfits/christmas_ferret/christmas_ferret_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                384,
+                1152,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/christmas_ferret/christmas_ferret_atlas_1.png",
+              "duration_ms": 240,
+              "source_rect": [
+                768,
+                1152,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/christmas_ferret/christmas_ferret_atlas_1.png",
+              "duration_ms": 520,
+              "source_rect": [
+                1152,
+                1152,
+                384,
+                384
+              ]
+            }
+          ]
+        },
+        "right_click_reaction": {
+          "frames": [
+            {
+              "path": "outfits/christmas_ferret/christmas_ferret_atlas_2.png",
+              "duration_ms": 260,
+              "source_rect": [
+                0,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/christmas_ferret/christmas_ferret_atlas_2.png",
+              "duration_ms": 720,
+              "source_rect": [
+                384,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/christmas_ferret/christmas_ferret_atlas_2.png",
+              "duration_ms": 260,
+              "source_rect": [
+                768,
+                0,
+                384,
+                384
+              ]
+            }
+          ]
+        },
+        "rest_prompt": {
+          "frames": [
+            {
+              "path": "outfits/christmas_ferret/christmas_ferret_atlas_2.png",
+              "duration_ms": 480,
+              "source_rect": [
+                1152,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/christmas_ferret/christmas_ferret_atlas_2.png",
+              "duration_ms": 620,
+              "source_rect": [
+                0,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/christmas_ferret/christmas_ferret_atlas_2.png",
+              "duration_ms": 760,
+              "source_rect": [
+                384,
+                384,
+                384,
+                384
+              ]
+            }
+          ],
+          "loop": true
+        },
+        "play": {
+          "frames": [
+            {
+              "path": "outfits/christmas_ferret/christmas_ferret_atlas_2.png",
+              "duration_ms": 180,
+              "source_rect": [
+                768,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/christmas_ferret/christmas_ferret_atlas_2.png",
+              "duration_ms": 220,
+              "source_rect": [
+                1152,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/christmas_ferret/christmas_ferret_atlas_2.png",
+              "duration_ms": 260,
+              "source_rect": [
+                0,
+                768,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/christmas_ferret/christmas_ferret_atlas_2.png",
+              "duration_ms": 320,
+              "source_rect": [
+                384,
+                768,
+                384,
+                384
+              ]
+            }
+          ]
+        },
+        "look_cursor": {
+          "frames": [
+            {
+              "path": "outfits/christmas_ferret/christmas_ferret_atlas_2.png",
+              "duration_ms": 600,
+              "source_rect": [
+                768,
+                768,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/christmas_ferret/christmas_ferret_atlas_2.png",
+              "duration_ms": 600,
+              "source_rect": [
+                1152,
+                768,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/christmas_ferret/christmas_ferret_atlas_2.png",
+              "duration_ms": 600,
+              "source_rect": [
+                0,
+                1152,
+                384,
+                384
+              ]
+            }
+          ]
+        }
+      },
+      "ambient_layers": {}
+    },
+    "icecream_vendor": {
+      "display_name": "甜筒贩卖员",
+      "description": "浅色鸭舌帽、薄荷绿围裙与草莓巨型甜筒组成的夏日店员造型。",
+      "thumbnail_path": "outfits/icecream_vendor/thumbnail.png",
+      "preview_path": "outfits/icecream_vendor/preview.png",
+      "actions": {
+        "idle": {
+          "frames": [
+            {
+              "path": "outfits/icecream_vendor/icecream_vendor_atlas_1.png",
+              "duration_ms": 900,
+              "source_rect": [
+                0,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/icecream_vendor/icecream_vendor_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                384,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/icecream_vendor/icecream_vendor_atlas_1.png",
+              "duration_ms": 1100,
+              "source_rect": [
+                768,
+                0,
+                384,
+                384
+              ]
+            }
+          ],
+          "loop": true
+        },
+        "sleep": {
+          "frames": [
+            {
+              "path": "outfits/icecream_vendor/icecream_vendor_atlas_1.png",
+              "duration_ms": 1250,
+              "source_rect": [
+                1152,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/icecream_vendor/icecream_vendor_atlas_1.png",
+              "duration_ms": 1250,
+              "source_rect": [
+                0,
+                384,
+                384,
+                384
+              ]
+            }
+          ],
+          "loop": true
+        },
+        "move": {
+          "frames": [
+            {
+              "path": "outfits/icecream_vendor/icecream_vendor_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                384,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/icecream_vendor/icecream_vendor_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                768,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/icecream_vendor/icecream_vendor_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                1152,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/icecream_vendor/icecream_vendor_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                0,
+                768,
+                384,
+                384
+              ]
+            }
+          ],
+          "loop": true
+        },
+        "click_reaction": {
+          "frames": [
+            {
+              "path": "outfits/icecream_vendor/icecream_vendor_atlas_1.png",
+              "duration_ms": 160,
+              "source_rect": [
+                384,
+                768,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/icecream_vendor/icecream_vendor_atlas_1.png",
+              "duration_ms": 160,
+              "source_rect": [
+                768,
+                768,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/icecream_vendor/icecream_vendor_atlas_1.png",
+              "duration_ms": 300,
+              "source_rect": [
+                1152,
+                768,
+                384,
+                384
+              ]
+            }
+          ]
+        },
+        "drag_hold": {
+          "frames": [
+            {
+              "path": "outfits/icecream_vendor/icecream_vendor_atlas_1.png",
+              "duration_ms": 500,
+              "source_rect": [
+                0,
+                1152,
+                384,
+                384
+              ]
+            }
+          ],
+          "loop": true
+        },
+        "drag_release": {
+          "frames": [
+            {
+              "path": "outfits/icecream_vendor/icecream_vendor_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                384,
+                1152,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/icecream_vendor/icecream_vendor_atlas_1.png",
+              "duration_ms": 240,
+              "source_rect": [
+                768,
+                1152,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/icecream_vendor/icecream_vendor_atlas_1.png",
+              "duration_ms": 520,
+              "source_rect": [
+                1152,
+                1152,
+                384,
+                384
+              ]
+            }
+          ]
+        },
+        "right_click_reaction": {
+          "frames": [
+            {
+              "path": "outfits/icecream_vendor/icecream_vendor_atlas_2.png",
+              "duration_ms": 260,
+              "source_rect": [
+                0,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/icecream_vendor/icecream_vendor_atlas_2.png",
+              "duration_ms": 720,
+              "source_rect": [
+                384,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/icecream_vendor/icecream_vendor_atlas_2.png",
+              "duration_ms": 260,
+              "source_rect": [
+                768,
+                0,
+                384,
+                384
+              ]
+            }
+          ]
+        },
+        "rest_prompt": {
+          "frames": [
+            {
+              "path": "outfits/icecream_vendor/icecream_vendor_atlas_2.png",
+              "duration_ms": 480,
+              "source_rect": [
+                1152,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/icecream_vendor/icecream_vendor_atlas_2.png",
+              "duration_ms": 620,
+              "source_rect": [
+                0,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/icecream_vendor/icecream_vendor_atlas_2.png",
+              "duration_ms": 760,
+              "source_rect": [
+                384,
+                384,
+                384,
+                384
+              ]
+            }
+          ],
+          "loop": true
+        },
+        "play": {
+          "frames": [
+            {
+              "path": "outfits/icecream_vendor/icecream_vendor_atlas_2.png",
+              "duration_ms": 180,
+              "source_rect": [
+                768,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/icecream_vendor/icecream_vendor_atlas_2.png",
+              "duration_ms": 220,
+              "source_rect": [
+                1152,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/icecream_vendor/icecream_vendor_atlas_2.png",
+              "duration_ms": 260,
+              "source_rect": [
+                0,
+                768,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/icecream_vendor/icecream_vendor_atlas_2.png",
+              "duration_ms": 320,
+              "source_rect": [
+                384,
+                768,
+                384,
+                384
+              ]
+            }
+          ]
+        },
+        "look_cursor": {
+          "frames": [
+            {
+              "path": "outfits/icecream_vendor/icecream_vendor_atlas_2.png",
+              "duration_ms": 600,
+              "source_rect": [
+                768,
+                768,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/icecream_vendor/icecream_vendor_atlas_2.png",
+              "duration_ms": 600,
+              "source_rect": [
+                1152,
+                768,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/icecream_vendor/icecream_vendor_atlas_2.png",
+              "duration_ms": 600,
+              "source_rect": [
+                0,
+                1152,
+                384,
+                384
+              ]
+            }
+          ]
+        }
+      },
+      "ambient_layers": {}
+    },
+    "beach_vacation": {
+      "display_name": "海滩度假鼬",
+      "description": "双层墨镜、粉色游泳圈、贝壳与海边浅滩组成的度假造型。",
+      "thumbnail_path": "outfits/beach_vacation/thumbnail.png",
+      "preview_path": "outfits/beach_vacation/preview.png",
+      "actions": {
+        "idle": {
+          "frames": [
+            {
+              "path": "outfits/beach_vacation/beach_vacation_atlas_1.png",
+              "duration_ms": 900,
+              "source_rect": [
+                0,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/beach_vacation/beach_vacation_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                384,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/beach_vacation/beach_vacation_atlas_1.png",
+              "duration_ms": 1100,
+              "source_rect": [
+                768,
+                0,
+                384,
+                384
+              ]
+            }
+          ],
+          "loop": true
+        },
+        "sleep": {
+          "frames": [
+            {
+              "path": "outfits/beach_vacation/beach_vacation_atlas_1.png",
+              "duration_ms": 1250,
+              "source_rect": [
+                1152,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/beach_vacation/beach_vacation_atlas_1.png",
+              "duration_ms": 1250,
+              "source_rect": [
+                0,
+                384,
+                384,
+                384
+              ]
+            }
+          ],
+          "loop": true
+        },
+        "move": {
+          "frames": [
+            {
+              "path": "outfits/beach_vacation/beach_vacation_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                384,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/beach_vacation/beach_vacation_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                768,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/beach_vacation/beach_vacation_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                1152,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/beach_vacation/beach_vacation_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                0,
+                768,
+                384,
+                384
+              ]
+            }
+          ],
+          "loop": true
+        },
+        "click_reaction": {
+          "frames": [
+            {
+              "path": "outfits/beach_vacation/beach_vacation_atlas_1.png",
+              "duration_ms": 160,
+              "source_rect": [
+                384,
+                768,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/beach_vacation/beach_vacation_atlas_1.png",
+              "duration_ms": 160,
+              "source_rect": [
+                768,
+                768,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/beach_vacation/beach_vacation_atlas_1.png",
+              "duration_ms": 300,
+              "source_rect": [
+                1152,
+                768,
+                384,
+                384
+              ]
+            }
+          ]
+        },
+        "drag_hold": {
+          "frames": [
+            {
+              "path": "outfits/beach_vacation/beach_vacation_atlas_1.png",
+              "duration_ms": 500,
+              "source_rect": [
+                0,
+                1152,
+                384,
+                384
+              ]
+            }
+          ],
+          "loop": true
+        },
+        "drag_release": {
+          "frames": [
+            {
+              "path": "outfits/beach_vacation/beach_vacation_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                384,
+                1152,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/beach_vacation/beach_vacation_atlas_1.png",
+              "duration_ms": 240,
+              "source_rect": [
+                768,
+                1152,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/beach_vacation/beach_vacation_atlas_1.png",
+              "duration_ms": 520,
+              "source_rect": [
+                1152,
+                1152,
+                384,
+                384
+              ]
+            }
+          ]
+        },
+        "right_click_reaction": {
+          "frames": [
+            {
+              "path": "outfits/beach_vacation/beach_vacation_atlas_2.png",
+              "duration_ms": 260,
+              "source_rect": [
+                0,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/beach_vacation/beach_vacation_atlas_2.png",
+              "duration_ms": 720,
+              "source_rect": [
+                384,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/beach_vacation/beach_vacation_atlas_2.png",
+              "duration_ms": 260,
+              "source_rect": [
+                768,
+                0,
+                384,
+                384
+              ]
+            }
+          ]
+        },
+        "rest_prompt": {
+          "frames": [
+            {
+              "path": "outfits/beach_vacation/beach_vacation_atlas_2.png",
+              "duration_ms": 480,
+              "source_rect": [
+                1152,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/beach_vacation/beach_vacation_atlas_2.png",
+              "duration_ms": 620,
+              "source_rect": [
+                0,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/beach_vacation/beach_vacation_atlas_2.png",
+              "duration_ms": 760,
+              "source_rect": [
+                384,
+                384,
+                384,
+                384
+              ]
+            }
+          ],
+          "loop": true
+        },
+        "play": {
+          "frames": [
+            {
+              "path": "outfits/beach_vacation/beach_vacation_atlas_2.png",
+              "duration_ms": 180,
+              "source_rect": [
+                768,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/beach_vacation/beach_vacation_atlas_2.png",
+              "duration_ms": 220,
+              "source_rect": [
+                1152,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/beach_vacation/beach_vacation_atlas_2.png",
+              "duration_ms": 260,
+              "source_rect": [
+                0,
+                768,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/beach_vacation/beach_vacation_atlas_2.png",
+              "duration_ms": 320,
+              "source_rect": [
+                384,
+                768,
+                384,
+                384
+              ]
+            }
+          ]
+        },
+        "look_cursor": {
+          "frames": [
+            {
+              "path": "outfits/beach_vacation/beach_vacation_atlas_2.png",
+              "duration_ms": 600,
+              "source_rect": [
+                768,
+                768,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/beach_vacation/beach_vacation_atlas_2.png",
+              "duration_ms": 600,
+              "source_rect": [
+                1152,
+                768,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/beach_vacation/beach_vacation_atlas_2.png",
+              "duration_ms": 600,
+              "source_rect": [
+                0,
+                1152,
+                384,
+                384
+              ]
+            }
+          ]
+        }
+      },
+      "ambient_layers": {}
+    },
+    "navy_scarf": {
+      "display_name": "蓝围巾小鼬",
+      "description": "藏蓝厚大衣与米白围巾组成的安静落雪造型。",
+      "thumbnail_path": "outfits/navy_scarf/thumbnail.png",
+      "preview_path": "outfits/navy_scarf/preview.png",
+      "actions": {
+        "idle": {
+          "frames": [
+            {
+              "path": "outfits/navy_scarf/navy_scarf_atlas_1.png",
+              "duration_ms": 900,
+              "source_rect": [
+                0,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/navy_scarf/navy_scarf_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                384,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/navy_scarf/navy_scarf_atlas_1.png",
+              "duration_ms": 1100,
+              "source_rect": [
+                768,
+                0,
+                384,
+                384
+              ]
+            }
+          ],
+          "loop": true
+        },
+        "sleep": {
+          "frames": [
+            {
+              "path": "outfits/navy_scarf/navy_scarf_atlas_1.png",
+              "duration_ms": 1250,
+              "source_rect": [
+                1152,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/navy_scarf/navy_scarf_atlas_1.png",
+              "duration_ms": 1250,
+              "source_rect": [
+                0,
+                384,
+                384,
+                384
+              ]
+            }
+          ],
+          "loop": true
+        },
+        "move": {
+          "frames": [
+            {
+              "path": "outfits/navy_scarf/navy_scarf_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                384,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/navy_scarf/navy_scarf_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                768,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/navy_scarf/navy_scarf_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                1152,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/navy_scarf/navy_scarf_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                0,
+                768,
+                384,
+                384
+              ]
+            }
+          ],
+          "loop": true
+        },
+        "click_reaction": {
+          "frames": [
+            {
+              "path": "outfits/navy_scarf/navy_scarf_atlas_1.png",
+              "duration_ms": 160,
+              "source_rect": [
+                384,
+                768,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/navy_scarf/navy_scarf_atlas_1.png",
+              "duration_ms": 160,
+              "source_rect": [
+                768,
+                768,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/navy_scarf/navy_scarf_atlas_1.png",
+              "duration_ms": 300,
+              "source_rect": [
+                1152,
+                768,
+                384,
+                384
+              ]
+            }
+          ]
+        },
+        "drag_hold": {
+          "frames": [
+            {
+              "path": "outfits/navy_scarf/navy_scarf_atlas_1.png",
+              "duration_ms": 500,
+              "source_rect": [
+                0,
+                1152,
+                384,
+                384
+              ]
+            }
+          ],
+          "loop": true
+        },
+        "drag_release": {
+          "frames": [
+            {
+              "path": "outfits/navy_scarf/navy_scarf_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                384,
+                1152,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/navy_scarf/navy_scarf_atlas_1.png",
+              "duration_ms": 240,
+              "source_rect": [
+                768,
+                1152,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/navy_scarf/navy_scarf_atlas_1.png",
+              "duration_ms": 520,
+              "source_rect": [
+                1152,
+                1152,
+                384,
+                384
+              ]
+            }
+          ]
+        },
+        "right_click_reaction": {
+          "frames": [
+            {
+              "path": "outfits/navy_scarf/navy_scarf_atlas_2.png",
+              "duration_ms": 260,
+              "source_rect": [
+                0,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/navy_scarf/navy_scarf_atlas_2.png",
+              "duration_ms": 720,
+              "source_rect": [
+                384,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/navy_scarf/navy_scarf_atlas_2.png",
+              "duration_ms": 260,
+              "source_rect": [
+                768,
+                0,
+                384,
+                384
+              ]
+            }
+          ]
+        },
+        "rest_prompt": {
+          "frames": [
+            {
+              "path": "outfits/navy_scarf/navy_scarf_atlas_2.png",
+              "duration_ms": 480,
+              "source_rect": [
+                1152,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/navy_scarf/navy_scarf_atlas_2.png",
+              "duration_ms": 620,
+              "source_rect": [
+                0,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/navy_scarf/navy_scarf_atlas_2.png",
+              "duration_ms": 760,
+              "source_rect": [
+                384,
+                384,
+                384,
+                384
+              ]
+            }
+          ],
+          "loop": true
+        },
+        "play": {
+          "frames": [
+            {
+              "path": "outfits/navy_scarf/navy_scarf_atlas_2.png",
+              "duration_ms": 180,
+              "source_rect": [
+                768,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/navy_scarf/navy_scarf_atlas_2.png",
+              "duration_ms": 220,
+              "source_rect": [
+                1152,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/navy_scarf/navy_scarf_atlas_2.png",
+              "duration_ms": 260,
+              "source_rect": [
+                0,
+                768,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/navy_scarf/navy_scarf_atlas_2.png",
+              "duration_ms": 320,
+              "source_rect": [
+                384,
+                768,
+                384,
+                384
+              ]
+            }
+          ]
+        },
+        "look_cursor": {
+          "frames": [
+            {
+              "path": "outfits/navy_scarf/navy_scarf_atlas_2.png",
+              "duration_ms": 600,
+              "source_rect": [
+                768,
+                768,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/navy_scarf/navy_scarf_atlas_2.png",
+              "duration_ms": 600,
+              "source_rect": [
+                1152,
+                768,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/navy_scarf/navy_scarf_atlas_2.png",
+              "duration_ms": 600,
+              "source_rect": [
+                0,
+                1152,
+                384,
+                384
+              ]
+            }
+          ]
+        }
+      },
+      "ambient_layers": {}
+    },
+    "blue_scarf_sprint": {
+      "display_name": "蓝围奔雪",
+      "description": "蓝色针织围巾随奔跑甩动、尾巴扬起雪沫的动态造型。",
+      "thumbnail_path": "outfits/blue_scarf_sprint/thumbnail.png",
+      "preview_path": "outfits/blue_scarf_sprint/preview.png",
+      "actions": {
+        "idle": {
+          "frames": [
+            {
+              "path": "outfits/blue_scarf_sprint/blue_scarf_sprint_atlas_1.png",
+              "duration_ms": 900,
+              "source_rect": [
+                0,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/blue_scarf_sprint/blue_scarf_sprint_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                384,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/blue_scarf_sprint/blue_scarf_sprint_atlas_1.png",
+              "duration_ms": 1100,
+              "source_rect": [
+                768,
+                0,
+                384,
+                384
+              ]
+            }
+          ],
+          "loop": true
+        },
+        "sleep": {
+          "frames": [
+            {
+              "path": "outfits/blue_scarf_sprint/blue_scarf_sprint_atlas_1.png",
+              "duration_ms": 1250,
+              "source_rect": [
+                1152,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/blue_scarf_sprint/blue_scarf_sprint_atlas_1.png",
+              "duration_ms": 1250,
+              "source_rect": [
+                0,
+                384,
+                384,
+                384
+              ]
+            }
+          ],
+          "loop": true
+        },
+        "move": {
+          "frames": [
+            {
+              "path": "outfits/blue_scarf_sprint/blue_scarf_sprint_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                384,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/blue_scarf_sprint/blue_scarf_sprint_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                768,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/blue_scarf_sprint/blue_scarf_sprint_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                1152,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/blue_scarf_sprint/blue_scarf_sprint_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                0,
+                768,
+                384,
+                384
+              ]
+            }
+          ],
+          "loop": true
+        },
+        "click_reaction": {
+          "frames": [
+            {
+              "path": "outfits/blue_scarf_sprint/blue_scarf_sprint_atlas_1.png",
+              "duration_ms": 160,
+              "source_rect": [
+                384,
+                768,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/blue_scarf_sprint/blue_scarf_sprint_atlas_1.png",
+              "duration_ms": 160,
+              "source_rect": [
+                768,
+                768,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/blue_scarf_sprint/blue_scarf_sprint_atlas_1.png",
+              "duration_ms": 300,
+              "source_rect": [
+                1152,
+                768,
+                384,
+                384
+              ]
+            }
+          ]
+        },
+        "drag_hold": {
+          "frames": [
+            {
+              "path": "outfits/blue_scarf_sprint/blue_scarf_sprint_atlas_1.png",
+              "duration_ms": 500,
+              "source_rect": [
+                0,
+                1152,
+                384,
+                384
+              ]
+            }
+          ],
+          "loop": true
+        },
+        "drag_release": {
+          "frames": [
+            {
+              "path": "outfits/blue_scarf_sprint/blue_scarf_sprint_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                384,
+                1152,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/blue_scarf_sprint/blue_scarf_sprint_atlas_1.png",
+              "duration_ms": 240,
+              "source_rect": [
+                768,
+                1152,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/blue_scarf_sprint/blue_scarf_sprint_atlas_1.png",
+              "duration_ms": 520,
+              "source_rect": [
+                1152,
+                1152,
+                384,
+                384
+              ]
+            }
+          ]
+        },
+        "right_click_reaction": {
+          "frames": [
+            {
+              "path": "outfits/blue_scarf_sprint/blue_scarf_sprint_atlas_2.png",
+              "duration_ms": 260,
+              "source_rect": [
+                0,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/blue_scarf_sprint/blue_scarf_sprint_atlas_2.png",
+              "duration_ms": 720,
+              "source_rect": [
+                384,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/blue_scarf_sprint/blue_scarf_sprint_atlas_2.png",
+              "duration_ms": 260,
+              "source_rect": [
+                768,
+                0,
+                384,
+                384
+              ]
+            }
+          ]
+        },
+        "rest_prompt": {
+          "frames": [
+            {
+              "path": "outfits/blue_scarf_sprint/blue_scarf_sprint_atlas_2.png",
+              "duration_ms": 480,
+              "source_rect": [
+                1152,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/blue_scarf_sprint/blue_scarf_sprint_atlas_2.png",
+              "duration_ms": 620,
+              "source_rect": [
+                0,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/blue_scarf_sprint/blue_scarf_sprint_atlas_2.png",
+              "duration_ms": 760,
+              "source_rect": [
+                384,
+                384,
+                384,
+                384
+              ]
+            }
+          ],
+          "loop": true
+        },
+        "play": {
+          "frames": [
+            {
+              "path": "outfits/blue_scarf_sprint/blue_scarf_sprint_atlas_2.png",
+              "duration_ms": 180,
+              "source_rect": [
+                768,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/blue_scarf_sprint/blue_scarf_sprint_atlas_2.png",
+              "duration_ms": 220,
+              "source_rect": [
+                1152,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/blue_scarf_sprint/blue_scarf_sprint_atlas_2.png",
+              "duration_ms": 260,
+              "source_rect": [
+                0,
+                768,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/blue_scarf_sprint/blue_scarf_sprint_atlas_2.png",
+              "duration_ms": 320,
+              "source_rect": [
+                384,
+                768,
+                384,
+                384
+              ]
+            }
+          ]
+        },
+        "look_cursor": {
+          "frames": [
+            {
+              "path": "outfits/blue_scarf_sprint/blue_scarf_sprint_atlas_2.png",
+              "duration_ms": 600,
+              "source_rect": [
+                768,
+                768,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/blue_scarf_sprint/blue_scarf_sprint_atlas_2.png",
+              "duration_ms": 600,
+              "source_rect": [
+                1152,
+                768,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/blue_scarf_sprint/blue_scarf_sprint_atlas_2.png",
+              "duration_ms": 600,
+              "source_rect": [
+                0,
+                1152,
+                384,
+                384
+              ]
+            }
+          ]
+        }
+      },
+      "ambient_layers": {}
+    },
+    "round_shades": {
+      "display_name": "圆镜酷鼬",
+      "description": "原版鼬鼬佩戴圆润黑色墨镜的酷感造型，待机时沉稳，互动时会抬爪回应。",
+      "thumbnail_path": "outfits/round_shades/thumbnail.png",
+      "preview_path": "outfits/round_shades/preview.png",
+      "actions": {
+        "idle": {
+          "frames": [
+            {
+              "path": "outfits/round_shades/round_shades_atlas_1.png",
+              "duration_ms": 900,
+              "source_rect": [
+                0,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/round_shades/round_shades_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                384,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/round_shades/round_shades_atlas_1.png",
+              "duration_ms": 1100,
+              "source_rect": [
+                768,
+                0,
+                384,
+                384
+              ]
+            }
+          ],
+          "loop": true
+        },
+        "sleep": {
+          "frames": [
+            {
+              "path": "outfits/round_shades/round_shades_atlas_1.png",
+              "duration_ms": 1250,
+              "source_rect": [
+                1152,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/round_shades/round_shades_atlas_1.png",
+              "duration_ms": 1250,
+              "source_rect": [
+                0,
+                384,
+                384,
+                384
+              ]
+            }
+          ],
+          "loop": true
+        },
+        "move": {
+          "frames": [
+            {
+              "path": "outfits/round_shades/round_shades_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                384,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/round_shades/round_shades_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                768,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/round_shades/round_shades_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                1152,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/round_shades/round_shades_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                0,
+                768,
+                384,
+                384
+              ]
+            }
+          ],
+          "loop": true
+        },
+        "click_reaction": {
+          "frames": [
+            {
+              "path": "outfits/round_shades/round_shades_atlas_1.png",
+              "duration_ms": 160,
+              "source_rect": [
+                384,
+                768,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/round_shades/round_shades_atlas_1.png",
+              "duration_ms": 160,
+              "source_rect": [
+                768,
+                768,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/round_shades/round_shades_atlas_1.png",
+              "duration_ms": 300,
+              "source_rect": [
+                1152,
+                768,
+                384,
+                384
+              ]
+            }
+          ]
+        },
+        "drag_hold": {
+          "frames": [
+            {
+              "path": "outfits/round_shades/round_shades_atlas_1.png",
+              "duration_ms": 500,
+              "source_rect": [
+                0,
+                1152,
+                384,
+                384
+              ]
+            }
+          ],
+          "loop": true
+        },
+        "drag_release": {
+          "frames": [
+            {
+              "path": "outfits/round_shades/round_shades_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                384,
+                1152,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/round_shades/round_shades_atlas_1.png",
+              "duration_ms": 240,
+              "source_rect": [
+                768,
+                1152,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/round_shades/round_shades_atlas_1.png",
+              "duration_ms": 520,
+              "source_rect": [
+                1152,
+                1152,
+                384,
+                384
+              ]
+            }
+          ]
+        },
+        "right_click_reaction": {
+          "frames": [
+            {
+              "path": "outfits/round_shades/round_shades_atlas_2.png",
+              "duration_ms": 260,
+              "source_rect": [
+                0,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/round_shades/round_shades_atlas_2.png",
+              "duration_ms": 720,
+              "source_rect": [
+                384,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/round_shades/round_shades_atlas_2.png",
+              "duration_ms": 260,
+              "source_rect": [
+                768,
+                0,
+                384,
+                384
+              ]
+            }
+          ]
+        },
+        "rest_prompt": {
+          "frames": [
+            {
+              "path": "outfits/round_shades/round_shades_atlas_2.png",
+              "duration_ms": 480,
+              "source_rect": [
+                1152,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/round_shades/round_shades_atlas_2.png",
+              "duration_ms": 620,
+              "source_rect": [
+                0,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/round_shades/round_shades_atlas_2.png",
+              "duration_ms": 760,
+              "source_rect": [
+                384,
+                384,
+                384,
+                384
+              ]
+            }
+          ],
+          "loop": true
+        },
+        "play": {
+          "frames": [
+            {
+              "path": "outfits/round_shades/round_shades_atlas_2.png",
+              "duration_ms": 180,
+              "source_rect": [
+                768,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/round_shades/round_shades_atlas_2.png",
+              "duration_ms": 220,
+              "source_rect": [
+                1152,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/round_shades/round_shades_atlas_2.png",
+              "duration_ms": 260,
+              "source_rect": [
+                0,
+                768,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/round_shades/round_shades_atlas_2.png",
+              "duration_ms": 320,
+              "source_rect": [
+                384,
+                768,
+                384,
+                384
+              ]
+            }
+          ]
+        },
+        "look_cursor": {
+          "frames": [
+            {
+              "path": "outfits/round_shades/round_shades_atlas_2.png",
+              "duration_ms": 600,
+              "source_rect": [
+                768,
+                768,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/round_shades/round_shades_atlas_2.png",
+              "duration_ms": 600,
+              "source_rect": [
+                1152,
+                768,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/round_shades/round_shades_atlas_2.png",
+              "duration_ms": 600,
+              "source_rect": [
+                0,
+                1152,
+                384,
+                384
+              ]
+            }
+          ]
+        }
+      },
+      "ambient_layers": {}
+    },
+    "star_shades": {
+      "display_name": "星光墨镜鼬",
+      "description": "原版鼬鼬佩戴亮黄色星星墨镜的活泼造型，互动时会开心挥爪。",
+      "thumbnail_path": "outfits/star_shades/thumbnail.png",
+      "preview_path": "outfits/star_shades/preview.png",
+      "actions": {
+        "idle": {
+          "frames": [
+            {
+              "path": "outfits/star_shades/star_shades_atlas_1.png",
+              "duration_ms": 900,
+              "source_rect": [
+                0,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/star_shades/star_shades_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                384,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/star_shades/star_shades_atlas_1.png",
+              "duration_ms": 1100,
+              "source_rect": [
+                768,
+                0,
+                384,
+                384
+              ]
+            }
+          ],
+          "loop": true
+        },
+        "sleep": {
+          "frames": [
+            {
+              "path": "outfits/star_shades/star_shades_atlas_1.png",
+              "duration_ms": 1250,
+              "source_rect": [
+                1152,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/star_shades/star_shades_atlas_1.png",
+              "duration_ms": 1250,
+              "source_rect": [
+                0,
+                384,
+                384,
+                384
+              ]
+            }
+          ],
+          "loop": true
+        },
+        "move": {
+          "frames": [
+            {
+              "path": "outfits/star_shades/star_shades_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                384,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/star_shades/star_shades_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                768,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/star_shades/star_shades_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                1152,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/star_shades/star_shades_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                0,
+                768,
+                384,
+                384
+              ]
+            }
+          ],
+          "loop": true
+        },
+        "click_reaction": {
+          "frames": [
+            {
+              "path": "outfits/star_shades/star_shades_atlas_1.png",
+              "duration_ms": 160,
+              "source_rect": [
+                384,
+                768,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/star_shades/star_shades_atlas_1.png",
+              "duration_ms": 160,
+              "source_rect": [
+                768,
+                768,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/star_shades/star_shades_atlas_1.png",
+              "duration_ms": 300,
+              "source_rect": [
+                1152,
+                768,
+                384,
+                384
+              ]
+            }
+          ]
+        },
+        "drag_hold": {
+          "frames": [
+            {
+              "path": "outfits/star_shades/star_shades_atlas_1.png",
+              "duration_ms": 500,
+              "source_rect": [
+                0,
+                1152,
+                384,
+                384
+              ]
+            }
+          ],
+          "loop": true
+        },
+        "drag_release": {
+          "frames": [
+            {
+              "path": "outfits/star_shades/star_shades_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                384,
+                1152,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/star_shades/star_shades_atlas_1.png",
+              "duration_ms": 240,
+              "source_rect": [
+                768,
+                1152,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/star_shades/star_shades_atlas_1.png",
+              "duration_ms": 520,
+              "source_rect": [
+                1152,
+                1152,
+                384,
+                384
+              ]
+            }
+          ]
+        },
+        "right_click_reaction": {
+          "frames": [
+            {
+              "path": "outfits/star_shades/star_shades_atlas_2.png",
+              "duration_ms": 260,
+              "source_rect": [
+                0,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/star_shades/star_shades_atlas_2.png",
+              "duration_ms": 720,
+              "source_rect": [
+                384,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/star_shades/star_shades_atlas_2.png",
+              "duration_ms": 260,
+              "source_rect": [
+                768,
+                0,
+                384,
+                384
+              ]
+            }
+          ]
+        },
+        "rest_prompt": {
+          "frames": [
+            {
+              "path": "outfits/star_shades/star_shades_atlas_2.png",
+              "duration_ms": 480,
+              "source_rect": [
+                1152,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/star_shades/star_shades_atlas_2.png",
+              "duration_ms": 620,
+              "source_rect": [
+                0,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/star_shades/star_shades_atlas_2.png",
+              "duration_ms": 760,
+              "source_rect": [
+                384,
+                384,
+                384,
+                384
+              ]
+            }
+          ],
+          "loop": true
+        },
+        "play": {
+          "frames": [
+            {
+              "path": "outfits/star_shades/star_shades_atlas_2.png",
+              "duration_ms": 180,
+              "source_rect": [
+                768,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/star_shades/star_shades_atlas_2.png",
+              "duration_ms": 220,
+              "source_rect": [
+                1152,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/star_shades/star_shades_atlas_2.png",
+              "duration_ms": 260,
+              "source_rect": [
+                0,
+                768,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/star_shades/star_shades_atlas_2.png",
+              "duration_ms": 320,
+              "source_rect": [
+                384,
+                768,
+                384,
+                384
+              ]
+            }
+          ]
+        },
+        "look_cursor": {
+          "frames": [
+            {
+              "path": "outfits/star_shades/star_shades_atlas_2.png",
+              "duration_ms": 600,
+              "source_rect": [
+                768,
+                768,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/star_shades/star_shades_atlas_2.png",
+              "duration_ms": 600,
+              "source_rect": [
+                1152,
+                768,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/star_shades/star_shades_atlas_2.png",
+              "duration_ms": 600,
+              "source_rect": [
+                0,
+                1152,
+                384,
+                384
+              ]
+            }
           ]
         }
       },

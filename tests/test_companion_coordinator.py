@@ -7,7 +7,6 @@ import pytest
 
 from opencareyes.application.companion_coordinator import CompanionCoordinator
 from opencareyes.application.pet_pack_registry import PetPackNotFoundError, PetPackRegistry
-from opencareyes.constants import APP_VERSION, PETS_DIR
 from opencareyes.domain.pet import (
     PetAction,
     PetEventPriority,
@@ -163,34 +162,6 @@ def test_outfit_missing_action_falls_back_to_its_own_idle_and_stays_locked():
     assert pet.current_action is outfit.actions['idle']
 
 
-def test_locked_outfit_pauses_automatic_layers_but_allows_interactive_props():
-    pet = coordinator()
-    outfit = add_test_outfit(pet)
-    pet.set_outfit(outfit.outfit_id)
-
-    automatic = pet.apply_appearance_conditions(('weather.snow',))
-    assert automatic.appearance.neckwear == ''
-
-    interactive = pet.apply_appearance_conditions(
-        ('weather.snow',),
-        interactive={'held_item': 'temporary.png'},
-    )
-    assert interactive.appearance.held_item == 'temporary.png'
-
-
-def test_accessory_command_exits_outfit_mode_without_deleting_outfit_choice():
-    pet = coordinator()
-    outfit = add_test_outfit(pet)
-    pet.set_outfit(outfit.outfit_id)
-
-    state = pet.set_manual_accessory('neckwear', 'scarf')
-
-    assert state.outfit_id == ''
-    assert pet.wardrobe_mode == 'accessories'
-    assert pet.selected_outfit_id == ''
-    assert state.appearance.neckwear == 'accessories/scarf.png'
-
-
 def test_switching_pet_preloads_before_change_and_preserves_runtime_visibility():
     pet = coordinator()
     pet.set_visible(False)
@@ -226,34 +197,3 @@ def test_appearance_uses_semantic_slots_and_state_is_immutable():
         pet.set_appearance('tail', 'ribbon')
     with pytest.raises(FrozenInstanceError):
         state.visible = False
-
-
-def test_interactive_and_manual_appearance_override_automatic_conditions():
-    pet = coordinator()
-
-    automatic = pet.apply_appearance_conditions(('weather.snow',))
-    assert automatic.appearance.neckwear == 'accessories/scarf.png'
-
-    manual = pet.set_manual_accessory('neckwear', 'scarf')
-    assert manual.appearance.neckwear == 'accessories/scarf.png'
-
-    interactive = pet.apply_appearance_conditions(
-        ('weather.snow',),
-        interactive={'neckwear': 'item_scarf.png'},
-    )
-    assert interactive.appearance.neckwear == 'item_scarf.png'
-    assert pet.clear_interactive_appearance().appearance.neckwear == 'accessories/scarf.png'
-
-
-def test_official_interaction_item_is_transient_and_clears_after_action():
-    pet = CompanionCoordinator(
-        PetPackRegistry(PETS_DIR, app_version=APP_VERSION),
-        'snow_ferret',
-    )
-
-    assert pet.offer_item('hot_cocoa') is True
-    assert pet.state.behavior.action_id == 'play'
-    assert pet.state.appearance.held_item == 'accessories/hot_cocoa.png'
-    assert pet.complete_action('play') is True
-    assert pet.state.behavior.action_id == 'idle'
-    assert pet.state.appearance.held_item == ''

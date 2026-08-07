@@ -505,7 +505,7 @@ def test_v5_to_v7_materializes_quick_actions_without_changing_preferences():
     )
 
 
-def test_v6_to_v7_preserves_manual_accessories_and_selects_accessories_mode():
+def test_v6_to_v7_ignores_removed_manual_accessories_and_uses_default_mode():
     from opencareyes.config.settings import Settings
 
     store = MemoryStore(
@@ -520,7 +520,7 @@ def test_v6_to_v7_preserves_manual_accessories_and_selects_accessories_mode():
     settings = Settings(store)
 
     assert settings.stored_schema_version == 7
-    assert settings.wardrobe_mode == 'accessories'
+    assert settings.wardrobe_mode == 'automatic'
     assert settings.outfit_preferences == {}
     assert settings.pet_preferences == {
         'snow_ferret': {'neckwear': 'red_scarf'},

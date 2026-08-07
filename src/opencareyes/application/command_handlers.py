@@ -9,7 +9,6 @@ from typing import TYPE_CHECKING, Callable
 
 from ..constants import DIM_MAX, DIM_MIN, TEMP_MAX, TEMP_MIN
 from ..domain.runtime import DisplayPreview
-from ..state import WeatherState
 
 if TYPE_CHECKING:
     from ..controller import AppController
@@ -1047,9 +1046,6 @@ class CompanionToolCommands:
                 result = selector(value)
                 if result is False:
                     raise RuntimeError("Pet pack could not be loaded")
-            preferences = getattr(controller._settings, "pet_preferences", {})
-            selected = preferences.get(value, {}) if isinstance(preferences, dict) else {}
-            accessory_setter = getattr(controller._companion, "set_manual_accessory", None)
             wardrobe_mode = str(
                 getattr(controller._settings, 'wardrobe_mode', 'automatic')
             )
@@ -1062,24 +1058,12 @@ class CompanionToolCommands:
                 else ''
             )
             outfit_setter = getattr(controller._companion, 'set_outfit', None)
-            mode_setter = getattr(
-                controller._companion, 'set_wardrobe_mode', None
-            )
             if wardrobe_mode == 'outfit' and outfit_id and callable(outfit_setter):
                 outfit_setter(outfit_id)
-            elif wardrobe_mode == 'accessories' and callable(mode_setter):
-                mode_setter('accessories')
             elif callable(outfit_setter):
                 outfit_setter(None)
                 if wardrobe_mode == 'outfit':
                     controller._settings.wardrobe_mode = 'automatic'
-            if (
-                wardrobe_mode == 'accessories'
-                and callable(accessory_setter)
-                and isinstance(selected, dict)
-            ):
-                for slot, item_id in selected.items():
-                    accessory_setter(str(slot), str(item_id))
 
         def operation() -> None:
             controller._settings.active_pet_id = normalized
@@ -1134,71 +1118,6 @@ class CompanionToolCommands:
                 controller._settings.pet_y = int(y)
 
         return controller._run("pet_anchor", operation, reconcile=False)
-
-    def set_pet_accessory(self, slot: str, item_id: str | None) -> bool:
-        controller = self._controller
-        controller._cancel_wardrobe_request()
-        pet_id = str(getattr(controller._settings, "active_pet_id", "snow_ferret"))
-        previous_mode = str(
-            getattr(controller._settings, 'wardrobe_mode', 'automatic')
-        )
-        previous_outfits = getattr(controller._settings, 'outfit_preferences', {})
-        previous_outfit = (
-            str(previous_outfits.get(pet_id, ''))
-            if isinstance(previous_outfits, dict)
-            else ''
-        )
-        previous_preferences = getattr(controller._settings, 'pet_preferences', {})
-        previous_slots = (
-            dict(previous_preferences.get(pet_id, {}))
-            if isinstance(previous_preferences, dict)
-            else {}
-        )
-
-        def restore_runtime() -> None:
-            mode_setter = getattr(
-                controller._companion, 'set_wardrobe_mode', None
-            )
-            outfit_setter = getattr(controller._companion, 'set_outfit', None)
-            accessory_setter = getattr(
-                controller._companion, 'set_manual_accessory', None
-            )
-            if previous_mode == 'outfit' and previous_outfit and callable(outfit_setter):
-                outfit_setter(previous_outfit)
-                return
-            if callable(mode_setter):
-                mode_setter(previous_mode)
-            if previous_mode == 'accessories' and callable(accessory_setter):
-                for accessory_slot in (
-                    'headwear', 'neckwear', 'bodywear',
-                    'held_item', 'scene', 'effect',
-                ):
-                    accessory_setter(accessory_slot, None)
-                for previous_slot, previous_item in previous_slots.items():
-                    accessory_setter(previous_slot, previous_item)
-
-        def operation() -> None:
-            preferences = dict(getattr(controller._settings, "pet_preferences", {}))
-            slots = dict(preferences.get(pet_id, {}))
-            if item_id in {None, ""}:
-                slots.pop(str(slot), None)
-            else:
-                slots[str(slot)] = str(item_id)
-            preferences[pet_id] = slots
-            controller._settings.pet_preferences = preferences
-            controller._settings.wardrobe_mode = 'accessories'
-            setter = getattr(controller._companion, "set_manual_accessory", None)
-            if not callable(setter):
-                setter = getattr(controller._companion, "set_appearance", None)
-            if callable(setter):
-                setter(str(slot), item_id)
-
-        return controller._run(
-            "pet_accessory",
-            operation,
-            reconcile=False,
-            rollback=restore_runtime,
-        )
 
     def set_pet_outfit(self, outfit_id: str | None) -> bool:
         controller = self._controller
@@ -1285,13 +1204,7 @@ class CompanionToolCommands:
             if previous_mode == 'outfit' and previous_outfit:
                 apply_runtime(previous_outfit)
             else:
-                mode_setter = getattr(
-                    controller._companion, 'set_wardrobe_mode', None
-                )
-                if callable(mode_setter):
-                    mode_setter(previous_mode)
-                else:
-                    apply_runtime(None)
+                apply_runtime(None)
             apply_surface(previous_surface_outfit or None)
 
         return controller._run(
@@ -1300,104 +1213,6 @@ class CompanionToolCommands:
             reconcile=False,
             rollback=rollback,
         )
-
-    def clear_pet_accessories(self) -> bool:
-        controller = self._controller
-        controller._cancel_wardrobe_request()
-        pet_id = str(getattr(controller._settings, 'active_pet_id', 'snow_ferret'))
-        previous_mode = str(
-            getattr(controller._settings, 'wardrobe_mode', 'automatic')
-        )
-        previous_outfits = getattr(controller._settings, 'outfit_preferences', {})
-        previous_outfit = (
-            str(previous_outfits.get(pet_id, ''))
-            if isinstance(previous_outfits, dict)
-            else ''
-        )
-        previous_preferences = getattr(controller._settings, 'pet_preferences', {})
-        previous_slots = (
-            dict(previous_preferences.get(pet_id, {}))
-            if isinstance(previous_preferences, dict)
-            else {}
-        )
-
-        def clear_runtime() -> None:
-            mode_setter = getattr(
-                controller._companion, 'set_wardrobe_mode', None
-            )
-            if callable(mode_setter):
-                mode_setter('accessories')
-            accessory_setter = getattr(
-                controller._companion, 'set_manual_accessory', None
-            )
-            if callable(accessory_setter):
-                for accessory_slot in (
-                    'headwear', 'neckwear', 'bodywear',
-                    'held_item', 'scene', 'effect',
-                ):
-                    accessory_setter(accessory_slot, None)
-
-        def restore_runtime() -> None:
-            outfit_setter = getattr(controller._companion, 'set_outfit', None)
-            mode_setter = getattr(
-                controller._companion, 'set_wardrobe_mode', None
-            )
-            accessory_setter = getattr(
-                controller._companion, 'set_manual_accessory', None
-            )
-            if previous_mode == 'outfit' and previous_outfit and callable(outfit_setter):
-                outfit_setter(previous_outfit)
-                return
-            if callable(mode_setter):
-                mode_setter(previous_mode)
-            if previous_mode == 'accessories' and callable(accessory_setter):
-                for slot, item_id in previous_slots.items():
-                    accessory_setter(slot, item_id)
-
-        def operation() -> None:
-            preferences = dict(
-                getattr(controller._settings, 'pet_preferences', {})
-            )
-            preferences[pet_id] = {}
-            controller._settings.pet_preferences = preferences
-            controller._settings.wardrobe_mode = 'accessories'
-            clear_runtime()
-
-        return controller._run(
-            'pet_accessories_clear',
-            operation,
-            reconcile=False,
-            rollback=restore_runtime,
-        )
-
-    def upsert_app_prop_rule(self, app_id: str, prop_id: str) -> bool:
-        controller = self._controller
-        app = str(app_id).strip().lower()
-        prop = str(prop_id).strip().lower()
-
-        def operation() -> None:
-            rules = [
-                dict(rule)
-                for rule in getattr(controller._settings, "app_prop_rules", ())
-                if str(rule.get("app_id", "")).lower() != app
-            ]
-            rules.append({"app_id": app, "prop_id": prop})
-            controller._settings.app_prop_rules = rules
-
-        return controller._run("app_prop_rule", operation, reconcile=False)
-
-    def remove_app_prop_rule(self, app_id: str) -> bool:
-        controller = self._controller
-        app = str(app_id).strip().lower()
-
-        def operation() -> None:
-            controller._settings.app_prop_rules = [
-                dict(rule)
-                for rule in getattr(controller._settings, "app_prop_rules", ())
-                if str(rule.get("app_id", "")).lower() != app
-            ]
-
-        return controller._run("app_prop_rule", operation, reconcile=False)
 
     def set_follow_active_monitor(self, enabled: bool) -> bool:
         controller = self._controller
@@ -1439,68 +1254,6 @@ class CompanionToolCommands:
             reconcile=False,
         )
 
-    def set_weather_enabled(
-        self,
-        enabled: bool,
-        consent: bool = False,
-    ) -> bool:
-        controller = self._controller
-        enabled = bool(enabled)
-        if enabled and not consent:
-            controller.operation_failed.emit(
-                "weather_consent",
-                "开启天气前需要确认会向 Open-Meteo 发送经纬度和网络 IP。",
-            )
-            return False
-        if enabled and not bool(getattr(controller._settings, "location_configured", False)):
-            controller.operation_failed.emit(
-                "weather_location",
-                "请先在自动日程中选择城市或填写位置。",
-            )
-            return False
-        previous = bool(getattr(controller._settings, "weather_enabled", False))
-
-        def apply_runtime(value: bool) -> None:
-            if controller._weather_service is None:
-                if value:
-                    raise RuntimeError("Weather service is unavailable")
-                return
-            if value:
-                controller._weather_state = WeatherState(status="loading")
-                refresh = getattr(controller._weather_service, "refresh", None)
-                if callable(refresh):
-                    refresh(
-                        float(controller._settings.latitude),
-                        float(controller._settings.longitude),
-                        consent=True,
-                        force=True,
-                    )
-                else:
-                    controller._weather_service.start(
-                        float(controller._settings.latitude),
-                        float(controller._settings.longitude),
-                    )
-            else:
-                cancel = getattr(controller._weather_service, "cancel", None)
-                if callable(cancel):
-                    cancel()
-                else:
-                    stop = getattr(controller._weather_service, "stop", None)
-                    if callable(stop):
-                        stop()
-                controller._weather_state = WeatherState(status="disabled")
-
-        def operation() -> None:
-            controller._settings.weather_enabled = enabled
-            apply_runtime(enabled)
-
-        return controller._run(
-            "weather",
-            operation,
-            reconcile=False,
-            rollback=lambda: apply_runtime(previous),
-        )
-
     def show_quick_tool(self, tool_id: str) -> bool:
         controller = self._controller
         tool = str(tool_id).strip().lower()
@@ -1517,19 +1270,6 @@ class CompanionToolCommands:
             lambda: setattr(controller._settings, "quick_actions", tuple(actions)),
             reconcile=False,
         )
-
-    def offer_pet_item(self, item_id: str) -> bool:
-        controller = self._controller
-        item = str(item_id).strip().lower()
-        if item not in {"yarn_ball", "hot_cocoa", "pine_cone"}:
-            controller.operation_failed.emit("pet_item", "不支持这个互动道具。")
-            return False
-        handler = getattr(controller._companion, "offer_item", None)
-        if callable(handler) and handler(item) is False:
-            controller.operation_failed.emit("pet_item", "伙伴现在无法接住这个道具。")
-            return False
-        controller.refresh_companion_presentation(force=True)
-        return True
 
     def select_rest_scene(self, scene_id: str) -> bool:
         controller = self._controller

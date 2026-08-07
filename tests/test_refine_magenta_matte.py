@@ -37,6 +37,26 @@ def test_local_matte_reconstructs_white_fur_without_magenta_spill():
     assert result.getpixel((0, 0))[3] == 0
 
 
+def test_local_matte_reconstructs_a_wide_watercolor_fur_edge():
+    key = (241, 7, 212)
+    fur = (252, 250, 246)
+    image = Image.new('RGBA', (48, 48), (*key, 255))
+    for inset, alpha in enumerate((0.08, 0.16, 0.28, 0.42, 0.58, 0.72, 0.84)):
+        for x in range(8 + inset, 40 - inset):
+            for y in range(8 + inset, 40 - inset):
+                image.putpixel((x, y), _composite(fur, key, alpha))
+    for x in range(16, 32):
+        for y in range(16, 32):
+            image.putpixel((x, y), (*fur, 255))
+
+    result = _matte_cell(image)
+    red, green, blue, alpha = result.getpixel((12, 24))
+
+    assert 80 <= alpha <= 210
+    assert max(red, green, blue) - min(red, green, blue) <= 24
+    assert result.getpixel((0, 0))[3] == 0
+
+
 def test_local_matte_preserves_opaque_red_prop_and_pink_ear():
     key = (241, 7, 212)
     image = Image.new('RGBA', (24, 24), (*key, 255))

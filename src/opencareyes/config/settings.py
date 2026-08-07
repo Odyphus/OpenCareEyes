@@ -483,28 +483,10 @@ class SettingsMigrator:
 
     def _migrate_v6_to_v7(self, existing_profile: bool) -> None:
         if existing_profile:
-            raw_preferences = self._store.value(
-                'companion/pet_preferences_json', '{}'
-            )
-            try:
-                decoded = (
-                    json.loads(raw_preferences)
-                    if isinstance(raw_preferences, str)
-                    else raw_preferences
-                )
-            except (TypeError, ValueError):
-                decoded = {}
-            has_manual_accessories = bool(
-                isinstance(decoded, Mapping)
-                and any(
-                    isinstance(slots, Mapping) and bool(slots)
-                    for slots in decoded.values()
-                )
-            )
             if self._store.value('companion/wardrobe_mode', None) is None:
                 self._store.setValue(
                     'companion/wardrobe_mode',
-                    'accessories' if has_manual_accessories else 'automatic',
+                    'automatic',
                 )
             if self._store.value(
                 'companion/outfit_preferences_json', None
@@ -1441,12 +1423,12 @@ class Settings:
         mode = str(
             self._s.value('companion/wardrobe_mode', 'automatic')
         ).strip().lower()
-        return mode if mode in {'automatic', 'outfit', 'accessories'} else 'automatic'
+        return mode if mode in {'automatic', 'outfit'} else 'automatic'
 
     @wardrobe_mode.setter
     def wardrobe_mode(self, value: str) -> None:
         mode = str(value).strip().lower()
-        if mode not in {'automatic', 'outfit', 'accessories'}:
+        if mode not in {'automatic', 'outfit'}:
             raise ValueError('Unknown wardrobe mode')
         self._set_value('companion/wardrobe_mode', mode)
 

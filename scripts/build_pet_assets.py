@@ -6,7 +6,7 @@ import argparse
 from dataclasses import dataclass
 from pathlib import Path
 
-from PIL import Image, ImageChops, ImageDraw, ImageFilter
+from PIL import Image, ImageChops, ImageFilter
 
 
 _FRAME_NAMES = (
@@ -184,120 +184,6 @@ def split_sheet(
     frames[0].resize((512, 512), Image.Resampling.LANCZOS).save(
         output.parent / 'preview.png', optimize=True
     )
-    build_accessories(output.parent / 'accessories', size)
-
-
-def build_accessories(output: Path, size: int) -> None:
-    '''Create anatomy-neutral full-canvas overlays for semantic appearance slots.'''
-
-    output.mkdir(parents=True, exist_ok=True)
-
-    def canvas() -> tuple[Image.Image, ImageDraw.ImageDraw]:
-        image = Image.new('RGBA', (size, size), (0, 0, 0, 0))
-        return image, ImageDraw.Draw(image)
-
-    image, draw = canvas()
-    draw.rounded_rectangle((64, 66, 119, 91), 10, fill=(22, 28, 42, 238))
-    draw.rounded_rectangle((137, 66, 192, 91), 10, fill=(22, 28, 42, 238))
-    draw.line((119, 76, 137, 76), fill=(22, 28, 42, 238), width=7)
-    draw.line((78, 70, 105, 70), fill=(114, 202, 255, 155), width=4)
-    draw.line((151, 70, 178, 70), fill=(114, 202, 255, 155), width=4)
-    image.save(output / 'sunglasses.png', optimize=True)
-
-    image, draw = canvas()
-    draw.polygon(
-        ((68, 119), (96, 102), (160, 102), (190, 121), (178, 214), (79, 214)),
-        fill=(255, 198, 55, 218),
-        outline=(220, 151, 27, 245),
-    )
-    draw.line((128, 112, 128, 205), fill=(244, 164, 28, 245), width=4)
-    draw.ellipse((119, 127, 137, 145), fill=(90, 163, 217, 240))
-    image.save(output / 'raincoat.png', optimize=True)
-
-    image, draw = canvas()
-    draw.arc((145, 38, 247, 142), 185, 355, fill=(82, 139, 215, 250), width=14)
-    draw.line((196, 92, 196, 217), fill=(91, 76, 67, 245), width=7)
-    draw.arc((179, 195, 210, 230), 0, 170, fill=(91, 76, 67, 245), width=7)
-    image.save(output / 'umbrella.png', optimize=True)
-
-    image, draw = canvas()
-    draw.rounded_rectangle((77, 97, 179, 124), 12, fill=(90, 164, 228, 235))
-    draw.polygon(((149, 118), (177, 173), (153, 180), (127, 120)), fill=(63, 136, 205, 235))
-    image.save(output / 'scarf.png', optimize=True)
-
-    image, draw = canvas()
-    draw.rounded_rectangle((77, 97, 179, 124), 12, fill=(210, 54, 67, 240))
-    draw.polygon(((149, 118), (177, 173), (153, 180), (127, 120)), fill=(184, 38, 54, 240))
-    image.save(output / 'red_scarf.png', optimize=True)
-
-    image, draw = canvas()
-    for x, y, radius in (
-        (28, 49, 4), (67, 28, 3), (216, 53, 4), (229, 125, 3),
-        (43, 154, 3), (202, 191, 4), (111, 24, 3), (22, 213, 3),
-    ):
-        draw.line((x - radius, y, x + radius, y), fill=(219, 241, 255, 220), width=2)
-        draw.line((x, y - radius, x, y + radius), fill=(219, 241, 255, 220), width=2)
-    image.save(output / 'snow_effect.png', optimize=True)
-
-    image, draw = canvas()
-    draw.polygon(((38, 67), (8, 153), (68, 153)), fill=(43, 143, 88, 235))
-    draw.polygon(((38, 94), (3, 184), (73, 184)), fill=(36, 124, 76, 240))
-    draw.rectangle((32, 181, 44, 218), fill=(111, 74, 44, 245))
-    for point in ((23, 132), (50, 149), (31, 171), (57, 177)):
-        draw.ellipse((point[0] - 4, point[1] - 4, point[0] + 4, point[1] + 4), fill=(244, 69, 70, 245))
-    image.save(output / 'christmas_tree.png', optimize=True)
-
-    image, draw = canvas()
-    draw.rounded_rectangle((181, 115, 237, 186), 16, fill=(227, 55, 65, 235), outline=(255, 189, 71, 255), width=4)
-    draw.line((190, 112, 228, 112), fill=(255, 189, 71, 255), width=4)
-    draw.line((209, 93, 209, 115), fill=(255, 189, 71, 255), width=4)
-    draw.line((209, 186, 209, 215), fill=(255, 189, 71, 255), width=4)
-    image.save(output / 'lantern.png', optimize=True)
-
-    image, draw = canvas()
-    draw.polygon(((168, 186), (230, 124), (241, 135), (179, 197)), fill=(245, 192, 52, 245))
-    draw.polygon(((230, 124), (244, 120), (241, 135)), fill=(62, 69, 83, 245))
-    draw.rounded_rectangle((28, 199, 139, 213), 5, fill=(92, 158, 217, 220))
-    image.save(output / 'pencil_ruler.png', optimize=True)
-
-    image, draw = canvas()
-    draw.rounded_rectangle((175, 140, 239, 218), 8, fill=(61, 74, 96, 238), outline=(143, 174, 214, 245), width=3)
-    draw.rectangle((184, 150, 230, 169), fill=(182, 226, 211, 245))
-    for row in range(3):
-        for column in range(3):
-            x, y = 185 + column * 15, 178 + row * 13
-            draw.rounded_rectangle((x, y, x + 9, y + 8), 2, fill=(210, 220, 237, 245))
-    image.save(output / 'calculator.png', optimize=True)
-
-    image, draw = canvas()
-    draw.rounded_rectangle((164, 137, 242, 215), 8, fill=(45, 138, 96, 238), outline=(126, 221, 171, 245), width=3)
-    draw.line((175, 154, 221, 154, 221, 186, 235, 186), fill=(235, 201, 91, 245), width=3)
-    draw.line((178, 202, 198, 202, 198, 170, 229, 170), fill=(235, 201, 91, 245), width=3)
-    for x, y in ((175, 154), (221, 186), (198, 170), (229, 170)):
-        draw.ellipse((x - 4, y - 4, x + 4, y + 4), fill=(211, 227, 235, 245))
-    image.save(output / 'pcb.png', optimize=True)
-
-    image, draw = canvas()
-    draw.ellipse((176, 156, 234, 214), fill=(222, 91, 142, 245), outline=(151, 54, 102, 255), width=4)
-    draw.arc((182, 163, 225, 206), 18, 195, fill=(255, 181, 214, 245), width=4)
-    draw.arc((184, 170, 228, 210), 205, 355, fill=(132, 48, 92, 245), width=4)
-    draw.line((179, 189, 155, 207), fill=(222, 91, 142, 235), width=3)
-    image.save(output / 'yarn_ball.png', optimize=True)
-
-    image, draw = canvas()
-    draw.rounded_rectangle((176, 158, 231, 211), 9, fill=(217, 238, 245, 245), outline=(91, 133, 151, 255), width=4)
-    draw.arc((222, 169, 249, 199), 270, 90, fill=(91, 133, 151, 255), width=5)
-    draw.ellipse((183, 164, 224, 178), fill=(116, 67, 43, 250))
-    draw.arc((187, 142, 204, 166), 70, 250, fill=(239, 246, 250, 180), width=3)
-    draw.arc((207, 139, 224, 165), 70, 250, fill=(239, 246, 250, 180), width=3)
-    image.save(output / 'hot_cocoa.png', optimize=True)
-
-    image, draw = canvas()
-    draw.ellipse((181, 151, 230, 216), fill=(122, 77, 43, 245), outline=(78, 46, 27, 255), width=4)
-    for y in range(162, 207, 13):
-        draw.arc((184, y, 227, y + 18), 10, 170, fill=(204, 141, 78, 245), width=4)
-        draw.arc((184, y - 5, 227, y + 13), 190, 350, fill=(92, 54, 31, 245), width=3)
-    image.save(output / 'pine_cone.png', optimize=True)
 
 
 def main() -> None:

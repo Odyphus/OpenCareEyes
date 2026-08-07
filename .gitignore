@@ -53,3 +53,9 @@ desktop.ini
 *.bak
 /work/
 /work-font-test*.png
+
+# Re-creatable outfit action sheets and chroma-key production intermediates.
+# Keep the compact source references and licensing catalog under version control.
+/docs/design/outfits/*/
+!/docs/design/outfits/references/
+!/docs/design/outfits/references/**

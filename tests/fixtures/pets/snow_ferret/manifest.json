@@ -41,10 +41,7 @@
     "scene": [80, 140],
     "effect": [80, 80]
   },
-  "appearance_rules": {
-    "weather.snow": {"neckwear": "accessories/scarf.png"},
-    "accessory.scarf": {"neckwear": "accessories/scarf.png"}
-  },
+  "appearance_rules": {},
   "sound_rules": {
     "hourly.chime": "sounds/chime.wav"
   }
