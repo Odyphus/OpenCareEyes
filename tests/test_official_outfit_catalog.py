@@ -57,7 +57,8 @@ def test_completed_catalog_entries_match_the_production_manifest():
     assert set(manifest.outfits) == completed
     for outfit in manifest.outfits.values():
         assert set(outfit.actions) == set(ACTION_LAYOUT)
-        assert sum(len(action.frames) for action in outfit.actions.values()) == 29
+        expected_frames = 57 if outfit.outfit_id == 'navy_scarf' else 29
+        assert sum(len(action.frames) for action in outfit.actions.values()) == expected_frames
 
 
 def test_official_pet_pack_stays_inside_the_64_mib_budget():

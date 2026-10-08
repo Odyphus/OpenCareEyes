@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 def test_release_is_the_single_project_version_source():
     project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
 
-    assert project["project"]["version"] == "0.9.0"
+    assert project["project"]["version"] == "0.10.0b1"
 
 
 def test_prerelease_build_uses_numeric_windows_version_and_skips_winget():

@@ -59,6 +59,8 @@ class CompanionRuntime:
 
         self._autonomous_motion = None
         self._autonomous_end = None
+        self._interaction_end = None
+        self._interaction_kind = ''
         self._autonomous_timer = None
         self._cursor_timer = None
         self._window_avoidance = None
@@ -154,6 +156,22 @@ class CompanionRuntime:
         if self._started:
             self._sync_chime(state)
             self._sync_anchor()
+        self._sync_focus_behavior(state)
+
+    def _sync_focus_behavior(self, state) -> None:
+        if self._companion is None:
+            return
+        focusing = bool(
+            state.focus.enabled and state.companion.visible
+            and not state.global_pause.active and not state.companion.suppressed_by
+        )
+        has_action = getattr(self._surface, 'has_action', None)
+        if focusing and callable(has_action) and has_action('read'):
+            self.dispatch_pet_event('application.focus')
+        elif self._companion.state.behavior.event_kind == 'application.focus':
+            if self._companion.clear_event('application.focus'):
+                self._surface.play_action(self._companion.current_action.action_id)
+                self._controller.refresh_companion_presentation(force=True)
 
     def sync_presentation(self, presentation) -> None:
         if self._shutdown:
@@ -180,6 +198,10 @@ class CompanionRuntime:
         set_outfit = getattr(self._surface, 'set_outfit', None)
         if callable(set_outfit):
             set_outfit(getattr(presentation, 'outfit_id', ''))
+        set_capabilities = getattr(self._bubble, 'set_interaction_capabilities', None)
+        has_action = getattr(self._surface, 'has_action', None)
+        if callable(set_capabilities) and callable(has_action):
+            set_capabilities(has_action)
         self._surface.set_appearance(presentation.appearance)
         if self._started:
             self._sync_anchor()
@@ -244,6 +266,8 @@ class CompanionRuntime:
         self._last_break_semantic = None
         self._stop_window_avoidance(restore=False)
         self._stop_all_timers()
+        if self._interaction_end is not None:
+            self._interaction_end.stop()
         self._bubble.clear_rest_prompt()
         self._bubble.hide()
 
@@ -358,8 +382,10 @@ class CompanionRuntime:
             'drag_hold': 'drag.hold',
             'drag_release': 'drag.release',
         }.get(str(kind), str(kind))
-        if semantic in {'click', 'right_click', 'drag.hold', 'drag.release'}:
+        if semantic in {'click', 'right_click', 'drag.hold', 'drag.release'} or semantic.startswith('item.'):
             self._stop_autonomous_action(complete=False)
+            if self._interaction_end is not None:
+                self._interaction_end.stop()
         safe_payload = payload if isinstance(payload, dict) else {}
         try:
             changed = self._companion.dispatch_kind(semantic, safe_payload)
@@ -372,6 +398,13 @@ class CompanionRuntime:
                 restart=True,
             )
             self._controller.refresh_companion_presentation(force=True)
+            action = self._companion.current_action
+            manual = semantic in {'click', 'right_click', 'drag.release'} or semantic.startswith('item.')
+            if (manual and self._interaction_end is not None
+                    and (action.loop or self._motion_reduced)):
+                duration = sum(frame.duration_ms for frame in action.frames)
+                self._interaction_kind = semantic
+                self._interaction_end.start(max(300, min(5000, duration)))
         return changed
 
     def _build_timers(self) -> None:
@@ -380,12 +413,17 @@ class CompanionRuntime:
             b'pos',
             self._surface,
         )
-        self._autonomous_motion.setEasingCurve(QEasingCurve.InOutSine)
+        # Constant travel speed matches the authored walk-cycle cadence.
+        self._autonomous_motion.setEasingCurve(QEasingCurve.Linear)
         self._autonomous_motion.finished.connect(self._finish_autonomous_action)
 
         self._autonomous_end = QTimer(self._surface)
         self._autonomous_end.setSingleShot(True)
         self._autonomous_end.timeout.connect(self._finish_autonomous_action)
+
+        self._interaction_end = QTimer(self._surface)
+        self._interaction_end.setSingleShot(True)
+        self._interaction_end.timeout.connect(self._finish_interaction)
 
         self._autonomous_timer = QTimer(self._surface)
         self._autonomous_timer.setSingleShot(True)
@@ -417,6 +455,33 @@ class CompanionRuntime:
         self._surface.bubble_requested.connect(self._toggle_pet_bubble)
         self._bubble.dismissed.connect(self._dismiss_pet_bubble)
         self._bubble.tool_requested.connect(self._handle_pet_tool)
+        interaction = getattr(self._bubble, 'interaction_requested', None)
+        if interaction is not None:
+            interaction.connect(self.interact)
+
+    def interact(self, kind: str) -> bool:
+        """Explicit play obeys the same reminder and safety arbitration as clicks."""
+
+        if kind not in {'click', 'item.play', 'item.stretch', 'item.wave'}:
+            return False
+        if self._shutdown or not self._surface.isVisible():
+            return False
+        state = self._controller.state
+        if (state.companion.suppressed_by or state.global_pause.active
+                or state.breaks.phase == 'resting' or self._bubble.is_rest_prompt_active):
+            return False
+        action_id = {
+            'click': 'click_reaction', 'item.play': 'play',
+            'item.stretch': 'yawn', 'item.wave': 'rest_prompt',
+        }[kind]
+        has_action = getattr(self._surface, 'has_action', None)
+        if callable(has_action) and not has_action(action_id):
+            return False
+        changed = self.dispatch_pet_event(kind)
+        if changed:
+            self._bubble.hide()
+            self._dismiss_pet_bubble()
+        return changed
 
     def _apply_temporary_move(self, request) -> None:
         self._surface.setProperty('serviceTransientPlacement', True)
@@ -469,10 +534,21 @@ class CompanionRuntime:
         )
 
     def _finish_pet_action(self, action_id: str) -> None:
+        if (self._companion is not None and action_id == 'look_cursor'
+                and self._companion.state.behavior.event_kind == 'cursor.near'):
+            return
         if self._companion is None or not self._companion.complete_action(action_id):
             return
+        if self._interaction_end is not None:
+            self._interaction_end.stop()
         self._surface.play_action(self._companion.current_action.action_id)
         self._controller.refresh_companion_presentation(force=True)
+        self._sync_focus_behavior(self._controller.state)
+
+    def _finish_interaction(self) -> None:
+        if (not self._shutdown and self._companion is not None
+                and self._companion.state.behavior.event_kind == self._interaction_kind):
+            self._finish_pet_action(self._companion.current_action.action_id)
 
     def _finish_autonomous_action(self) -> None:
         if self._companion is not None:
@@ -482,6 +558,7 @@ class CompanionRuntime:
                 self._controller.refresh_companion_presentation(force=True)
         if hasattr(self._surface, 'setProperty'):
             self._surface.setProperty('autonomousMoving', False)
+        self._sync_focus_behavior(self._controller.state)
 
     def _schedule_autonomous_action(self) -> None:
         if self._autonomous_timer is None:
@@ -505,6 +582,7 @@ class CompanionRuntime:
             or self._bubble.isVisible()
             or self._motion_reduced
             or state.breaks.phase == 'resting'
+            or state.focus.enabled
             or state.break_prompt.stage not in {'none', 'hidden'}
             or bool(self._surface.property('serviceTransientPlacement'))
         ):
@@ -600,6 +678,10 @@ class CompanionRuntime:
             self.dispatch_pet_event('cursor.still')
         else:
             self._set_cursor_interval(500)
+            if self._companion.clear_event('cursor.near'):
+                self._surface.play_action(self._companion.current_action.action_id)
+                self._controller.refresh_companion_presentation(force=True)
+                self._sync_focus_behavior(self._controller.state)
 
     def _set_cursor_interval(self, interval: int) -> None:
         if self._cursor_timer is not None and self._cursor_timer.interval() != interval:

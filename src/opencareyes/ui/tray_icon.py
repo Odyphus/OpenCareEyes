@@ -5,7 +5,8 @@ from __future__ import annotations
 import os
 
 from PySide6.QtCore import QSignalBlocker
-from PySide6.QtGui import QAction, QActionGroup, QColor, QIcon, QPainter, QPixmap
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QAction, QActionGroup, QColor, QIcon, QPainter, QPalette, QPixmap
 from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 
 from opencareyes.application.status_presenter import StatusPresenter
@@ -36,6 +37,8 @@ class TrayIcon(QSystemTrayIcon):
         self._pet_surface = pet_surface
         self._mini_countdown = pet_surface
         self._companion_runtime = companion_runtime
+        self._icon_signature = None
+        self._paused = False
         self._create_icon()
         self._create_menu()
         self.activated.connect(self._on_activated)
@@ -49,32 +52,62 @@ class TrayIcon(QSystemTrayIcon):
         self.render(controller.state)
 
     def _create_icon(self) -> None:
-        for name in ("tray_light.png", "tray_dark.png"):
-            path = os.path.join(ICONS_DIR, name)
-            if os.path.isfile(path):
-                self.setIcon(QIcon(path))
-                return
-        pixmap = QPixmap(32, 32)
-        pixmap.fill(QColor(0, 0, 0, 0))
-        painter = QPainter(pixmap)
-        painter.setRenderHint(QPainter.Antialiasing)
-        painter.setBrush(QColor("#5B8DEF"))
-        painter.setPen(QColor("#FFFFFF"))
-        painter.drawEllipse(2, 2, 28, 28)
-        painter.drawEllipse(9, 11, 5, 5)
-        painter.drawEllipse(18, 11, 5, 5)
-        painter.end()
-        self.setIcon(QIcon(pixmap))
+        self.apply_theme(getattr(QApplication.instance(), "theme_snapshot", None))
+
+    def apply_theme(self, snapshot, *, paused=None) -> None:
+        if paused is not None:
+            self._paused = bool(paused)
+        theme = getattr(snapshot, "taskbar_resolved", "dark")
+        high_contrast = bool(getattr(snapshot, "high_contrast", False))
+        color = (
+            QApplication.palette().color(QPalette.WindowText).name()
+            if high_contrast else ("#203E4A" if theme == "light" else "#E5EEE8")
+        )
+        signature = (color, self._paused)
+        if signature == self._icon_signature:
+            return
+        self._icon_signature = signature
+        from PySide6.QtSvg import QSvgRenderer
+
+        source = os.path.join(ICONS_DIR, "tray.svg")
+        try:
+            with open(source, encoding="utf-8") as handle:
+                svg = handle.read().replace("currentColor", color)
+        except OSError:
+            self.setIcon(QIcon(os.path.join(ICONS_DIR, "opencareyes.ico")))
+            return
+        icon = QIcon()
+        renderer = QSvgRenderer(svg.encode("utf-8"))
+        for size in (16, 20, 24, 32, 40, 48, 64):
+            pixmap = QPixmap(size, size)
+            pixmap.fill(Qt.transparent)
+            painter = QPainter(pixmap)
+            painter.setRenderHint(QPainter.Antialiasing)
+            renderer.render(painter)
+            if self._paused:
+                # Small, stationary pause bars survive monochrome/high-contrast use.
+                painter.setPen(Qt.NoPen)
+                painter.setBrush(QColor(color))
+                unit = size / 32
+                painter.drawRect(round(23 * unit), round(22 * unit), max(1, round(2 * unit)), round(8 * unit))
+                painter.drawRect(round(28 * unit), round(22 * unit), max(1, round(2 * unit)), round(8 * unit))
+            painter.end()
+            icon.addPixmap(pixmap)
+        self.setIcon(icon)
 
     def _create_menu(self) -> None:
         self._menu = QMenu()
+        self._status_action = self._menu.addAction("伙伴正在陪伴你")
+        self._status_action.setEnabled(False)
+        self._menu.addSeparator()
         self._open_action = self._menu.addAction("打开 OpenCareEyes")
         self._open_action.triggered.connect(self._show_panel)
         self._pet_action = self._check_action("显示桌面伙伴", self._toggle_pet)
         self._rest_now_action = self._menu.addAction("现在休息")
         self._rest_now_action.triggered.connect(self._start_break_now)
 
-        pause_menu = self._menu.addMenu("暂停全部")
+        pause_menu = self._menu.addMenu("暂停全部效果")
+        self._pause_menu_action = pause_menu.menuAction()
         pause_menu.addAction("30 分钟").triggered.connect(
             lambda: self._controller.pause_all(minutes=30)
         )
@@ -91,7 +124,8 @@ class TrayIcon(QSystemTrayIcon):
         self._resume_all_action.triggered.connect(self._controller.resume_all)
         self._menu.addSeparator()
 
-        protection_menu = self._menu.addMenu("屏幕舒适与专注")
+        more_menu = self._menu.addMenu("更多操作")
+        protection_menu = more_menu.addMenu("屏幕舒适与专注")
         self._filter_action = self._check_action(
             "色温调节", self.toggle_filter, protection_menu
         )
@@ -119,7 +153,7 @@ class TrayIcon(QSystemTrayIcon):
             self._profile_group.addAction(action)
             self._profile_actions[key] = action
 
-        self._break_control_menu = self._menu.addMenu("休息提醒")
+        self._break_control_menu = more_menu.addMenu("休息提醒")
         self._break_action = self._check_action(
             "启用休息提醒", self.toggle_break, self._break_control_menu
         )
@@ -141,7 +175,7 @@ class TrayIcon(QSystemTrayIcon):
             self._controller.resume_breaks_for_current_context
         )
 
-        companion_menu = self._menu.addMenu("伙伴")
+        companion_menu = more_menu.addMenu("伙伴")
         self._open_pet_bubble_action = companion_menu.addAction("打开伙伴气泡")
         self._open_pet_bubble_action.triggered.connect(self._show_pet_bubble)
         self._preview_pet_action = companion_menu.addAction("预览桌面伙伴")
@@ -149,8 +183,7 @@ class TrayIcon(QSystemTrayIcon):
         self._reset_pet_action = companion_menu.addAction("重置桌宠位置")
         self._reset_pet_action.triggered.connect(self._reset_pet_position)
 
-        self._menu.addSeparator()
-        settings_menu = self._menu.addMenu("设置与自动化")
+        settings_menu = more_menu.addMenu("设置与自动化")
         self._autostart_action = self._check_action(
             "开机自动启动", self._controller.set_autostart, settings_menu
         )
@@ -248,7 +281,7 @@ class TrayIcon(QSystemTrayIcon):
     def _on_activated(self, reason) -> None:
         if reason == QSystemTrayIcon.Trigger:
             if hasattr(self._panel, "toggle_visible"):
-                self._panel.toggle_visible()
+                self._show_panel()
             else:
                 self._show_panel()
         elif reason == QSystemTrayIcon.DoubleClick:
@@ -364,8 +397,12 @@ class TrayIcon(QSystemTrayIcon):
         with QSignalBlocker(self._autostart_action):
             self._autostart_action.setChecked(autostart)
         self._resume_all_action.setVisible(globally_paused)
+        self._pause_menu_action.setVisible(not globally_paused)
 
         presentation = StatusPresenter.project(state)
+        self._rest_now_action.setEnabled(presentation.can_start_rest)
+        self._status_action.setText(presentation.next_break_text)
+        self.apply_theme(getattr(QApplication.instance(), "theme_snapshot", None), paused=globally_paused)
         tooltip = (
             f"OpenCareEyes · {presentation.headline} · "
             f"{presentation.next_break_text}"

@@ -75,6 +75,10 @@ def completed_outfits(project_root: Path) -> dict:
             continue
         outfit_id = entry['outfit_id']
         outfit_root = pet_root / 'outfits' / outfit_id
+        if entry.get('motion_manifest') == 'motion.json':
+            definition = json.loads((outfit_root / 'motion.json').read_text(encoding='utf-8'))
+            outfits[outfit_id] = definition
+            continue
         required = (
             outfit_root / f'{outfit_id}_atlas_1.png',
             outfit_root / f'{outfit_id}_atlas_2.png',

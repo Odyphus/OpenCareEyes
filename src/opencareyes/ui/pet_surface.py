@@ -653,6 +653,11 @@ class PetSurface(QWidget):
     def _action(self, action_id: str):
         action = self._exact_action(action_id)
         if action is not None and action_id == 'look_cursor':
+            turn = self._exact_action(f'look_{self._gaze_direction}')
+            if turn is not None:
+                return _StableGazeAction(
+                    action_id='look_cursor', frames=tuple(turn.frames),
+                )
             frames = tuple(getattr(action, 'frames', ()))
             if frames:
                 requested = {'left': 0, 'center': 1, 'right': 2}[

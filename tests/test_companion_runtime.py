@@ -623,3 +623,69 @@ def test_missing_outfit_move_never_starts_window_motion(monkeypatch):
     assert runtime._autonomous_motion.state() == QAbstractAnimation.Stopped
     runtime.shutdown()
     surface.close()
+
+
+def _calm_runtime(qtbot):
+    from opencareyes.constants import PETS_DIR
+    companion = CompanionCoordinator(PetPackRegistry(PETS_DIR), 'snow_ferret')
+    controller = AppController(Settings(MemoryStore()), companion=companion)
+    surface = RuntimeSurface()
+    qtbot.addWidget(surface)
+    bubble = FakeBubble()
+    runtime = CompanionRuntime(controller, companion, surface, bubble,
+                               application=RuntimeApplication())
+    runtime.start()
+    return runtime, controller, companion, surface, bubble
+
+
+def test_manual_interaction_returns_to_focus_and_cannot_interrupt_rest(qtbot):
+    runtime, controller, companion, surface, bubble = _calm_runtime(qtbot)
+    controller._state = replace(controller.state, focus=replace(controller.state.focus, enabled=True))
+    runtime.sync_state(controller.state)
+    assert companion.state.behavior.event_kind == 'application.focus'
+    assert surface.action_id == 'read'
+    assert runtime.interact('item.play')
+    assert surface.action_id == 'play'
+    runtime._finish_pet_action('play')
+    assert surface.action_id == 'read'
+    bubble.is_rest_prompt_active = True
+    assert not runtime.interact('item.play')
+    bubble.is_rest_prompt_active = False
+    controller._state = replace(controller.state, breaks=replace(controller.state.breaks, phase='resting'))
+    runtime.sync_state(controller.state)
+    assert surface.action_id == 'sleep'
+    assert not runtime.interact('item.wave')
+    runtime.shutdown()
+
+
+def test_reduced_motion_manual_gesture_expires_without_stealing_new_rest(qtbot):
+    runtime, controller, companion, surface, bubble = _calm_runtime(qtbot)
+    runtime._application.motion_enabled = False
+    runtime.set_motion_reduced(True)
+    assert runtime.interact('item.play')
+    assert runtime._interaction_end.isActive()
+    runtime._finish_interaction()
+    assert companion.state.behavior.event_kind == 'autonomous.idle'
+    assert runtime.interact('item.wave')
+    controller._state = replace(controller.state, breaks=replace(controller.state.breaks, phase='resting'))
+    runtime.sync_state(controller.state)
+    runtime._finish_interaction()
+    assert companion.state.behavior.event_kind == 'rest.sleep'
+    runtime.shutdown()
+    assert not runtime._interaction_end.isActive()
+
+
+def test_looping_outfit_wave_ends_and_cursor_gaze_releases_when_cursor_leaves(qtbot):
+    runtime, controller, companion, surface, bubble = _calm_runtime(qtbot)
+    companion.set_outfit('snow_slope_skier')
+    assert runtime.interact('item.wave')
+    assert runtime._interaction_end.isActive()
+    runtime._finish_interaction()
+    assert companion.state.behavior.event_kind == 'autonomous.idle'
+    companion.dispatch_kind('cursor.near')
+    runtime._finish_pet_action('look_cursor')
+    assert companion.state.behavior.event_kind == 'cursor.near'
+    runtime._cursor_position = lambda: surface.geometry().center() + QPoint(500, 500)
+    runtime._probe_cursor()
+    assert companion.state.behavior.event_kind == 'autonomous.idle'
+    runtime.shutdown()

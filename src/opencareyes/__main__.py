@@ -293,6 +293,7 @@ def main() -> None:
         app.apply_motion_mode(state.general.motion_mode)
 
     def apply_window_theme(snapshot) -> None:
+        tray.apply_theme(snapshot)
         companion_runtime.apply_theme(snapshot)
         quick_tools.apply_theme(snapshot)
         for surface in (_break_overlay, _break_prompt):

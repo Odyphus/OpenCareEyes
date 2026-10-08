@@ -4,7 +4,7 @@
 
 **Windows 桌面陪伴与护眼助手**
 
-[![Version](https://img.shields.io/badge/version-0.9.0-5B8DEF.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.10.0b1-5B8DEF.svg)](CHANGELOG.md)
 [![Windows CI](https://github.com/Odyphus/OpenCareEyes/actions/workflows/windows-ci.yml/badge.svg)](https://github.com/Odyphus/OpenCareEyes/actions/workflows/windows-ci.yml)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
@@ -13,11 +13,21 @@
 
 </div>
 
-OpenCareEyes 以桌面宠物为日常入口：第一只官方伙伴白鼬“鼬鼬”会回应点击、拖动、光标靠近和休息到点。夜间色温、屏幕明暗、活动加权休息、专注与自动化作为“伙伴小屋”中的基础能力。v0.9.0 新增通用完整造型衣橱和 13 套各含 29 帧动作的官方造型。应用不需要账号，不包含遥测，核心功能离线工作。
+OpenCareEyes 以桌面宠物为日常入口：第一只官方伙伴白鼬“鼬鼬”会回应点击、拖动、光标靠近和休息到点。夜间色温、屏幕明暗、活动加权休息、专注与自动化作为“伙伴小屋”中的基础能力。当前体验升级版为 v0.10.0b1：休息场景保持低亮度，原版伙伴与蓝围巾造型采用更连贯的动作，保留全部 13 套衣橱造型。应用不需要账号，不包含遥测，核心功能离线工作。
 
 > 从 v0.2 起，`main` 是包含完整源码的规范分支。`master` 仅保留迁移提示，不再接收功能更新。
 
-## v0.9.0「百变衣橱」重点
+## v0.10.0b1 体验升级（未发布测试版）
+
+- 休息提醒使用深青、暮蓝、苔绿、灰紫四种柔和场景；520 ms 渐入，减少动画时立即显示。亮色主界面也不会弹出大面积纯白提醒。
+- 首页、伙伴、屏幕与休息、设置四个入口；专注和自动日程分别收进相应页面，旧入口继续可用。
+- 白鼬采用分层角色与固定锚点制作眨眼、步态、抚摸、玩球、伸懒腰和转头动作；专注时安静读书。蓝围巾造型同步升级。
+- 伙伴气泡新增“互动”，托盘收起低频选项，应用和托盘使用独立设计的矢量图标。
+- 资源按动作解码，首次切换保留上一帧；隐藏和减少动画遵循原有节能与免打扰规则。
+
+上述版本尚未上传 GitHub Release；顶部下载链接仍指向已发布的稳定版。详情见 [体验升级说明](docs/experience-upgrade.md)。
+
+## v0.9.0「百变衣橱」历史重点
 
 - **完整造型衣橱**：卡片图库直观展示全部整套造型，双击即可穿戴；加载或设置失败时保持原造型。
 - **13 套完整造型**：雪坡滑雪客、噜噜小鼬、焦糖甜点师、雷系小巫师、银霜剑士、林间探长、圣诞小鼬、甜筒贩卖员、海滩度假鼬、蓝围巾小鼬、蓝围奔雪，以及原版鼬鼬的圆镜酷鼬和星光墨镜鼬。
@@ -46,7 +56,17 @@ v0.9.0 同时只运行一只随软件发布的官方宠物；不提供第三方�
 |---|---|---|
 | ![圆镜酷鼬造型预览](assets/pets/snow_ferret/outfits/round_shades/preview.png) | ![星光墨镜鼬造型预览](assets/pets/snow_ferret/outfits/star_shades/preview.png) | ![林间探长造型预览](assets/pets/snow_ferret/outfits/forest_detective/preview.png) |
 
-### v0.6 伙伴小屋
+### v0.10 体验升级
+
+| 首页（暗色） | 温和休息场景 |
+|---|---|
+| ![v0.10 首页](docs/images/v0.10/home-dark.png) | ![v0.10 休息](docs/images/v0.10/rest-gaze.png) |
+
+![连续步态预览](docs/images/v0.10/walk.gif)
+
+以上为真实 Qt 组件的离屏截图与实际随包动作，界面数据为演示数据。
+
+### v0.6 伙伴小屋（历史）
 
 | 亮色 | 暗色 |
 |---|---|

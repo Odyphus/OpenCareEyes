@@ -25,6 +25,39 @@ WARM_ACCENT = "#F2A65A"
 DEFAULT_PET_ACCENT = "#65BFA5"
 
 
+def rest_palette(snapshot=None, scene: str = "gaze") -> dict[str, str]:
+    """Rest is a low-luminance surface in both app themes; OS contrast wins."""
+
+    if bool(getattr(snapshot, "high_contrast", False)):
+        from PySide6.QtGui import QPalette
+        from PySide6.QtWidgets import QApplication
+
+        palette = QApplication.palette()
+        window = palette.color(QPalette.Window).name()
+        text = palette.color(QPalette.WindowText).name()
+        return {
+            "background": window, "card": window, "prominent": window,
+            "title": text, "text": text, "muted": text,
+            "button": palette.color(QPalette.Button).name(),
+            "button_text": palette.color(QPalette.ButtonText).name(),
+            "border": text, "focus": palette.color(QPalette.Highlight).name(),
+            "primary": palette.color(QPalette.Highlight).name(),
+            "primary_text": palette.color(QPalette.HighlightedText).name(),
+            "accent": text, "shadow": palette.color(QPalette.Shadow).name(),
+        }
+    background = {
+        "gaze": "#17242C", "snow_breathing": "#1D2B35",
+        "stretch": "#24332D", "sleep": "#282632",
+    }.get(scene, "#17242C")
+    return {
+        "background": background, "card": background, "prominent": "#23373D",
+        "title": "#E6EEE9", "text": "#CCDAD5", "muted": "#B6C7C4",
+        "button": "#2B3E43", "button_text": "#E6EEE9", "border": "#526B70",
+        "focus": "#AAD3C3", "primary": "#AAD3C3", "primary_text": "#17352C",
+        "accent": "#AAD3C3", "shadow": "#0C151B",
+    }
+
+
 def system_theme() -> ResolvedTheme:
     """Return the operating-system colour preference with a safe fallback."""
 
@@ -35,6 +68,24 @@ def system_theme() -> ResolvedTheme:
     except Exception:
         log.debug("Could not read the system colour preference", exc_info=True)
         return "dark"
+
+
+def taskbar_theme() -> ResolvedTheme:
+    """Windows can use a dark taskbar with light applications (and vice versa)."""
+
+    if os.name == "nt":
+        try:
+            import winreg
+
+            with winreg.OpenKey(
+                winreg.HKEY_CURRENT_USER,
+                r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize",
+            ) as key:
+                value, _kind = winreg.QueryValueEx(key, "SystemUsesLightTheme")
+                return "light" if value else "dark"
+        except OSError:
+            pass
+    return system_theme()
 
 
 def client_area_animations_enabled() -> bool:
@@ -128,6 +179,7 @@ class ThemeSnapshot:
     brand_accent: str = BRAND_ACCENT
     warm_accent: str = WARM_ACCENT
     pet_accent: str = DEFAULT_PET_ACCENT
+    taskbar_resolved: ResolvedTheme = "dark"
 
 
 class ThemeManager(QObject):
@@ -142,6 +194,7 @@ class ThemeManager(QObject):
         high_contrast_detector: Callable[[], bool] = high_contrast_enabled,
         animation_detector: Callable[[], bool] = client_area_animations_enabled,
         battery_saver_detector: Callable[[], bool] = battery_saver_enabled,
+        taskbar_detector: Callable[[], str] = taskbar_theme,
         parent: QObject | None = None,
     ) -> None:
         super().__init__(parent)
@@ -149,6 +202,7 @@ class ThemeManager(QObject):
         self._high_contrast_detector = high_contrast_detector
         self._animation_detector = animation_detector
         self._battery_saver_detector = battery_saver_detector
+        self._taskbar_detector = taskbar_detector
         self._requested: ThemeRequest = "system"
         self._motion_mode: MotionMode = "system"
         self._pet_accent = DEFAULT_PET_ACCENT
@@ -214,6 +268,7 @@ class ThemeManager(QObject):
             high_contrast=bool(self._high_contrast_detector()),
             motion_profile=motion_profile,
             pet_accent=self._pet_accent,
+            taskbar_resolved="light" if self._taskbar_detector() == "light" else "dark",
         )
 
 

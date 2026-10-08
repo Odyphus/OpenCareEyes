@@ -2,7 +2,7 @@
   "schema_version": 3,
   "pet_id": "snow_ferret",
   "display_name": "鼬鼬",
-  "pack_version": "3.0.0",
+  "pack_version": "3.1.0",
   "min_app_version": "0.8.0b1",
   "author": "OpenCareEyes Contributors",
   "license": "Apache-2.0",
@@ -32,8 +32,8 @@
       "loop": true,
       "frames": [
         {
-          "path": "sprites/ferret_atlas_2x.png",
-          "duration_ms": 1800,
+          "path": "sprites/calm_idle.png",
+          "duration_ms": 2600,
           "source_rect": [
             0,
             0,
@@ -42,8 +42,8 @@
           ]
         },
         {
-          "path": "sprites/ferret_atlas_2x.png",
-          "duration_ms": 160,
+          "path": "sprites/calm_idle.png",
+          "duration_ms": 80,
           "source_rect": [
             384,
             0,
@@ -52,20 +52,70 @@
           ]
         },
         {
-          "path": "sprites/ferret_atlas_2x.png",
-          "duration_ms": 2100,
-          "source_rect": [
-            0,
-            0,
-            384,
-            384
-          ]
-        },
-        {
-          "path": "sprites/ferret_atlas_2x.png",
-          "duration_ms": 700,
+          "path": "sprites/calm_idle.png",
+          "duration_ms": 65,
           "source_rect": [
             768,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_idle.png",
+          "duration_ms": 80,
+          "source_rect": [
+            384,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_idle.png",
+          "duration_ms": 2400,
+          "source_rect": [
+            0,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_idle.png",
+          "duration_ms": 80,
+          "source_rect": [
+            384,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_idle.png",
+          "duration_ms": 65,
+          "source_rect": [
+            768,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_idle.png",
+          "duration_ms": 80,
+          "source_rect": [
+            384,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_idle.png",
+          "duration_ms": 1400,
+          "source_rect": [
+            0,
             0,
             384,
             384
@@ -77,11 +127,11 @@
       "loop": true,
       "frames": [
         {
-          "path": "sprites/ferret_atlas_2x.png",
-          "duration_ms": 1600,
+          "path": "sprites/calm_sleep.png",
+          "duration_ms": 5000,
           "source_rect": [
-            768,
-            768,
+            0,
+            0,
             384,
             384
           ]
@@ -92,8 +142,58 @@
       "loop": true,
       "frames": [
         {
-          "path": "sprites/ferret_atlas_2x.png",
-          "duration_ms": 240,
+          "path": "sprites/calm_move.png",
+          "duration_ms": 60,
+          "source_rect": [
+            0,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_move.png",
+          "duration_ms": 60,
+          "source_rect": [
+            384,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_move.png",
+          "duration_ms": 60,
+          "source_rect": [
+            768,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_move.png",
+          "duration_ms": 60,
+          "source_rect": [
+            1152,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_move.png",
+          "duration_ms": 60,
+          "source_rect": [
+            1536,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_move.png",
+          "duration_ms": 60,
           "source_rect": [
             0,
             384,
@@ -102,22 +202,78 @@
           ]
         },
         {
-          "path": "sprites/ferret_atlas_2x.png",
-          "duration_ms": 240,
+          "path": "sprites/calm_move.png",
+          "duration_ms": 60,
           "source_rect": [
             384,
             384,
             384,
             384
           ]
-        }
-      ]
-    },
-    "click_reaction": {
-      "frames": [
+        },
         {
-          "path": "sprites/ferret_atlas_2x.png",
-          "duration_ms": 320,
+          "path": "sprites/calm_move.png",
+          "duration_ms": 60,
+          "source_rect": [
+            768,
+            384,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_move.png",
+          "duration_ms": 60,
+          "source_rect": [
+            1152,
+            384,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_move.png",
+          "duration_ms": 60,
+          "source_rect": [
+            1536,
+            384,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_move.png",
+          "duration_ms": 60,
+          "source_rect": [
+            0,
+            768,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_move.png",
+          "duration_ms": 60,
+          "source_rect": [
+            384,
+            768,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_move.png",
+          "duration_ms": 60,
+          "source_rect": [
+            768,
+            768,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_move.png",
+          "duration_ms": 60,
           "source_rect": [
             1152,
             768,
@@ -126,18 +282,173 @@
           ]
         },
         {
-          "path": "sprites/ferret_atlas_2x.png",
-          "duration_ms": 260,
+          "path": "sprites/calm_move.png",
+          "duration_ms": 60,
+          "source_rect": [
+            1536,
+            768,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_move.png",
+          "duration_ms": 60,
+          "source_rect": [
+            0,
+            1152,
+            384,
+            384
+          ]
+        }
+      ]
+    },
+    "click_reaction": {
+      "loop": false,
+      "frames": [
+        {
+          "path": "sprites/calm_click_reaction.png",
+          "duration_ms": 60,
+          "source_rect": [
+            0,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_click_reaction.png",
+          "duration_ms": 60,
+          "source_rect": [
+            384,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_click_reaction.png",
+          "duration_ms": 60,
+          "source_rect": [
+            768,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_click_reaction.png",
+          "duration_ms": 60,
           "source_rect": [
             1152,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_click_reaction.png",
+          "duration_ms": 60,
+          "source_rect": [
+            1536,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_click_reaction.png",
+          "duration_ms": 60,
+          "source_rect": [
+            0,
             384,
             384,
             384
           ]
         },
         {
-          "path": "sprites/ferret_atlas_2x.png",
-          "duration_ms": 160,
+          "path": "sprites/calm_click_reaction.png",
+          "duration_ms": 60,
+          "source_rect": [
+            384,
+            384,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_click_reaction.png",
+          "duration_ms": 60,
+          "source_rect": [
+            768,
+            384,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_click_reaction.png",
+          "duration_ms": 60,
+          "source_rect": [
+            384,
+            384,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_click_reaction.png",
+          "duration_ms": 60,
+          "source_rect": [
+            0,
+            384,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_click_reaction.png",
+          "duration_ms": 60,
+          "source_rect": [
+            1536,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_click_reaction.png",
+          "duration_ms": 60,
+          "source_rect": [
+            1152,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_click_reaction.png",
+          "duration_ms": 60,
+          "source_rect": [
+            768,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_click_reaction.png",
+          "duration_ms": 60,
+          "source_rect": [
+            384,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_click_reaction.png",
+          "duration_ms": 60,
           "source_rect": [
             0,
             0,
@@ -151,11 +462,121 @@
       "loop": true,
       "frames": [
         {
-          "path": "sprites/ferret_atlas_2x.png",
-          "duration_ms": 420,
+          "path": "sprites/calm_drag_hold.png",
+          "duration_ms": 80,
           "source_rect": [
             0,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_drag_hold.png",
+          "duration_ms": 80,
+          "source_rect": [
+            384,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_drag_hold.png",
+          "duration_ms": 80,
+          "source_rect": [
+            768,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_drag_hold.png",
+          "duration_ms": 80,
+          "source_rect": [
             1152,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_drag_hold.png",
+          "duration_ms": 80,
+          "source_rect": [
+            768,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_drag_hold.png",
+          "duration_ms": 80,
+          "source_rect": [
+            384,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_drag_hold.png",
+          "duration_ms": 80,
+          "source_rect": [
+            0,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_drag_hold.png",
+          "duration_ms": 80,
+          "source_rect": [
+            1536,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_drag_hold.png",
+          "duration_ms": 80,
+          "source_rect": [
+            0,
+            384,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_drag_hold.png",
+          "duration_ms": 80,
+          "source_rect": [
+            384,
+            384,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_drag_hold.png",
+          "duration_ms": 80,
+          "source_rect": [
+            0,
+            384,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_drag_hold.png",
+          "duration_ms": 80,
+          "source_rect": [
+            1536,
+            0,
             384,
             384
           ]
@@ -163,20 +584,131 @@
       ]
     },
     "drag_release": {
+      "loop": false,
       "frames": [
         {
-          "path": "sprites/ferret_atlas_2x.png",
-          "duration_ms": 650,
+          "path": "sprites/calm_drag_release.png",
+          "duration_ms": 60,
           "source_rect": [
-            384,
-            1152,
+            0,
+            0,
             384,
             384
           ]
         },
         {
-          "path": "sprites/ferret_atlas_2x.png",
-          "duration_ms": 180,
+          "path": "sprites/calm_drag_release.png",
+          "duration_ms": 60,
+          "source_rect": [
+            384,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_drag_release.png",
+          "duration_ms": 60,
+          "source_rect": [
+            768,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_drag_release.png",
+          "duration_ms": 60,
+          "source_rect": [
+            1152,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_drag_release.png",
+          "duration_ms": 60,
+          "source_rect": [
+            1536,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_drag_release.png",
+          "duration_ms": 60,
+          "source_rect": [
+            0,
+            384,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_drag_release.png",
+          "duration_ms": 60,
+          "source_rect": [
+            384,
+            384,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_drag_release.png",
+          "duration_ms": 60,
+          "source_rect": [
+            768,
+            384,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_drag_release.png",
+          "duration_ms": 60,
+          "source_rect": [
+            1152,
+            384,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_drag_release.png",
+          "duration_ms": 60,
+          "source_rect": [
+            1536,
+            384,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_drag_release.png",
+          "duration_ms": 60,
+          "source_rect": [
+            0,
+            768,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_drag_release.png",
+          "duration_ms": 60,
+          "source_rect": [
+            384,
+            768,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_drag_release.png",
+          "duration_ms": 60,
           "source_rect": [
             0,
             0,
@@ -187,20 +719,151 @@
       ]
     },
     "right_click_reaction": {
+      "loop": false,
       "frames": [
         {
-          "path": "sprites/ferret_atlas_2x.png",
-          "duration_ms": 1100,
+          "path": "sprites/calm_right_click_reaction.png",
+          "duration_ms": 60,
           "source_rect": [
-            768,
-            1152,
+            0,
+            0,
             384,
             384
           ]
         },
         {
-          "path": "sprites/ferret_atlas_2x.png",
-          "duration_ms": 180,
+          "path": "sprites/calm_right_click_reaction.png",
+          "duration_ms": 60,
+          "source_rect": [
+            384,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_right_click_reaction.png",
+          "duration_ms": 60,
+          "source_rect": [
+            768,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_right_click_reaction.png",
+          "duration_ms": 60,
+          "source_rect": [
+            1152,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_right_click_reaction.png",
+          "duration_ms": 60,
+          "source_rect": [
+            1536,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_right_click_reaction.png",
+          "duration_ms": 60,
+          "source_rect": [
+            0,
+            384,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_right_click_reaction.png",
+          "duration_ms": 60,
+          "source_rect": [
+            384,
+            384,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_right_click_reaction.png",
+          "duration_ms": 60,
+          "source_rect": [
+            768,
+            384,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_right_click_reaction.png",
+          "duration_ms": 60,
+          "source_rect": [
+            384,
+            384,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_right_click_reaction.png",
+          "duration_ms": 60,
+          "source_rect": [
+            0,
+            384,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_right_click_reaction.png",
+          "duration_ms": 60,
+          "source_rect": [
+            1536,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_right_click_reaction.png",
+          "duration_ms": 60,
+          "source_rect": [
+            1152,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_right_click_reaction.png",
+          "duration_ms": 60,
+          "source_rect": [
+            768,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_right_click_reaction.png",
+          "duration_ms": 60,
+          "source_rect": [
+            384,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_right_click_reaction.png",
+          "duration_ms": 60,
           "source_rect": [
             0,
             0,
@@ -211,10 +874,81 @@
       ]
     },
     "rest_prompt": {
+      "loop": false,
       "frames": [
         {
-          "path": "sprites/ferret_atlas_2x.png",
-          "duration_ms": 420,
+          "path": "sprites/calm_rest_prompt.png",
+          "duration_ms": 60,
+          "source_rect": [
+            0,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_rest_prompt.png",
+          "duration_ms": 60,
+          "source_rect": [
+            384,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_rest_prompt.png",
+          "duration_ms": 60,
+          "source_rect": [
+            768,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_rest_prompt.png",
+          "duration_ms": 60,
+          "source_rect": [
+            1152,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_rest_prompt.png",
+          "duration_ms": 60,
+          "source_rect": [
+            1536,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_rest_prompt.png",
+          "duration_ms": 60,
+          "source_rect": [
+            0,
+            384,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_rest_prompt.png",
+          "duration_ms": 60,
+          "source_rect": [
+            384,
+            384,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_rest_prompt.png",
+          "duration_ms": 60,
           "source_rect": [
             768,
             384,
@@ -223,18 +957,88 @@
           ]
         },
         {
-          "path": "sprites/ferret_atlas_2x.png",
-          "duration_ms": 1100,
+          "path": "sprites/calm_rest_prompt.png",
+          "duration_ms": 60,
           "source_rect": [
             1152,
-            1152,
+            384,
             384,
             384
           ]
         },
         {
-          "path": "sprites/ferret_atlas_2x.png",
-          "duration_ms": 180,
+          "path": "sprites/calm_rest_prompt.png",
+          "duration_ms": 60,
+          "source_rect": [
+            768,
+            384,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_rest_prompt.png",
+          "duration_ms": 60,
+          "source_rect": [
+            384,
+            384,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_rest_prompt.png",
+          "duration_ms": 60,
+          "source_rect": [
+            0,
+            384,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_rest_prompt.png",
+          "duration_ms": 60,
+          "source_rect": [
+            1536,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_rest_prompt.png",
+          "duration_ms": 60,
+          "source_rect": [
+            1152,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_rest_prompt.png",
+          "duration_ms": 60,
+          "source_rect": [
+            768,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_rest_prompt.png",
+          "duration_ms": 60,
+          "source_rect": [
+            384,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_rest_prompt.png",
+          "duration_ms": 60,
           "source_rect": [
             0,
             0,
@@ -245,10 +1049,91 @@
       ]
     },
     "play": {
+      "loop": false,
       "frames": [
         {
-          "path": "sprites/ferret_atlas_2x.png",
-          "duration_ms": 280,
+          "path": "sprites/calm_play.png",
+          "duration_ms": 60,
+          "source_rect": [
+            0,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_play.png",
+          "duration_ms": 60,
+          "source_rect": [
+            384,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_play.png",
+          "duration_ms": 60,
+          "source_rect": [
+            768,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_play.png",
+          "duration_ms": 60,
+          "source_rect": [
+            1152,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_play.png",
+          "duration_ms": 60,
+          "source_rect": [
+            1536,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_play.png",
+          "duration_ms": 60,
+          "source_rect": [
+            0,
+            384,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_play.png",
+          "duration_ms": 60,
+          "source_rect": [
+            384,
+            384,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_play.png",
+          "duration_ms": 60,
+          "source_rect": [
+            768,
+            384,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_play.png",
+          "duration_ms": 60,
           "source_rect": [
             1152,
             384,
@@ -257,8 +1142,18 @@
           ]
         },
         {
-          "path": "sprites/ferret_atlas_2x.png",
-          "duration_ms": 420,
+          "path": "sprites/calm_play.png",
+          "duration_ms": 60,
+          "source_rect": [
+            1536,
+            384,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_play.png",
+          "duration_ms": 60,
           "source_rect": [
             0,
             768,
@@ -267,8 +1162,8 @@
           ]
         },
         {
-          "path": "sprites/ferret_atlas_2x.png",
-          "duration_ms": 520,
+          "path": "sprites/calm_play.png",
+          "duration_ms": 60,
           "source_rect": [
             384,
             768,
@@ -277,8 +1172,88 @@
           ]
         },
         {
-          "path": "sprites/ferret_atlas_2x.png",
-          "duration_ms": 180,
+          "path": "sprites/calm_play.png",
+          "duration_ms": 60,
+          "source_rect": [
+            768,
+            768,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_play.png",
+          "duration_ms": 60,
+          "source_rect": [
+            1152,
+            768,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_play.png",
+          "duration_ms": 60,
+          "source_rect": [
+            1536,
+            768,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_play.png",
+          "duration_ms": 60,
+          "source_rect": [
+            0,
+            1152,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_play.png",
+          "duration_ms": 60,
+          "source_rect": [
+            384,
+            1152,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_play.png",
+          "duration_ms": 60,
+          "source_rect": [
+            768,
+            1152,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_play.png",
+          "duration_ms": 60,
+          "source_rect": [
+            1152,
+            1152,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_play.png",
+          "duration_ms": 60,
+          "source_rect": [
+            1536,
+            1152,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_play.png",
+          "duration_ms": 60,
           "source_rect": [
             0,
             0,
@@ -289,10 +1264,41 @@
       ]
     },
     "yawn": {
+      "loop": false,
       "frames": [
         {
-          "path": "sprites/ferret_atlas_2x.png",
-          "duration_ms": 950,
+          "path": "sprites/calm_yawn.png",
+          "duration_ms": 80,
+          "source_rect": [
+            0,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_yawn.png",
+          "duration_ms": 80,
+          "source_rect": [
+            384,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_yawn.png",
+          "duration_ms": 80,
+          "source_rect": [
+            768,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_yawn.png",
+          "duration_ms": 80,
           "source_rect": [
             1152,
             0,
@@ -301,8 +1307,148 @@
           ]
         },
         {
-          "path": "sprites/ferret_atlas_2x.png",
-          "duration_ms": 180,
+          "path": "sprites/calm_yawn.png",
+          "duration_ms": 80,
+          "source_rect": [
+            1536,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_yawn.png",
+          "duration_ms": 80,
+          "source_rect": [
+            0,
+            384,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_yawn.png",
+          "duration_ms": 80,
+          "source_rect": [
+            384,
+            384,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_yawn.png",
+          "duration_ms": 80,
+          "source_rect": [
+            768,
+            384,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_yawn.png",
+          "duration_ms": 80,
+          "source_rect": [
+            1152,
+            384,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_yawn.png",
+          "duration_ms": 80,
+          "source_rect": [
+            1536,
+            384,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_yawn.png",
+          "duration_ms": 80,
+          "source_rect": [
+            1152,
+            384,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_yawn.png",
+          "duration_ms": 80,
+          "source_rect": [
+            768,
+            384,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_yawn.png",
+          "duration_ms": 80,
+          "source_rect": [
+            384,
+            384,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_yawn.png",
+          "duration_ms": 80,
+          "source_rect": [
+            0,
+            384,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_yawn.png",
+          "duration_ms": 80,
+          "source_rect": [
+            1536,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_yawn.png",
+          "duration_ms": 80,
+          "source_rect": [
+            1152,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_yawn.png",
+          "duration_ms": 80,
+          "source_rect": [
+            768,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_yawn.png",
+          "duration_ms": 80,
+          "source_rect": [
+            384,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_yawn.png",
+          "duration_ms": 80,
           "source_rect": [
             0,
             0,
@@ -337,10 +1483,66 @@
       ]
     },
     "look_cursor": {
+      "loop": false,
       "frames": [
         {
-          "path": "sprites/ferret_atlas_2x.png",
-          "duration_ms": 620,
+          "path": "sprites/calm_look_cursor.png",
+          "duration_ms": 600,
+          "source_rect": [
+            0,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_look_cursor.png",
+          "duration_ms": 600,
+          "source_rect": [
+            384,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_look_cursor.png",
+          "duration_ms": 600,
+          "source_rect": [
+            768,
+            0,
+            384,
+            384
+          ]
+        }
+      ]
+    },
+    "look_left": {
+      "loop": false,
+      "frames": [
+        {
+          "path": "sprites/calm_look_left.png",
+          "duration_ms": 60,
+          "source_rect": [
+            0,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_look_left.png",
+          "duration_ms": 60,
+          "source_rect": [
+            384,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_look_left.png",
+          "duration_ms": 60,
           "source_rect": [
             768,
             0,
@@ -349,8 +1551,203 @@
           ]
         },
         {
-          "path": "sprites/ferret_atlas_2x.png",
-          "duration_ms": 180,
+          "path": "sprites/calm_look_left.png",
+          "duration_ms": 60,
+          "source_rect": [
+            1152,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_look_left.png",
+          "duration_ms": 60,
+          "source_rect": [
+            1536,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_look_left.png",
+          "duration_ms": 60,
+          "source_rect": [
+            0,
+            384,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_look_left.png",
+          "duration_ms": 60,
+          "source_rect": [
+            384,
+            384,
+            384,
+            384
+          ]
+        }
+      ]
+    },
+    "look_center": {
+      "loop": false,
+      "frames": [
+        {
+          "path": "sprites/calm_look_center.png",
+          "duration_ms": 60,
+          "source_rect": [
+            0,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_look_center.png",
+          "duration_ms": 60,
+          "source_rect": [
+            0,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_look_center.png",
+          "duration_ms": 60,
+          "source_rect": [
+            0,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_look_center.png",
+          "duration_ms": 60,
+          "source_rect": [
+            0,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_look_center.png",
+          "duration_ms": 60,
+          "source_rect": [
+            0,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_look_center.png",
+          "duration_ms": 60,
+          "source_rect": [
+            0,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_look_center.png",
+          "duration_ms": 60,
+          "source_rect": [
+            0,
+            0,
+            384,
+            384
+          ]
+        }
+      ]
+    },
+    "look_right": {
+      "loop": false,
+      "frames": [
+        {
+          "path": "sprites/calm_look_right.png",
+          "duration_ms": 60,
+          "source_rect": [
+            0,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_look_right.png",
+          "duration_ms": 60,
+          "source_rect": [
+            384,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_look_right.png",
+          "duration_ms": 60,
+          "source_rect": [
+            768,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_look_right.png",
+          "duration_ms": 60,
+          "source_rect": [
+            1152,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_look_right.png",
+          "duration_ms": 60,
+          "source_rect": [
+            1536,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_look_right.png",
+          "duration_ms": 60,
+          "source_rect": [
+            0,
+            384,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "sprites/calm_look_right.png",
+          "duration_ms": 60,
+          "source_rect": [
+            384,
+            384,
+            384,
+            384
+          ]
+        }
+      ]
+    },
+    "read": {
+      "loop": true,
+      "frames": [
+        {
+          "path": "sprites/calm_read.png",
+          "duration_ms": 5000,
           "source_rect": [
             0,
             0,
@@ -376,7 +1773,11 @@
     "autonomous.idle": "idle",
     "autonomous.move": "move",
     "autonomous.play": "play",
-    "autonomous.sleep": "sleep"
+    "autonomous.sleep": "sleep",
+    "application.focus": "read",
+    "item.play": "play",
+    "item.stretch": "yawn",
+    "item.wave": "rest_prompt"
   },
   "attachment_points": {
     "headwear": [
@@ -3504,15 +4905,16 @@
     },
     "navy_scarf": {
       "display_name": "蓝围巾小鼬",
-      "description": "藏蓝厚大衣与米白围巾组成的安静落雪造型。",
+      "description": "柔软的暮蓝围巾，陪你读书，也陪你休息。采用同一分层角色制作连贯动作。",
       "thumbnail_path": "outfits/navy_scarf/thumbnail.png",
       "preview_path": "outfits/navy_scarf/preview.png",
       "actions": {
         "idle": {
+          "loop": true,
           "frames": [
             {
-              "path": "outfits/navy_scarf/navy_scarf_atlas_1.png",
-              "duration_ms": 900,
+              "path": "outfits/navy_scarf/motion_1.png",
+              "duration_ms": 3000,
               "source_rect": [
                 0,
                 0,
@@ -3521,8 +4923,8 @@
               ]
             },
             {
-              "path": "outfits/navy_scarf/navy_scarf_atlas_1.png",
-              "duration_ms": 180,
+              "path": "outfits/navy_scarf/motion_1.png",
+              "duration_ms": 80,
               "source_rect": [
                 384,
                 0,
@@ -3531,58 +4933,58 @@
               ]
             },
             {
-              "path": "outfits/navy_scarf/navy_scarf_atlas_1.png",
-              "duration_ms": 1100,
+              "path": "outfits/navy_scarf/motion_1.png",
+              "duration_ms": 65,
               "source_rect": [
                 768,
                 0,
                 384,
                 384
               ]
+            },
+            {
+              "path": "outfits/navy_scarf/motion_1.png",
+              "duration_ms": 80,
+              "source_rect": [
+                1152,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/navy_scarf/motion_1.png",
+              "duration_ms": 2400,
+              "source_rect": [
+                0,
+                384,
+                384,
+                384
+              ]
             }
-          ],
-          "loop": true
+          ]
         },
         "sleep": {
+          "loop": true,
           "frames": [
             {
-              "path": "outfits/navy_scarf/navy_scarf_atlas_1.png",
-              "duration_ms": 1250,
+              "path": "outfits/navy_scarf/motion_1.png",
+              "duration_ms": 5000,
               "source_rect": [
-                1152,
-                0,
                 384,
-                384
-              ]
-            },
-            {
-              "path": "outfits/navy_scarf/navy_scarf_atlas_1.png",
-              "duration_ms": 1250,
-              "source_rect": [
-                0,
                 384,
                 384,
                 384
               ]
             }
-          ],
-          "loop": true
+          ]
         },
         "move": {
+          "loop": true,
           "frames": [
             {
-              "path": "outfits/navy_scarf/navy_scarf_atlas_1.png",
-              "duration_ms": 180,
-              "source_rect": [
-                384,
-                384,
-                384,
-                384
-              ]
-            },
-            {
-              "path": "outfits/navy_scarf/navy_scarf_atlas_1.png",
-              "duration_ms": 180,
+              "path": "outfits/navy_scarf/motion_1.png",
+              "duration_ms": 80,
               "source_rect": [
                 768,
                 384,
@@ -3591,8 +4993,8 @@
               ]
             },
             {
-              "path": "outfits/navy_scarf/navy_scarf_atlas_1.png",
-              "duration_ms": 180,
+              "path": "outfits/navy_scarf/motion_1.png",
+              "duration_ms": 80,
               "source_rect": [
                 1152,
                 384,
@@ -3601,23 +5003,18 @@
               ]
             },
             {
-              "path": "outfits/navy_scarf/navy_scarf_atlas_1.png",
-              "duration_ms": 180,
+              "path": "outfits/navy_scarf/motion_1.png",
+              "duration_ms": 80,
               "source_rect": [
                 0,
                 768,
                 384,
                 384
               ]
-            }
-          ],
-          "loop": true
-        },
-        "click_reaction": {
-          "frames": [
+            },
             {
-              "path": "outfits/navy_scarf/navy_scarf_atlas_1.png",
-              "duration_ms": 160,
+              "path": "outfits/navy_scarf/motion_1.png",
+              "duration_ms": 80,
               "source_rect": [
                 384,
                 768,
@@ -3626,8 +5023,8 @@
               ]
             },
             {
-              "path": "outfits/navy_scarf/navy_scarf_atlas_1.png",
-              "duration_ms": 160,
+              "path": "outfits/navy_scarf/motion_1.png",
+              "duration_ms": 80,
               "source_rect": [
                 768,
                 768,
@@ -3636,10 +5033,145 @@
               ]
             },
             {
-              "path": "outfits/navy_scarf/navy_scarf_atlas_1.png",
-              "duration_ms": 300,
+              "path": "outfits/navy_scarf/motion_1.png",
+              "duration_ms": 80,
               "source_rect": [
                 1152,
+                768,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/navy_scarf/motion_1.png",
+              "duration_ms": 80,
+              "source_rect": [
+                0,
+                1152,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/navy_scarf/motion_1.png",
+              "duration_ms": 80,
+              "source_rect": [
+                384,
+                1152,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/navy_scarf/motion_1.png",
+              "duration_ms": 80,
+              "source_rect": [
+                768,
+                1152,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/navy_scarf/motion_1.png",
+              "duration_ms": 80,
+              "source_rect": [
+                1152,
+                1152,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/navy_scarf/motion_2.png",
+              "duration_ms": 80,
+              "source_rect": [
+                0,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/navy_scarf/motion_2.png",
+              "duration_ms": 80,
+              "source_rect": [
+                384,
+                0,
+                384,
+                384
+              ]
+            }
+          ]
+        },
+        "click_reaction": {
+          "loop": false,
+          "frames": [
+            {
+              "path": "outfits/navy_scarf/motion_2.png",
+              "duration_ms": 100,
+              "source_rect": [
+                768,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/navy_scarf/motion_2.png",
+              "duration_ms": 100,
+              "source_rect": [
+                1152,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/navy_scarf/motion_2.png",
+              "duration_ms": 100,
+              "source_rect": [
+                0,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/navy_scarf/motion_2.png",
+              "duration_ms": 100,
+              "source_rect": [
+                384,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/navy_scarf/motion_2.png",
+              "duration_ms": 100,
+              "source_rect": [
+                768,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/navy_scarf/motion_2.png",
+              "duration_ms": 100,
+              "source_rect": [
+                1152,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/navy_scarf/motion_2.png",
+              "duration_ms": 100,
+              "source_rect": [
+                0,
                 768,
                 384,
                 384
@@ -3648,25 +5180,56 @@
           ]
         },
         "drag_hold": {
+          "loop": true,
           "frames": [
             {
-              "path": "outfits/navy_scarf/navy_scarf_atlas_1.png",
-              "duration_ms": 500,
+              "path": "outfits/navy_scarf/motion_2.png",
+              "duration_ms": 800,
+              "source_rect": [
+                384,
+                768,
+                384,
+                384
+              ]
+            }
+          ]
+        },
+        "drag_release": {
+          "loop": false,
+          "frames": [
+            {
+              "path": "outfits/navy_scarf/motion_2.png",
+              "duration_ms": 80,
+              "source_rect": [
+                768,
+                768,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/navy_scarf/motion_2.png",
+              "duration_ms": 80,
+              "source_rect": [
+                1152,
+                768,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/navy_scarf/motion_2.png",
+              "duration_ms": 80,
               "source_rect": [
                 0,
                 1152,
                 384,
                 384
               ]
-            }
-          ],
-          "loop": true
-        },
-        "drag_release": {
-          "frames": [
+            },
             {
-              "path": "outfits/navy_scarf/navy_scarf_atlas_1.png",
-              "duration_ms": 180,
+              "path": "outfits/navy_scarf/motion_2.png",
+              "duration_ms": 80,
               "source_rect": [
                 384,
                 1152,
@@ -3675,8 +5238,8 @@
               ]
             },
             {
-              "path": "outfits/navy_scarf/navy_scarf_atlas_1.png",
-              "duration_ms": 240,
+              "path": "outfits/navy_scarf/motion_2.png",
+              "duration_ms": 80,
               "source_rect": [
                 768,
                 1152,
@@ -3685,11 +5248,21 @@
               ]
             },
             {
-              "path": "outfits/navy_scarf/navy_scarf_atlas_1.png",
-              "duration_ms": 520,
+              "path": "outfits/navy_scarf/motion_2.png",
+              "duration_ms": 80,
               "source_rect": [
                 1152,
                 1152,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/navy_scarf/motion_3.png",
+              "duration_ms": 80,
+              "source_rect": [
+                0,
+                0,
                 384,
                 384
               ]
@@ -3697,20 +5270,11 @@
           ]
         },
         "right_click_reaction": {
+          "loop": false,
           "frames": [
             {
-              "path": "outfits/navy_scarf/navy_scarf_atlas_2.png",
-              "duration_ms": 260,
-              "source_rect": [
-                0,
-                0,
-                384,
-                384
-              ]
-            },
-            {
-              "path": "outfits/navy_scarf/navy_scarf_atlas_2.png",
-              "duration_ms": 720,
+              "path": "outfits/navy_scarf/motion_3.png",
+              "duration_ms": 100,
               "source_rect": [
                 384,
                 0,
@@ -3719,11 +5283,61 @@
               ]
             },
             {
-              "path": "outfits/navy_scarf/navy_scarf_atlas_2.png",
-              "duration_ms": 260,
+              "path": "outfits/navy_scarf/motion_3.png",
+              "duration_ms": 100,
               "source_rect": [
                 768,
                 0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/navy_scarf/motion_3.png",
+              "duration_ms": 100,
+              "source_rect": [
+                1152,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/navy_scarf/motion_3.png",
+              "duration_ms": 100,
+              "source_rect": [
+                0,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/navy_scarf/motion_3.png",
+              "duration_ms": 100,
+              "source_rect": [
+                384,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/navy_scarf/motion_3.png",
+              "duration_ms": 100,
+              "source_rect": [
+                768,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/navy_scarf/motion_3.png",
+              "duration_ms": 100,
+              "source_rect": [
+                1152,
+                384,
                 384,
                 384
               ]
@@ -3731,78 +5345,149 @@
           ]
         },
         "rest_prompt": {
+          "loop": false,
           "frames": [
             {
-              "path": "outfits/navy_scarf/navy_scarf_atlas_2.png",
-              "duration_ms": 480,
+              "path": "outfits/navy_scarf/motion_3.png",
+              "duration_ms": 120,
+              "source_rect": [
+                0,
+                768,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/navy_scarf/motion_3.png",
+              "duration_ms": 120,
+              "source_rect": [
+                384,
+                768,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/navy_scarf/motion_3.png",
+              "duration_ms": 120,
+              "source_rect": [
+                768,
+                768,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/navy_scarf/motion_3.png",
+              "duration_ms": 120,
               "source_rect": [
                 1152,
-                0,
+                768,
                 384,
                 384
               ]
             },
             {
-              "path": "outfits/navy_scarf/navy_scarf_atlas_2.png",
-              "duration_ms": 620,
+              "path": "outfits/navy_scarf/motion_3.png",
+              "duration_ms": 120,
               "source_rect": [
                 0,
-                384,
+                1152,
                 384,
                 384
               ]
             },
             {
-              "path": "outfits/navy_scarf/navy_scarf_atlas_2.png",
-              "duration_ms": 760,
+              "path": "outfits/navy_scarf/motion_3.png",
+              "duration_ms": 120,
               "source_rect": [
                 384,
+                1152,
                 384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/navy_scarf/motion_3.png",
+              "duration_ms": 120,
+              "source_rect": [
+                768,
+                1152,
                 384,
                 384
               ]
             }
-          ],
-          "loop": true
+          ]
         },
         "play": {
+          "loop": false,
           "frames": [
             {
-              "path": "outfits/navy_scarf/navy_scarf_atlas_2.png",
-              "duration_ms": 180,
-              "source_rect": [
-                768,
-                384,
-                384,
-                384
-              ]
-            },
-            {
-              "path": "outfits/navy_scarf/navy_scarf_atlas_2.png",
-              "duration_ms": 220,
+              "path": "outfits/navy_scarf/motion_3.png",
+              "duration_ms": 120,
               "source_rect": [
                 1152,
-                384,
+                1152,
                 384,
                 384
               ]
             },
             {
-              "path": "outfits/navy_scarf/navy_scarf_atlas_2.png",
-              "duration_ms": 260,
+              "path": "outfits/navy_scarf/motion_4.png",
+              "duration_ms": 120,
               "source_rect": [
                 0,
-                768,
+                0,
                 384,
                 384
               ]
             },
             {
-              "path": "outfits/navy_scarf/navy_scarf_atlas_2.png",
-              "duration_ms": 320,
+              "path": "outfits/navy_scarf/motion_4.png",
+              "duration_ms": 120,
               "source_rect": [
                 384,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/navy_scarf/motion_4.png",
+              "duration_ms": 120,
+              "source_rect": [
                 768,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/navy_scarf/motion_4.png",
+              "duration_ms": 120,
+              "source_rect": [
+                1152,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/navy_scarf/motion_4.png",
+              "duration_ms": 120,
+              "source_rect": [
+                0,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/navy_scarf/motion_4.png",
+              "duration_ms": 120,
+              "source_rect": [
+                384,
+                384,
                 384,
                 384
               ]
@@ -3810,33 +5495,34 @@
           ]
         },
         "look_cursor": {
+          "loop": false,
           "frames": [
             {
-              "path": "outfits/navy_scarf/navy_scarf_atlas_2.png",
+              "path": "outfits/navy_scarf/motion_4.png",
               "duration_ms": 600,
               "source_rect": [
                 768,
-                768,
+                384,
                 384,
                 384
               ]
             },
             {
-              "path": "outfits/navy_scarf/navy_scarf_atlas_2.png",
+              "path": "outfits/navy_scarf/motion_4.png",
               "duration_ms": 600,
               "source_rect": [
                 1152,
-                768,
+                384,
                 384,
                 384
               ]
             },
             {
-              "path": "outfits/navy_scarf/navy_scarf_atlas_2.png",
+              "path": "outfits/navy_scarf/motion_4.png",
               "duration_ms": 600,
               "source_rect": [
                 0,
-                1152,
+                768,
                 384,
                 384
               ]

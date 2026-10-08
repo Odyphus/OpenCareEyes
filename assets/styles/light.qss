@@ -8,7 +8,7 @@ QFrame#contentArea, QStackedWidget#pageStack, QScrollArea#scrollPage,
 QWidget#pageContent, QWidget#pageHeader { background: transparent; border: none; }
 
 QLabel { background: transparent; color: #18202C; }
-QLabel#brandTitle { font-size: 22px; font-weight: 700; color: #121821; }
+QLabel#brandTitle { font-size: 19px; font-weight: 700; color: #121821; }
 QLabel#brandSubtitle, QLabel#sidebarFooter { color: #647184; font-size: 12px; }
 QLabel#pageTitle { font-size: 27px; font-weight: 700; color: #111821; }
 QLabel#pageDescription, QLabel#cardDescription, QLabel#statusDetail,

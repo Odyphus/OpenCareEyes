@@ -214,11 +214,11 @@ def test_overlay_applies_light_dark_and_system_high_contrast_themes(qtbot):
 
     overlay.apply_theme(SimpleNamespace(resolved="light", high_contrast=False))
     assert overlay._theme_signature == ("light", False)
-    assert overlay._theme_colors["background"] == "#EDF3FC"
+    assert overlay._theme_colors["background"] == "#17242C"
 
     overlay.apply_theme(SimpleNamespace(resolved="dark", high_contrast=False))
     assert overlay._theme_signature == ("dark", False)
-    assert overlay._theme_colors["title"] == "#FFFFFF"
+    assert overlay._theme_colors["title"] == "#E6EEE9"
 
     overlay.apply_theme(SimpleNamespace(resolved="dark", high_contrast=True))
     native = QApplication.palette()

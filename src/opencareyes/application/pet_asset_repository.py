@@ -114,11 +114,13 @@ class PetAssetRepository(QObject):
         return None
 
     def preload_manifest(self, manifest) -> None:
+        """Warm the first visible pose; other clips decode on explicit demand."""
+
         pet_id = str(getattr(manifest, 'pet_id', ''))
+        idle = getattr(manifest, 'actions', {}).get('idle')
         paths = {
             str(getattr(frame, 'path', ''))
-            for action in getattr(manifest, 'actions', {}).values()
-            for frame in getattr(action, 'frames', ())
+            for frame in getattr(idle, 'frames', ())
             if getattr(frame, 'path', '')
         }
         for resource_path in paths:

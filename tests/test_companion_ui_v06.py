@@ -538,7 +538,8 @@ def test_onboarding_starts_with_the_companion_and_tray_is_grouped():
     top_level = [action.text() for action in tray._menu.actions() if not action.isSeparator()]
     assert '现在休息' in top_level
     assert '色温调节' not in top_level
-    assert '屏幕舒适与专注' in top_level
+    assert '更多操作' in top_level
+    assert '屏幕舒适与专注' not in top_level
 
 
 def test_tray_opens_companion_bubble_with_keyboard_focus():

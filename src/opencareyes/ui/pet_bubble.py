@@ -41,6 +41,7 @@ class PetBubble(QWidget):
     '''Non-modal companion toolbar with no private countdown timer.'''
 
     tool_requested = Signal(str)
+    interaction_requested = Signal(str)
     start_due_requested = Signal()
     snooze_requested = Signal(int)
     skip_requested = Signal()
@@ -105,6 +106,25 @@ class PetBubble(QWidget):
         self._title.setAccessibleName('伙伴状态')
         self._title.setAttribute(Qt.WA_TransparentForMouseEvents)
         header.addWidget(self._title, 1)
+
+        self._interact = QToolButton(self)
+        self._interact.setText('互动')
+        self._interact.setAccessibleName('和伙伴互动')
+        self._interact.setFocusPolicy(Qt.StrongFocus)
+        self._interact.setPopupMode(QToolButton.InstantPopup)
+        interaction_menu = QMenu(self._interact)
+        self._interaction_actions = {}
+        for label, event in (
+            ('摸摸头', 'click'), ('玩一会儿', 'item.play'),
+            ('伸个懒腰', 'item.stretch'), ('打个招呼', 'item.wave'),
+        ):
+            action = interaction_menu.addAction(label)
+            self._interaction_actions[event] = action
+            action.triggered.connect(
+                lambda _checked=False, kind=event: self.interaction_requested.emit(kind)
+            )
+        self._interact.setMenu(interaction_menu)
+        header.addWidget(self._interact)
 
         self._close = QToolButton(self)
         self._close.setText('×')
@@ -192,6 +212,15 @@ class PetBubble(QWidget):
         rest_actions.addWidget(self._skip_button)
         layout.addWidget(self._rest_actions_widget)
         self._set_mode('quick')
+
+    def set_interaction_capabilities(self, has_action) -> None:
+        """Offer only gestures supplied by the selected pet and outfit."""
+
+        for event, action_id in {
+            'click': 'click_reaction', 'item.play': 'play',
+            'item.stretch': 'yawn', 'item.wave': 'rest_prompt',
+        }.items():
+            self._interaction_actions[event].setEnabled(bool(has_action(action_id)))
 
     def set_status(self, title: str, detail: str = '') -> None:
         if self.is_rest_prompt_active:
@@ -430,6 +459,7 @@ class PetBubble(QWidget):
             return
         self._mode = mode
         is_rest_prompt = mode == 'rest_prompt'
+        self._interact.setVisible(not is_rest_prompt)
         self._tools_widget.setVisible(not is_rest_prompt)
         self._rest_actions_widget.setVisible(is_rest_prompt)
 

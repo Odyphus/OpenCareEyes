@@ -24,6 +24,7 @@ from PySide6.QtGui import (
 )
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QApplication,
     QBoxLayout,
     QCheckBox,
     QComboBox,
@@ -31,6 +32,8 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QListView,
+    QMenu,
+    QToolButton,
     QPushButton,
     QSlider,
     QSizePolicy,
@@ -121,6 +124,16 @@ class FerretPreview(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
         area = QRectF(self.rect()).adjusted(16, 16, -16, -16)
+        theme = getattr(QApplication.instance(), 'theme_snapshot', None)
+        if not bool(getattr(theme, 'high_contrast', False)):
+            dark = getattr(theme, 'resolved', 'light') == 'dark'
+            window = QRectF(area.center().x() - 83, area.top() + 6, 166, min(210, area.height() - 12))
+            painter.setPen(Qt.NoPen)
+            painter.setBrush(QColor('#20343A' if dark else '#E3EDE9'))
+            painter.drawRoundedRect(window, 72, 72)
+            painter.setPen(QPen(QColor('#355056' if dark else '#C0D4CB'), 1.5))
+            painter.drawLine(QPointF(window.center().x(), window.top()), QPointF(window.center().x(), window.bottom()))
+            painter.drawLine(QPointF(window.left(), window.center().y()), QPointF(window.right(), window.center().y()))
         if not self._preview_image.isNull():
             size = self._preview_image.size()
             scale = min(area.width() / size.width(), area.height() / size.height())
@@ -492,8 +505,8 @@ class CompanionHomePage(ScrollPage):
         self._controller = controller
         self.layout.addWidget(
             PageHeader(
-                '陪伴屋',
-                '桌面伙伴会陪你学习、提醒休息，也能随时打开常用小工具。',
+                '歇一会儿，再出发',
+                '让专注和休息，都有自己的节奏。',
             )
         )
 
@@ -507,9 +520,6 @@ class CompanionHomePage(ScrollPage):
         self._hero_layout.addWidget(self._preview, 58)
         copy = QVBoxLayout()
         copy.setSpacing(10)
-        eyebrow = QLabel('你的桌面伙伴')
-        eyebrow.setObjectName('cardDescription')
-        copy.addWidget(eyebrow)
         self._name = QLabel('伙伴')
         self._name.setObjectName('pageTitle')
         self._status = QLabel('正在安静陪伴')
@@ -522,46 +532,54 @@ class CompanionHomePage(ScrollPage):
         copy.addStretch()
         actions = QHBoxLayout()
         rest = QPushButton('现在休息')
+        self._rest_button = rest
         rest.setObjectName('primaryButton')
         rest.clicked.connect(self._start_rest)
-        actions.addStretch()
         actions.addWidget(rest)
+        actions.addStretch()
         copy.addLayout(actions)
         self._hero_layout.addLayout(copy, 42)
         hero.body.addLayout(self._hero_layout)
         self.layout.addWidget(hero)
 
-        self._quick_card = Card('随手工具', '按需运行，不记录使用历史。')
-        self._quick_grid = QGridLayout()
+        self._quick_card = QWidget()
+        self._quick_grid = QGridLayout(self._quick_card)
+        self._quick_grid.setContentsMargins(0, 0, 0, 0)
         self._quick_grid.setSpacing(8)
         self._quick_buttons = []
-        for index, (label, tool_id) in enumerate(
-            (
-                ('倒计时', 'timer'),
-                ('便签', 'notes'),
-                ('电脑状态', 'system'),
-                ('衣帽间', 'wardrobe'),
-            )
-        ):
+        for label, tool_id in (('倒计时', 'timer'), ('便签', 'notes')):
             button = QPushButton(label)
-            button.setObjectName('quickToolButton')
-            button.setMinimumHeight(42)
+            button.setObjectName('secondaryButton')
+            button.setMinimumHeight(36)
             button.clicked.connect(
                 lambda _checked=False, selected=tool_id: controller.show_quick_tool(selected)
             )
             self._quick_buttons.append(button)
-            self._quick_grid.addWidget(button, index // 2, index % 2)
-        self._quick_card.body.addLayout(self._quick_grid)
+        more = QToolButton()
+        more.setText('更多工具')
+        more.setAccessibleName('更多工具')
+        more.setPopupMode(QToolButton.InstantPopup)
+        menu = QMenu(more)
+        for label, tool_id in (('电脑状态', 'system'), ('衣帽间', 'wardrobe')):
+            menu.addAction(label).triggered.connect(
+                lambda _checked=False, selected=tool_id: controller.show_quick_tool(selected)
+            )
+        more.setMenu(menu)
+        more.setMinimumHeight(36)
+        self._quick_buttons.append(more)
 
-        self._effects_card = Card('当前实际效果', '状态以真实运行结果为准。')
+        self._effects_card = QWidget()
+        effects_layout = QVBoxLayout(self._effects_card)
+        effects_layout.setContentsMargins(0, 8, 0, 0)
         self._effects = QLabel()
         self._effects.setObjectName('statusDetail')
         self._effects.setWordWrap(True)
-        self._effects_card.body.addWidget(self._effects)
-        self._bottom_layout = QBoxLayout(QBoxLayout.LeftToRight)
-        self._bottom_layout.setSpacing(16)
-        self._bottom_layout.addWidget(self._quick_card, 3)
-        self._bottom_layout.addWidget(self._effects_card, 2)
+        self._effects.setAccessibleName('当前实际效果')
+        effects_layout.addWidget(self._effects)
+        self._bottom_layout = QBoxLayout(QBoxLayout.TopToBottom)
+        self._bottom_layout.setSpacing(12)
+        self._bottom_layout.addWidget(self._quick_card)
+        self._bottom_layout.addWidget(self._effects_card)
         self.layout.addLayout(self._bottom_layout)
         self.layout.addStretch()
 
@@ -585,9 +603,7 @@ class CompanionHomePage(ScrollPage):
         self._hero_layout.setDirection(
             QBoxLayout.TopToBottom if compact else QBoxLayout.LeftToRight
         )
-        self._bottom_layout.setDirection(
-            QBoxLayout.TopToBottom if compact else QBoxLayout.LeftToRight
-        )
+        self._bottom_layout.setDirection(QBoxLayout.TopToBottom)
         self.content.layout().setContentsMargins(
             16 if compact else 28,
             16 if compact else 24,
@@ -597,7 +613,7 @@ class CompanionHomePage(ScrollPage):
         if compact:
             self._preview.setMinimumSize(180, 160)
         else:
-            self._preview.setMinimumSize(240, 220)
+            self._preview.setMinimumSize(280, 280)
         while self._quick_grid.count():
             self._quick_grid.takeAt(0)
         columns = 2 if compact else 4
@@ -634,17 +650,17 @@ class CompanionHomePage(ScrollPage):
             pet_id=active_pet_id,
         )
         presentation = StatusPresenter.project(state)
+        self._rest_button.setEnabled(presentation.can_start_rest)
+        self._rest_button.setToolTip('立即开始一次休息' if presentation.can_start_rest else presentation.next_break_text)
         status_text = presentation.headline
         if self._status.text() != status_text:
             self._status.setText(status_text)
 
-        detail_text = (
-            f'{presentation.detail}\n本地运行 · 不保存互动或应用使用历史'
-        )
+        detail_text = presentation.detail
         if self._detail.text() != detail_text:
             self._detail.setText(detail_text)
 
-        effects_text = '\n'.join(
+        effects_text = '   ·   '.join(
             f'{effect.label} · {effect.status_text}'
             + (f' · {effect.resume_condition}' if effect.resume_condition else '')
             for effect in presentation.effects
@@ -669,8 +685,8 @@ class PetCatalogPage(ScrollPage):
         self._loading_outfit_id = ''
         self.layout.addWidget(
             PageHeader(
-                '宠物图鉴',
-                '白鼬是第一位伙伴；后续宠物共用功能，但拥有自己的动作与性格。',
+                '伙伴',
+                '挑一套喜欢的造型，和鼬鼬打个招呼。',
             )
         )
 
@@ -1253,3 +1269,54 @@ class StudyDeskPage(QWidget):
         tabs.addTab(FocusPage(controller), '专注陪伴')
         tabs.addTab(BlueLightPage(controller), '屏幕舒适')
         layout.addWidget(tabs)
+
+
+class _SectionPages(QWidget):
+    """Related settings share one navigation destination and retain lazy loading."""
+
+    sections = ()
+
+    def __init__(self, controller, parent=None):
+        super().__init__(parent)
+        self._controller = controller
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(16, 12, 16, 0)
+        self.tabs = QTabWidget()
+        self.tabs.setAccessibleName('设置分类')
+        self._loaded = {}
+        for name, _factory in self.sections:
+            self.tabs.addTab(QWidget(), name)
+        self.tabs.currentChanged.connect(self._select)
+        layout.addWidget(self.tabs)
+        self._select(0)
+
+    def _select(self, index):
+        if index < 0 or index in self._loaded:
+            return
+        name, factory = self.sections[index]
+        page = factory(self._controller)
+        self._loaded[index] = page
+        old = self.tabs.widget(index)
+        with QSignalBlocker(self.tabs):
+            self.tabs.removeTab(index)
+            self.tabs.insertTab(index, page, name)
+            self.tabs.setCurrentIndex(index)
+        old.deleteLater()
+
+    def show_section(self, name):
+        for index, (label, _factory) in enumerate(self.sections):
+            if label == name:
+                self.tabs.setCurrentIndex(index)
+                self._select(index)
+                return
+
+
+class ScreenRestPage(_SectionPages):
+    sections = (('屏幕', BlueLightPage), ('休息', CompanionBreakPage), ('专注', FocusPage))
+
+
+class PreferencesPage(_SectionPages):
+    from opencareyes.ui.settings_page import SettingsPage
+    from opencareyes.ui.automation_page import AutomationPage
+
+    sections = (('常规', SettingsPage), ('自动日程', AutomationPage))
