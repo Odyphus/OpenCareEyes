@@ -41,13 +41,7 @@ jobs:
           cache: pip
       - run: python -m pip install -e ".[dev]"
       - run: python -m ruff check src tests scripts
-      - name: Run pytest and verify process exit
-        shell: pwsh
-        run: |
-          python -X faulthandler -c "import pytest; result = int(pytest.main(['-q'])); print('PYTEST_MAIN_EXIT=' + str(result), flush=True); raise SystemExit(result)"
-          $testProcessExit = $LASTEXITCODE
-          Write-Output "PYTHON_PROCESS_EXIT=$testProcessExit"
-          exit $testProcessExit
+      - run: python -X faulthandler -m pytest -q
 
   build:
     name: Onefile build and smoke test

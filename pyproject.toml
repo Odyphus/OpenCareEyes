@@ -24,7 +24,8 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
-    "PySide6>=6.6",
+    # Keep the shipped Qt runtime identical to the one used for desktop validation.
+    "PySide6==6.10.2",
     "astral>=3.2",
     "darkdetect>=0.8",
 ]
