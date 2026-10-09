@@ -1,5 +1,11 @@
 blank_issues_enabled: false
 contact_links:
+  - name: 下载与更新
+    url: https://github.com/Odyphus/OpenCareEyes/releases
+    about: 选择当前测试版或稳定版，下载官方安装包与便携版。
+  - name: 使用说明与排错
+    url: https://github.com/Odyphus/OpenCareEyes/blob/main/使用说明.md
+    about: 安装、显示效果、休息提醒与伙伴操作说明。
   - name: 安全漏洞
     url: https://github.com/Odyphus/OpenCareEyes/security/advisories/new
     about: 请私下报告安全问题，不要创建公开 Issue。

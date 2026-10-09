@@ -244,5 +244,12 @@ def build_gestures():
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--gestures-only', action='store_true')
+    parser.add_argument('--historical', action='store_true',
+                        help='Explicitly rebuild the superseded b10 motion set')
     args = parser.parse_args()
+    current = json.loads((PET / 'manifest.json').read_text(encoding='utf-8'))
+    if current.get('pack_version') == '3.6.0' and not args.historical:
+        parser.error('b11 keeps v0.9 actions and two accepted interactions; '
+                     'this historical builder would overwrite that selection. '
+                     'Use --historical only for an intentional artwork experiment.')
     build_gestures() if args.gestures_only else build()

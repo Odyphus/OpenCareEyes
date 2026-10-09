@@ -15,6 +15,8 @@
 #define MyAppPublisher "Odyphus"
 #define MyAppURL "https://github.com/Odyphus/OpenCareEyes"
 #define MyAppExeName "OpenCareEyes.exe"
+; A content-specific name avoids reusing the pre-release icon cache entry.
+#define MyAppIconName "OpenCareEyes-v09-9f222925.ico"
 
 [Setup]
 AppId={{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}
@@ -34,7 +36,7 @@ OutputDir=installer_output
 OutputBaseFilename=OpenCareEyes_Setup_{#MyAppVersion}
 SetupIconFile=assets\icons\opencareyes.ico
 LicenseFile=LICENSE
-UninstallDisplayIcon={app}\OpenCareEyes.ico
+UninstallDisplayIcon={app}\{#MyAppIconName}
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
@@ -59,7 +61,7 @@ Name: "autostart"; Description: "开机自动启动"; GroupDescription: "其他�
 
 [Files]
 Source: "dist\OpenCareEyes.exe"; DestDir: "{app}"; DestName: "{#MyAppExeName}"; Flags: ignoreversion
-Source: "assets\icons\opencareyes.ico"; DestDir: "{app}"; DestName: "OpenCareEyes.ico"; Flags: ignoreversion
+Source: "assets\icons\opencareyes.ico"; DestDir: "{app}"; DestName: "{#MyAppIconName}"; Flags: ignoreversion
 Source: "LICENSE"; DestDir: "{app}"; Flags: ignoreversion
 Source: "THIRD_PARTY_NOTICES.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "licenses\*"; DestDir: "{app}\licenses"; Flags: ignoreversion recursesubdirs createallsubdirs
@@ -67,9 +69,9 @@ Source: "README.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "使用说明.md"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
-Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\OpenCareEyes.ico"
+Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\{#MyAppIconName}"
 Name: "{group}\卸载 {#MyAppName}"; Filename: "{uninstallexe}"
-Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\OpenCareEyes.ico"; Tasks: desktopicon
+Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\{#MyAppIconName}"; Tasks: desktopicon
 
 [Registry]
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "{#MyAppName}"; ValueData: """{app}\{#MyAppExeName}"""; Flags: uninsdeletevalue; Tasks: autostart

@@ -106,28 +106,6 @@ def test_finishing_an_action_keeps_the_next_animation_clock_running(qtbot):
     animator.set_surface_visible(False)
 
 
-def test_registered_walk_has_real_intermediate_poses_and_safe_margins(qtbot):
-    pack = PetPackRegistry(PETS_DIR).load('snow_ferret')
-    frames = pack.actions['move'].frames
-    # Complete paw poses replace the former sixteen subtly warped copies.
-    assert len(frames) >= 4
-    images = []
-    bounds = []
-    for frame in frames:
-        image = QImage(str(Path(PETS_DIR) / 'snow_ferret' / frame.path)).copy(*frame.source_rect)
-        rgba = image.convertToFormat(QImage.Format_RGBA8888)
-        images.append(bytes(rgba.constBits()))
-        # Raw alpha outside the safe frame margin must stay transparent.
-        assert all(image.pixelColor(x, y).alpha() == 0 for x, y in ((0, 0), (383, 0), (0, 383), (383, 383)))
-        from PIL import Image
-        alpha = Image.frombytes('RGBA', (384, 384), images[-1]).getchannel('A')
-        bounds.append(alpha.point(lambda a: 255 if a > 64 else 0).getbbox())
-    assert len(set(images)) == len(frames)
-    heights = [bottom - top for left, top, right, bottom in bounds]
-    assert max(heights) - min(heights) < 18
-    assert all(60 <= frame.duration_ms <= 85 for frame in frames)
-
-
 def test_gaze_animation_uses_directional_clip_and_outfits_keep_fallback(qtbot):
     pack = PetPackRegistry(PETS_DIR).load('snow_ferret')
     surface = PetSurface()
@@ -140,31 +118,20 @@ def test_gaze_animation_uses_directional_clip_and_outfits_keep_fallback(qtbot):
 
 
 @pytest.mark.parametrize('outfit', ['', 'navy_scarf'])
-def test_complete_gaze_poses_are_distinct_grounded_and_stop_the_frame_timer(qtbot, outfit):
-    from PIL import Image
+def test_restored_gaze_only_selects_frames_from_the_v09_clip(qtbot, outfit):
     pack = PetPackRegistry(PETS_DIR).load('snow_ferret')
     surface = PetSurface()
     qtbot.addWidget(surface)
     surface.set_pack(pack.pet_id, pack)
     surface.set_outfit(outfit)
-    pixels, bottoms = [], []
-    for direction in ('center', 'left', 'right', 'up', 'down',
-                      'up_left', 'up_right', 'down_left', 'down_right'):
+    original = pack.outfits[outfit].actions['look_cursor'] if outfit else pack.actions['look_cursor']
+    for direction in ('center', 'left', 'right', 'up', 'down', 'up_left', 'up_right', 'down_left', 'down_right'):
         surface.set_gaze_direction(direction)
         action = surface._action('look_cursor')
         assert len(action.frames) == 1
-        frame = action.frames[0]
-        with Image.open(Path(PETS_DIR) / 'snow_ferret' / frame.path) as atlas:
-            x, y, width, height = frame.source_rect
-            pose = atlas.convert('RGBA').crop((x, y, x + width, y + height))
-        pixels.append(pose.tobytes())
-        bounds = pose.getchannel('A').point(lambda a: 255 if a >= 192 else 0).getbbox()
-        assert bounds[0] > 8 and bounds[1] > 8 and bounds[2] < 376 and bounds[3] < 376
-        bottoms.append(bounds[3])
+        assert action.frames[0] in original.frames
         surface.play_action('look_cursor', restart=True)
         assert not surface.animator.is_running
-    assert len(set(pixels)) == 9
-    assert max(bottoms) - min(bottoms) <= 2
 
 
 def test_leaving_directional_walk_cannot_mirror_a_drawn_gaze_pose(qtbot):
@@ -177,35 +144,6 @@ def test_leaving_directional_walk_cannot_mirror_a_drawn_gaze_pose(qtbot):
     surface.set_gaze_direction('left')
     surface.play_action('look_cursor')
     assert surface.facing_direction == 0
-
-
-def test_trot_faces_the_same_direction_as_desktop_movement(qtbot):
-    pack = PetPackRegistry(PETS_DIR).load('snow_ferret')
-    surface = PetSurface()
-    qtbot.addWidget(surface)
-    surface.set_pack(pack.pet_id, pack)
-    surface.animator.stop()
-    surface.show()
-    for frame in pack.actions['move'].frames:
-        image = QImage(str(Path(PETS_DIR) / 'snow_ferret' / frame.path)).copy(*frame.source_rect)
-        surface._set_frame(image)
-        centers = []
-        for direction in (-1, 1):
-            surface.set_facing_direction(direction)
-            rendered = surface.grab().toImage()
-            # Pink inner ears identify the head in the low walking pose;
-            # the charcoal tail and white body cannot satisfy this check.
-            head_x = []
-            for y in range(rendered.height()):
-                for x in range(rendered.width()):
-                    color = rendered.pixelColor(x, y)
-                    if (color.alpha() >= 128 and color.red() > color.green() + 25
-                            and color.red() > color.blue() + 15):
-                        head_x.append(x)
-            assert len(head_x) > 4
-            # Captures use physical pixels; the thresholds below are logical.
-            centers.append(sum(head_x) / len(head_x) / rendered.devicePixelRatio())
-        assert centers[0] < 80 and centers[1] > 112
 
 
 def test_manual_interaction_is_available_from_keyboard_bubble(qtbot):

@@ -1,10 +1,12 @@
-"""Observable regressions for smooth gestures and persistent pointer gaze."""
+"""Release baselines and observable desktop companion interactions."""
 
+import hashlib
 import json
 from pathlib import Path
 from types import SimpleNamespace
 
 from PIL import Image
+import pytest
 from PySide6.QtCore import QPoint, Qt
 from PySide6.QtGui import QImage, QColor
 from PySide6.QtTest import QSignalSpy
@@ -12,71 +14,60 @@ from PySide6.QtTest import QSignalSpy
 from opencareyes.ui.pet_surface import PetSurface
 
 
-PET = Path(__file__).resolve().parents[1] / 'assets/pets/snow_ferret'
+ROOT = Path(__file__).resolve().parents[1]
+PET = ROOT / 'assets/pets/snow_ferret'
+POLICY = ROOT / 'artwork/companion/action-policy-v010b11.json'
 
 
 def _frame_image(frame):
-    x, y, width, height = frame['source_rect']
     with Image.open(PET / frame['path']) as image:
-        return image.convert('RGBA').crop((x, y, x + width, y + height))
+        image = image.convert('RGBA')
+        if 'source_rect' in frame:
+            x, y, width, height = frame['source_rect']
+            image = image.crop((x, y, x + width, y + height))
+        return image
 
 
-def _dark_center(image, box):
-    x0, y0, x1, y1 = box
-    points = [(x, y) for y in range(y0, y1) for x in range(x0, x1)
-              if max(image.getpixel((x, y))[:3]) < 55 and image.getpixel((x, y))[3] > 192]
-    assert len(points) >= 100
-    return tuple(sum(p[axis] for p in points) / len(points) for axis in (0, 1))
-
-
-def test_greeting_holds_one_face_during_the_two_paw_sweeps():
+@pytest.mark.parametrize('variant', ['base', 'navy_scarf'])
+def test_other_actions_keep_the_published_v09_frames_and_timing(variant):
     manifest = json.loads((PET / 'manifest.json').read_text(encoding='utf-8'))
-    for actions in (manifest['actions'], manifest['outfits']['navy_scarf']['actions']):
-        frames = actions['rest_prompt']['frames']
-        centers = [_dark_center(_frame_image(frame), (195, 75, 268, 143)) for frame in frames[9:24]]
-        for axis in (0, 1):
-            assert max(p[axis] for p in centers) - min(p[axis] for p in centers) < .6
-        assert len(frames) >= 24
-        assert not actions['rest_prompt']['loop']
+    expected = json.loads(POLICY.read_text(encoding='utf-8'))['variants'][variant]
+    actions = manifest['actions'] if variant == 'base' else manifest['outfits'][variant]['actions']
+    for name, clip in expected['restored_actions'].items():
+        assert actions[name] == clip, name
+    assert set(actions) == set(expected['restored_actions']) | {'click_reaction', 'play', 'right_click_reaction'}
+    for path, sha256 in expected['restored_assets'].items():
+        assert hashlib.sha256((PET / path).read_bytes()).hexdigest() == sha256, path
 
 
-def test_both_base_and_scarf_stretch_have_visible_raised_paw_pads():
+@pytest.mark.parametrize('variant', ['base', 'navy_scarf'])
+def test_accepted_head_pat_and_play_keep_every_b10_pixel_and_duration(variant):
     manifest = json.loads((PET / 'manifest.json').read_text(encoding='utf-8'))
-    for actions in (manifest['actions'], manifest['outfits']['navy_scarf']['actions']):
-        images = [_frame_image(frame) for frame in actions['yawn']['frames']]
-        for box in ((74, 95, 122, 165), (271, 95, 327, 165)):
-            def pink_count(image):
-                return sum(r > g + 25 and r > b + 15 and a >= 192
-                           for r, g, b, a in image.crop(box).getdata())
-            assert max(map(pink_count, images)) > pink_count(images[0]) + 80
-        assert images[0].tobytes() == images[-1].tobytes()
+    expected = json.loads(POLICY.read_text(encoding='utf-8'))['variants'][variant]
+    actions = manifest['actions'] if variant == 'base' else manifest['outfits'][variant]['actions']
+    for name, baseline in expected['preserved_clips'].items():
+        clip = actions[name]
+        assert clip['loop'] == baseline['loop']
+        assert len(clip['frames']) == len(baseline['frames'])
+        for frame, original in zip(clip['frames'], baseline['frames']):
+            image = _frame_image(frame)
+            assert frame['duration_ms'] == original['duration_ms']
+            assert list(image.size) == original['size']
+            assert hashlib.sha256(image.tobytes()).hexdigest() == original['rgba_sha256']
 
 
-def test_greeting_keeps_the_original_face_and_lower_body_in_every_frame():
+def test_right_click_is_unbound_and_schema_placeholder_is_neutral():
     manifest = json.loads((PET / 'manifest.json').read_text(encoding='utf-8'))
+    assert 'right_click' not in manifest['event_bindings']
     for actions in (manifest['actions'], manifest['outfits']['navy_scarf']['actions']):
-        images = [_frame_image(frame) for frame in actions['rest_prompt']['frames']]
-        # Both eyes, nose and mouth remain fixed, including the lifting and
-        # lowering phases that used to warp the entire character.
-        for box in ((145, 78, 251, 166), (0, 281, 384, 384)):
-            expected = images[0].crop(box).tobytes()
-            assert all(image.crop(box).tobytes() == expected for image in images)
-        assert images[0].tobytes() == images[-1].tobytes()
+        assert actions['right_click_reaction']['frames'] == [actions['idle']['frames'][0]]
 
 
-def test_stretch_keeps_hips_feet_tail_and_nose_stable_during_lift_and_recovery():
+def test_rest_scene_static_pet_matches_the_restored_sleep_frame():
     manifest = json.loads((PET / 'manifest.json').read_text(encoding='utf-8'))
-    for actions in (manifest['actions'], manifest['outfits']['navy_scarf']['actions']):
-        clip = actions['yawn']
-        images = [_frame_image(frame) for frame in clip['frames']]
-        for box in ((0, 281, 384, 384), (180, 136, 206, 164)):
-            expected = images[0].crop(box).tobytes()
-            assert all(image.crop(box).tobytes() == expected for image in images)
-        # A long hold reuses one full pose; the allocated frames instead cover
-        # ten visible steps up and ten down, rather than six pose jumps.
-        assert clip['frames'][11]['duration_ms'] >= 400
-        assert len({image.tobytes() for image in images[:11]}) >= 10
-        assert len({image.tobytes() for image in images[12:]}) >= 10
+    expected = _frame_image(manifest['actions']['sleep']['frames'][0])
+    with Image.open(PET / 'rest_sleep.png') as image:
+        assert image.convert('RGBA').tobytes() == expected.tobytes()
 
 
 def _tracking_pack():
@@ -150,7 +141,11 @@ def test_click_only_reacts_without_opening_the_retired_status_card(qtbot):
     qtbot.wait(350)
     assert clicked.count() == 1
     assert bubble.count() == 0
+    action_before = surface.action_id
+    pet_events = QSignalSpy(surface.pet_event)
     qtbot.mouseClick(surface, Qt.RightButton, pos=QPoint(48, 56))
     assert surface._context_menu.isVisible()
+    assert pet_events.count() == 0
+    assert surface.action_id == action_before
     assert '关闭桌面伙伴' in [a.text() for a in surface._context_menu.actions()]
     qtbot.keyClick(surface._context_menu, Qt.Key_Escape)
