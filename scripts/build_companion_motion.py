@@ -98,7 +98,7 @@ def build():
             indexed.crop((0, top, indexed.width, min(top + 5 * CELL, indexed.height))).save(
                 PET / f'sprites/calm_{action}{suffix}.png', optimize=True)
         manifest['actions'][action] = {'loop': loop, 'frames': declarations}
-    manifest['pack_version'] = '3.5.0'
+    manifest['pack_version'] = '3.5.1'
     manifest['event_bindings']['application.focus'] = 'read'
     manifest['event_bindings']['item.play'] = 'play'
     manifest['event_bindings']['item.stretch'] = 'yawn'
