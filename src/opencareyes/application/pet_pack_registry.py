@@ -233,8 +233,8 @@ class PetPackRegistry:
                 context=f'outfit {outfit_id!r}',
             )
             outfit_frame_total += outfit_frames
-            if outfit_frames > 60:
-                raise ValueError(f'Outfit {outfit_id!r} cannot exceed 60 frame descriptions')
+            if outfit_frames > 160:
+                raise ValueError(f'Outfit {outfit_id!r} cannot exceed 160 frame descriptions')
             ambient_layers = outfit_raw.get('ambient_layers', {})
             if not isinstance(ambient_layers, dict):
                 raise TypeError(f'Outfit {outfit_id!r} ambient_layers must be an object')

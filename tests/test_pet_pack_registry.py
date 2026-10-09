@@ -263,12 +263,16 @@ def test_rejects_outfit_without_idle_action(tmp_path):
         PetPackRegistry(root, app_version='0.8.0').load('snow_ferret')
 
 
-def test_rejects_more_than_60_frames_in_one_outfit(tmp_path):
+def test_rejects_more_than_160_frames_in_one_outfit(tmp_path):
     root, pack = copy_pet(tmp_path)
     frame = {'path': 'sprites/base.png', 'duration_ms': 100}
-    make_schema_v3(pack, actions={'idle': {'frames': [frame] * 61}})
+    make_schema_v3(pack, actions={
+        'idle': {'frames': [frame] * 60},
+        'move': {'frames': [frame] * 60},
+        'play': {'frames': [frame] * 41},
+    })
 
-    with pytest.raises(PetPackValidationError, match='60'):
+    with pytest.raises(PetPackValidationError, match='160'):
         PetPackRegistry(root, app_version='0.8.0').load('snow_ferret')
 
 

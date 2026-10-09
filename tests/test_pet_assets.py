@@ -3,7 +3,7 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw
 
-from scripts.build_pet_assets import _FRAME_NAMES, split_sheet
+from scripts.build_pet_assets import split_sheet
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -27,10 +27,16 @@ def _rgba_pixels(image: Image.Image) -> tuple[tuple[int, int, int, int], ...]:
 
 
 def test_official_frames_have_rgba_content_and_safe_transparent_border():
-    for name in _FRAME_NAMES:
-        with Image.open(PET_ROOT / 'sprites' / f'{name}.png') as frame:
-            assert frame.mode == 'RGBA'
-            assert frame.size == (256, 256)
+    manifest = json.loads((PET_ROOT / 'manifest.json').read_text(encoding='utf-8'))
+    size = tuple(axis * manifest['asset_scale'] for axis in manifest['canvas_size'])
+    for action in manifest['actions'].values():
+        for declaration in action['frames']:
+            with Image.open(PET_ROOT / declaration['path']) as atlas:
+                left, top, width, height = declaration['source_rect']
+                assert 0 <= left < left + width <= atlas.width
+                assert 0 <= top < top + height <= atlas.height
+                frame = atlas.convert('RGBA').crop((left, top, left + width, top + height))
+            assert frame.size == size
             alpha = frame.getchannel('A')
             assert alpha.getbbox() is not None
             assert _border_is_transparent(alpha, 16)
@@ -40,23 +46,6 @@ def test_official_frames_have_rgba_content_and_safe_transparent_border():
         assert preview.size == (512, 512)
         assert preview.getchannel('A').getbbox() is not None
         assert _border_is_transparent(preview.getchannel('A'), 32)
-
-    with Image.open(PET_ROOT / 'sprites' / 'ferret_atlas_2x.png') as atlas:
-        assert atlas.mode == 'RGBA'
-        assert atlas.size == (1536, 1536)
-        for index in range(16):
-            row, column = divmod(index, 4)
-            cell = atlas.crop(
-                (
-                    column * 384,
-                    row * 384,
-                    (column + 1) * 384,
-                    (row + 1) * 384,
-                )
-            )
-            assert cell.getchannel('A').getbbox() is not None
-            assert _border_is_transparent(cell.getchannel('A'), 20)
-
 
 def test_official_walk_action_uses_two_distinct_animation_frames():
     manifest = json.loads((PET_ROOT / 'manifest.json').read_text(encoding='utf-8'))

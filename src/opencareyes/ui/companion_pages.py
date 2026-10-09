@@ -11,6 +11,7 @@ from PySide6.QtCore import (
     QSize,
     Qt,
     Signal,
+    QTimer,
 )
 from PySide6.QtGui import (
     QAccessible,
@@ -48,7 +49,9 @@ from opencareyes.application.status_presenter import StatusPresenter
 from opencareyes.ui.blue_light_page import BlueLightPage
 from opencareyes.ui.break_page import BreakPage
 from opencareyes.ui.focus_page import FocusPage
-from opencareyes.ui.widgets import Card, PageHeader, ScrollPage, first_state_value
+from opencareyes.ui.widgets import (
+    Card, Disclosure, PageHeader, ScrollPage, first_state_value, format_duration,
+)
 
 
 class FerretPreview(QWidget):
@@ -408,7 +411,7 @@ class _WardrobeDelegate(QStyledItemDelegate):
         painter.setPen(QPen(border, 3 if effective else (2 if current else 1)))
         painter.drawRoundedRect(card, 12, 12)
 
-        image_size = max(112.0, min(184.0, card.width() - 20.0))
+        image_size = max(112.0, min(156.0, card.width() - 20.0))
         image_rect = QRectF(
             card.center().x() - image_size / 2,
             card.top() + 10,
@@ -474,7 +477,7 @@ class _WardrobeDelegate(QStyledItemDelegate):
         painter.restore()
 
     def sizeHint(self, _option, _index) -> QSize:
-        return QSize(188, 264)
+        return QSize(188, 228)
 
 
 class _WardrobeListView(QListView):
@@ -500,56 +503,79 @@ class _WardrobeListView(QListView):
 class CompanionHomePage(ScrollPage):
     """The companion is the primary product surface, not a break add-on."""
 
+    page_requested = Signal(str)
+
     def __init__(self, controller, parent=None, *, asset_repository=None):
         super().__init__(parent)
         self._controller = controller
         self.layout.addWidget(
             PageHeader(
-                '歇一会儿，再出发',
-                '让专注和休息，都有自己的节奏。',
+                '专注，也记得休息',
+                '看看当前状态，按自己的节奏歇一会儿。',
             )
         )
 
         self._compact = None
         hero = Card()
         hero.setObjectName('companionHeroCard')
+        hero.body.setContentsMargins(20, 16, 20, 16)
         self._hero_layout = QBoxLayout(QBoxLayout.LeftToRight)
         self._hero_layout.setSpacing(24)
         self._preview = FerretPreview(asset_repository=asset_repository)
         self._preview.setObjectName('companionStage')
-        self._hero_layout.addWidget(self._preview, 58)
+        self._hero_layout.addWidget(self._preview, 40)
         copy = QVBoxLayout()
-        copy.setSpacing(10)
+        copy.setSpacing(8)
         self._name = QLabel('伙伴')
-        self._name.setObjectName('pageTitle')
+        self._name.setObjectName('cardTitle')
         self._status = QLabel('正在安静陪伴')
-        self._status.setObjectName('statusValue')
+        self._status.setObjectName('statusDetail')
+        self._status.setWordWrap(True)
+        self._next_break = QLabel()
+        self._next_break.setObjectName('restStatus')
+        self._next_break.setWordWrap(True)
+        self._next_break.setAccessibleName('下一次休息')
         self._detail = QLabel('本地运行 · 所有数据仅保存在本机')
+        self._detail.setObjectName('statusDetail')
         self._detail.setWordWrap(True)
         copy.addWidget(self._name)
         copy.addWidget(self._status)
+        copy.addSpacing(8)
+        copy.addWidget(self._next_break)
         copy.addWidget(self._detail)
         copy.addStretch()
-        actions = QHBoxLayout()
+        actions = QBoxLayout(QBoxLayout.LeftToRight)
+        self._rest_actions = actions
         rest = QPushButton('现在休息')
         self._rest_button = rest
         rest.setObjectName('primaryButton')
         rest.clicked.connect(self._start_rest)
         actions.addWidget(rest)
-        actions.addStretch()
+        self._pause_button = QPushButton('暂停全部')
+        self._pause_button.setObjectName('secondaryButton')
+        self._pause_button.setAccessibleName('暂停或恢复全部效果')
+        self._pause_button.clicked.connect(self._toggle_pause)
+        actions.addWidget(self._pause_button)
         copy.addLayout(actions)
-        self._hero_layout.addLayout(copy, 42)
+        configure = QPushButton('调整休息节奏')
+        configure.setObjectName('quietButton')
+        configure.clicked.connect(lambda: self.page_requested.emit('休息角'))
+        copy.addWidget(configure, 0, Qt.AlignLeft)
+        self._hero_layout.addLayout(copy, 60)
         hero.body.addLayout(self._hero_layout)
         self.layout.addWidget(hero)
 
-        self._quick_card = QWidget()
-        self._quick_grid = QGridLayout(self._quick_card)
+        self._quick_card = Card('常用工具')
+        self._quick_card.body.setContentsMargins(20, 14, 20, 14)
+        self._quick_card.body.setSpacing(8)
+        self._quick_grid = QGridLayout()
+        self._quick_card.body.addLayout(self._quick_grid)
         self._quick_grid.setContentsMargins(0, 0, 0, 0)
         self._quick_grid.setSpacing(8)
         self._quick_buttons = []
         for label, tool_id in (('倒计时', 'timer'), ('便签', 'notes')):
             button = QPushButton(label)
-            button.setObjectName('secondaryButton')
+            button.setObjectName('toolShortcut')
             button.setMinimumHeight(36)
             button.clicked.connect(
                 lambda _checked=False, selected=tool_id: controller.show_quick_tool(selected)
@@ -565,32 +591,83 @@ class CompanionHomePage(ScrollPage):
                 lambda _checked=False, selected=tool_id: controller.show_quick_tool(selected)
             )
         more.setMenu(menu)
+        more.setObjectName('toolShortcut')
         more.setMinimumHeight(36)
         self._quick_buttons.append(more)
 
-        self._effects_card = QWidget()
-        effects_layout = QVBoxLayout(self._effects_card)
-        effects_layout.setContentsMargins(0, 8, 0, 0)
-        self._effects = QLabel()
-        self._effects.setObjectName('statusDetail')
-        self._effects.setWordWrap(True)
-        self._effects.setAccessibleName('当前实际效果')
-        effects_layout.addWidget(self._effects)
+        self._effects_card = Card('屏幕与专注')
+        self._effects_card.body.setContentsMargins(20, 14, 20, 14)
+        self._effects_card.body.setSpacing(6)
+        self._effect_rows = {}
+        for feature_id, label, route in (
+            ('filter', '色温', '屏幕舒适'),
+            ('dimmer', '屏幕调暗', '屏幕舒适'),
+            ('focus', '专注', '学习桌'),
+        ):
+            row = QHBoxLayout()
+            title = QLabel(label)
+            title.setObjectName('effectTitle')
+            title.setMinimumWidth(70)
+            status = QLabel()
+            status.setObjectName('statusDetail')
+            status.setWordWrap(True)
+            action = QPushButton('调整' if feature_id != 'focus' else '打开')
+            action.setObjectName('quietButton')
+            action.setAccessibleName(f'打开{label}设置')
+            action.clicked.connect(lambda _checked=False, selected=route: self.page_requested.emit(selected))
+            row.addWidget(title)
+            row.addWidget(status, 1)
+            row.addWidget(action)
+            self._effects_card.body.addLayout(row)
+            self._effect_rows[feature_id] = status
         self._bottom_layout = QBoxLayout(QBoxLayout.TopToBottom)
         self._bottom_layout.setSpacing(12)
-        self._bottom_layout.addWidget(self._quick_card)
         self._bottom_layout.addWidget(self._effects_card)
+        self._bottom_layout.addWidget(self._quick_card)
         self.layout.addLayout(self._bottom_layout)
         self.layout.addStretch()
 
         controller.state_changed.connect(self.render)
+        tick = getattr(controller, 'break_tick', None)
+        if tick is not None and hasattr(tick, 'connect'):
+            tick.connect(self._render_break_tick)
         self.render(controller.state)
         self._apply_compact_layout(self.viewport().width() < 640)
 
     def _start_rest(self) -> None:
+        state = self._controller.state
+        if not bool(first_state_value(state, 'breaks.enabled', default=False)):
+            self._controller.set_feature_enabled('breaks', True)
+            return
+        if first_state_value(state, 'breaks.phase') == 'resting':
+            self._controller.skip_break()
+            return
         starter = getattr(self._controller, 'start_break_now', None)
         if callable(starter):
             starter()
+
+    def _toggle_pause(self) -> None:
+        if bool(first_state_value(self._controller.state, 'global_pause.active', default=False)):
+            self._controller.resume_all()
+        else:
+            self._controller.pause_all(minutes=30)
+
+    def _render_break_tick(self, remaining: int, _total: int = 0) -> None:
+        state = self._controller.state
+        presentation = StatusPresenter.project(state)
+        phase = first_state_value(state, 'breaks.phase', default='stopped')
+        if presentation.breaks.desired_enabled and not presentation.breaks.suppressed_by and not bool(first_state_value(state, 'breaks.paused', default=False)):
+            if phase == 'resting':
+                text = f'本次休息剩余 {format_duration(remaining)}'
+            elif phase == 'snoozed':
+                text = f'已延后 · {format_duration(remaining)} 后提醒'
+            elif phase == 'working':
+                text = f'距离下次休息 {format_duration(remaining)}'
+            else:
+                text = presentation.next_break_text
+        else:
+            text = presentation.next_break_text
+        self._next_break.setText(text)
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
@@ -603,6 +680,7 @@ class CompanionHomePage(ScrollPage):
         self._hero_layout.setDirection(
             QBoxLayout.TopToBottom if compact else QBoxLayout.LeftToRight
         )
+        self._rest_actions.setDirection(QBoxLayout.LeftToRight)
         self._bottom_layout.setDirection(QBoxLayout.TopToBottom)
         self.content.layout().setContentsMargins(
             16 if compact else 28,
@@ -612,11 +690,13 @@ class CompanionHomePage(ScrollPage):
         )
         if compact:
             self._preview.setMinimumSize(180, 160)
+            self._preview.setMaximumHeight(180)
         else:
-            self._preview.setMinimumSize(280, 280)
+            self._preview.setMinimumSize(210, 210)
+            self._preview.setMaximumHeight(240)
         while self._quick_grid.count():
             self._quick_grid.takeAt(0)
-        columns = 2 if compact else 4
+        columns = 3
         for index, button in enumerate(self._quick_buttons):
             self._quick_grid.addWidget(button, index // columns, index % columns)
 
@@ -650,23 +730,40 @@ class CompanionHomePage(ScrollPage):
             pet_id=active_pet_id,
         )
         presentation = StatusPresenter.project(state)
-        self._rest_button.setEnabled(presentation.can_start_rest)
+        resting = first_state_value(state, 'breaks.phase') == 'resting'
+        can_enable = not presentation.breaks.desired_enabled and bool(first_state_value(state, 'capabilities.breaks_available', default=True))
+        self._rest_button.setEnabled(presentation.can_start_rest or resting or can_enable)
+        self._rest_button.setText('结束本次休息' if resting else ('现在休息' if presentation.breaks.desired_enabled else '开启休息提醒'))
+        self._rest_button.setAccessibleName(self._rest_button.text())
         self._rest_button.setToolTip('立即开始一次休息' if presentation.can_start_rest else presentation.next_break_text)
         status_text = presentation.headline
         if self._status.text() != status_text:
             self._status.setText(status_text)
 
-        detail_text = presentation.detail
+        self._next_break.setText(presentation.next_break_text)
+        detail_text = presentation.detail if presentation.detail != presentation.next_break_text else f'短休息 {int(first_state_value(state, "breaks.break_duration", default=20))} 秒 · 按活跃用眼时间计时'
         if self._detail.text() != detail_text:
             self._detail.setText(detail_text)
 
-        effects_text = '   ·   '.join(
-            f'{effect.label} · {effect.status_text}'
-            + (f' · {effect.resume_condition}' if effect.resume_condition else '')
-            for effect in presentation.effects
-        )
-        if self._effects.text() != effects_text:
-            self._effects.setText(effects_text)
+        paused = bool(first_state_value(state, 'global_pause.active', default=False))
+        self._pause_button.setText('恢复全部' if paused else '暂停 30 分钟')
+        self._pause_button.setToolTip(presentation.pause_text if paused else '暂停色温、调暗、休息和专注效果，30 分钟后自动恢复')
+        for effect in presentation.effects:
+            label = self._effect_rows.get(effect.feature_id)
+            if label is None:
+                continue
+            value = effect.status_text
+            if effect.effective_enabled:
+                if effect.feature_id == 'filter':
+                    value = f'{first_state_value(state, "display.color_temperature", default=6500)} K · {value}'
+                elif effect.feature_id == 'dimmer':
+                    level = int(first_state_value(state, 'display.dim_level', default=0))
+                    from opencareyes.constants import DIM_MAX
+                    value = f'{round(level * 100 / DIM_MAX)}% · {value}'
+            if effect.resume_condition:
+                value += f' · {effect.resume_condition}'
+            label.setText(value)
+            label.setToolTip(effect.detail)
 
 
 class PetCatalogPage(ScrollPage):
@@ -691,9 +788,8 @@ class PetCatalogPage(ScrollPage):
         )
 
         self._wardrobe_card = self._build_wardrobe_card()
-        self.layout.addWidget(self._wardrobe_card)
 
-        selector = Card('伙伴选择', '切换伙伴不会中断休息、专注或工具计时。')
+        selector = Card('桌面伙伴')
         row = QBoxLayout(QBoxLayout.LeftToRight)
         self._selector_layout = row
         self._pet_combo = QComboBox()
@@ -707,7 +803,7 @@ class PetCatalogPage(ScrollPage):
         selector.body.addWidget(self._personality)
         self.layout.addWidget(selector)
 
-        appearance = Card('表现与行为')
+        appearance = self._behavior_section = Disclosure('大小、声音与行为')
         scale_row = QBoxLayout(QBoxLayout.LeftToRight)
         self._scale_layout = scale_row
         scale_row.addWidget(QLabel('大小'))
@@ -731,13 +827,14 @@ class PetCatalogPage(ScrollPage):
         self._countdown_layout = countdown_row
         countdown_row.addWidget(QLabel('休息倒计时'))
         self._countdown_display = QComboBox()
-        self._countdown_display.addItem('显示在伙伴气泡', 'floating')
+        self._countdown_display.addItem('显示在休息提示', 'floating')
         self._countdown_display.addItem('仅在托盘显示', 'tray')
         self._countdown_display.addItem('完全隐藏', 'hidden')
         self._countdown_display.setAccessibleName('休息倒计时显示位置')
         countdown_row.addWidget(self._countdown_display, 1)
         appearance.body.addLayout(countdown_row)
         self.layout.addWidget(appearance)
+        self.layout.addWidget(self._wardrobe_card)
 
         self.layout.addStretch()
         self._pet_combo.currentIndexChanged.connect(self._select_pet)
@@ -782,6 +879,7 @@ class PetCatalogPage(ScrollPage):
         self.render(controller.state)
         self._apply_compact_layout(self.viewport().width() < 640)
         self._apply_wardrobe_grid(self.viewport().width())
+        QTimer.singleShot(0, lambda: self._apply_wardrobe_grid(self.viewport().width()))
 
     def _build_wardrobe_card(self) -> Card:
         wardrobe = Card(
@@ -811,7 +909,7 @@ class PetCatalogPage(ScrollPage):
         self._wardrobe_detail_preview.setObjectName('wardrobeDetailPreview')
         self._wardrobe_detail_preview.setAccessibleName('当前浏览造型预览')
         self._wardrobe_detail_preview.setAlignment(Qt.AlignCenter)
-        self._wardrobe_detail_preview.setMinimumHeight(180)
+        self._wardrobe_detail_preview.setMinimumHeight(144)
         self._wardrobe_detail_preview.setSizePolicy(
             QSizePolicy.Expanding,
             QSizePolicy.Fixed,
@@ -843,6 +941,10 @@ class PetCatalogPage(ScrollPage):
         action_row.addWidget(self._wear_outfit)
         action_row.addWidget(self._restore_outfit)
         detail_layout.addLayout(action_row)
+        detail_layout.removeWidget(self._wardrobe_detail)
+        detail_layout.removeWidget(self._wardrobe_error)
+        detail_layout.addWidget(self._wardrobe_detail)
+        detail_layout.addWidget(self._wardrobe_error)
 
         self._wardrobe_mode_note = QLabel(
             '完整造型只改变伙伴外观，不影响休息、专注和互动逻辑。'
@@ -910,6 +1012,7 @@ class PetCatalogPage(ScrollPage):
         super().resizeEvent(event)
         self._apply_compact_layout(self.viewport().width() < 640)
         self._apply_wardrobe_grid(self.viewport().width())
+        QTimer.singleShot(0, lambda: self._apply_wardrobe_grid(self.viewport().width()))
 
     def _apply_compact_layout(self, compact: bool) -> None:
         if self._compact is compact:
@@ -962,7 +1065,7 @@ class PetCatalogPage(ScrollPage):
             176,
             (gallery_width - spacing * (columns - 1)) // columns,
         )
-        cell_height = 264
+        cell_height = 228
         self._wardrobe_columns = columns
         self._wardrobe_view.setGridSize(QSize(cell_width, cell_height))
         rows = (self._wardrobe_model.rowCount() + columns - 1) // columns
@@ -1036,7 +1139,7 @@ class PetCatalogPage(ScrollPage):
         else:
             pixmap = QPixmap.fromImage(image).scaled(
                 220,
-                180,
+                144,
                 Qt.KeepAspectRatio,
                 Qt.SmoothTransformation,
             )
@@ -1154,6 +1257,8 @@ class PetCatalogPage(ScrollPage):
 
     def _preview_scale(self, value: int) -> None:
         self._scale_value.setText(f'{value}%')
+        if not self._rendering and not self._scale.isSliderDown():
+            self._controller.set_pet_scale(value)
 
     def _countdown_display_changed(self, _index: int) -> None:
         if self._rendering:

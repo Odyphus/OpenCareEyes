@@ -5,8 +5,7 @@ from __future__ import annotations
 import os
 
 from PySide6.QtCore import QSignalBlocker
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QAction, QActionGroup, QColor, QIcon, QPainter, QPalette, QPixmap
+from PySide6.QtGui import QAction, QActionGroup, QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 
 from opencareyes.application.status_presenter import StatusPresenter
@@ -38,7 +37,6 @@ class TrayIcon(QSystemTrayIcon):
         self._mini_countdown = pet_surface
         self._companion_runtime = companion_runtime
         self._icon_signature = None
-        self._paused = False
         self._create_icon()
         self._create_menu()
         self.activated.connect(self._on_activated)
@@ -55,45 +53,27 @@ class TrayIcon(QSystemTrayIcon):
         self.apply_theme(getattr(QApplication.instance(), "theme_snapshot", None))
 
     def apply_theme(self, snapshot, *, paused=None) -> None:
-        if paused is not None:
-            self._paused = bool(paused)
-        theme = getattr(snapshot, "taskbar_resolved", "dark")
-        high_contrast = bool(getattr(snapshot, "high_contrast", False))
-        color = (
-            QApplication.palette().color(QPalette.WindowText).name()
-            if high_contrast else ("#203E4A" if theme == "light" else "#E5EEE8")
-        )
-        signature = (color, self._paused)
-        if signature == self._icon_signature:
+        # Keep the v0.9 artwork unchanged, including during pause/theme changes.
+        # The callback remains for the application's shared theme subscription.
+        if self._icon_signature is not None:
             return
-        self._icon_signature = signature
-        from PySide6.QtSvg import QSvgRenderer
-
-        source = os.path.join(ICONS_DIR, "tray.svg")
-        try:
-            with open(source, encoding="utf-8") as handle:
-                svg = handle.read().replace("currentColor", color)
-        except OSError:
-            self.setIcon(QIcon(os.path.join(ICONS_DIR, "opencareyes.ico")))
-            return
-        icon = QIcon()
-        renderer = QSvgRenderer(svg.encode("utf-8"))
-        for size in (16, 20, 24, 32, 40, 48, 64):
-            pixmap = QPixmap(size, size)
-            pixmap.fill(Qt.transparent)
-            painter = QPainter(pixmap)
-            painter.setRenderHint(QPainter.Antialiasing)
-            renderer.render(painter)
-            if self._paused:
-                # Small, stationary pause bars survive monochrome/high-contrast use.
-                painter.setPen(Qt.NoPen)
-                painter.setBrush(QColor(color))
-                unit = size / 32
-                painter.drawRect(round(23 * unit), round(22 * unit), max(1, round(2 * unit)), round(8 * unit))
-                painter.drawRect(round(28 * unit), round(22 * unit), max(1, round(2 * unit)), round(8 * unit))
-            painter.end()
-            icon.addPixmap(pixmap)
-        self.setIcon(icon)
+        self._icon_signature = "v0.9"
+        for name in ("tray_light.png", "tray_dark.png"):
+            path = os.path.join(ICONS_DIR, name)
+            if os.path.isfile(path):
+                self.setIcon(QIcon(path))
+                return
+        pixmap = QPixmap(32, 32)
+        pixmap.fill(QColor(0, 0, 0, 0))
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.Antialiasing)
+        painter.setBrush(QColor("#5B8DEF"))
+        painter.setPen(QColor("#FFFFFF"))
+        painter.drawEllipse(2, 2, 28, 28)
+        painter.drawEllipse(9, 11, 5, 5)
+        painter.drawEllipse(18, 11, 5, 5)
+        painter.end()
+        self.setIcon(QIcon(pixmap))
 
     def _create_menu(self) -> None:
         self._menu = QMenu()
@@ -106,7 +86,11 @@ class TrayIcon(QSystemTrayIcon):
         self._rest_now_action = self._menu.addAction("现在休息")
         self._rest_now_action.triggered.connect(self._start_break_now)
 
-        pause_menu = self._menu.addMenu("暂停全部效果")
+        # Explicit Qt parents keep submenus alive across repeated menuAction
+        # inspection; the string overload can transfer a wrapper to a
+        # temporary QAction and destroy the nested menu when it is released.
+        pause_menu = QMenu("暂停全部效果", self._menu)
+        self._menu.addMenu(pause_menu)
         self._pause_menu_action = pause_menu.menuAction()
         pause_menu.addAction("30 分钟").triggered.connect(
             lambda: self._controller.pause_all(minutes=30)
@@ -124,8 +108,9 @@ class TrayIcon(QSystemTrayIcon):
         self._resume_all_action.triggered.connect(self._controller.resume_all)
         self._menu.addSeparator()
 
-        more_menu = self._menu.addMenu("更多操作")
-        protection_menu = more_menu.addMenu("屏幕舒适与专注")
+        more_menu = QMenu("更多操作", self._menu)
+        self._menu.addMenu(more_menu)
+        protection_menu = more_menu
         self._filter_action = self._check_action(
             "色温调节", self.toggle_filter, protection_menu
         )
@@ -135,7 +120,8 @@ class TrayIcon(QSystemTrayIcon):
         self._focus_action = self._check_action(
             "专注模式", self.toggle_focus, protection_menu
         )
-        profile_menu = protection_menu.addMenu("显示方案")
+        profile_menu = QMenu("显示方案", protection_menu)
+        protection_menu.addMenu(profile_menu)
         self._profile_group = QActionGroup(self)
         self._profile_group.setExclusive(True)
         self._profile_actions: dict[str, QAction] = {}
@@ -153,13 +139,15 @@ class TrayIcon(QSystemTrayIcon):
             self._profile_group.addAction(action)
             self._profile_actions[key] = action
 
-        self._break_control_menu = more_menu.addMenu("休息提醒")
+        self._break_control_menu = QMenu("休息提醒", more_menu)
+        more_menu.addMenu(self._break_control_menu)
         self._break_action = self._check_action(
             "启用休息提醒", self.toggle_break, self._break_control_menu
         )
         self._pause_break_action = self._break_control_menu.addAction("暂停计时")
         self._pause_break_action.triggered.connect(self._toggle_break_pause)
-        self._snooze_menu = self._break_control_menu.addMenu("稍后提醒")
+        self._snooze_menu = QMenu("稍后提醒", self._break_control_menu)
+        self._break_control_menu.addMenu(self._snooze_menu)
         for minutes in (5, 10, 30):
             self._snooze_menu.addAction(f"{minutes} 分钟").triggered.connect(
                 lambda checked=False, delay=minutes: self._controller.snooze_break(delay)
@@ -175,15 +163,22 @@ class TrayIcon(QSystemTrayIcon):
             self._controller.resume_breaks_for_current_context
         )
 
-        companion_menu = more_menu.addMenu("伙伴")
-        self._open_pet_bubble_action = companion_menu.addAction("打开伙伴气泡")
-        self._open_pet_bubble_action.triggered.connect(self._show_pet_bubble)
+        companion_menu = QMenu("伙伴", more_menu)
+        more_menu.addMenu(companion_menu)
         self._preview_pet_action = companion_menu.addAction("预览桌面伙伴")
         self._preview_pet_action.triggered.connect(self._preview_pet)
         self._reset_pet_action = companion_menu.addAction("重置桌宠位置")
         self._reset_pet_action.triggered.connect(self._reset_pet_position)
 
-        settings_menu = more_menu.addMenu("设置与自动化")
+        tools_menu = QMenu("小工具", self._menu)
+        self._menu.insertMenu(more_menu.menuAction(), tools_menu)
+        for label, tool_id in (("倒计时", "timer"), ("便签", "notes"), ("电脑状态", "system")):
+            tools_menu.addAction(label).triggered.connect(
+                lambda _checked=False, selected=tool_id: self._controller.show_quick_tool(selected)
+            )
+
+        settings_menu = QMenu("设置与自动化", more_menu)
+        more_menu.addMenu(settings_menu)
         self._autostart_action = self._check_action(
             "开机自动启动", self._controller.set_autostart, settings_menu
         )
@@ -241,11 +236,6 @@ class TrayIcon(QSystemTrayIcon):
         preview = getattr(self._mini_countdown, "preview", None)
         if callable(preview):
             preview()
-
-    def _show_pet_bubble(self) -> None:
-        show_bubble = getattr(self._companion_runtime, "show_bubble", None)
-        if callable(show_bubble):
-            show_bubble(focusable=True)
 
     def _reset_pet_position(self) -> None:
         reset = getattr(self._mini_countdown, "reset_position", None)
@@ -313,9 +303,6 @@ class TrayIcon(QSystemTrayIcon):
         companion_enabled = bool(first_state_value(
             state, "companion.enabled", default=True
         ))
-        companion_visible = bool(first_state_value(
-            state, "companion.visible", default=companion_enabled
-        ))
         remaining = first_state_value(state, "breaks.remaining", default=0)
         temp = int(first_state_value(state, "display.color_temperature", default=6500))
         dim_level = int(first_state_value(state, "display.dim_level", default=0))
@@ -335,14 +322,6 @@ class TrayIcon(QSystemTrayIcon):
         self._pet_action.setEnabled(True)
         self._pet_action.setToolTip("在桌面显示可拖动的陪伴宠物")
         pet_available = self._mini_countdown is not None
-        self._open_pet_bubble_action.setEnabled(
-            companion_visible and self._companion_runtime is not None
-        )
-        self._open_pet_bubble_action.setToolTip(
-            "用键盘操作伙伴快捷气泡"
-            if companion_visible
-            else "伙伴当前隐藏，恢复显示后可打开气泡"
-        )
         self._preview_pet_action.setEnabled(pet_available)
         self._reset_pet_action.setEnabled(pet_available)
         self._filter_action.setText(

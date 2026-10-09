@@ -190,14 +190,21 @@ class BreakOverlay(QWidget):
         self._adapt_layout()
         self.update()
 
-    def _adapt_layout(self) -> None:
-        compact = self.height() < 560
+    def _adapt_layout(self, *, height=None) -> None:
+        compact = (self.height() if height is None else height) < 560
         self._scene_widget.setVisible(not compact and not bool(self.property('highContrast')))
         self._layout.setContentsMargins(20 if compact else 32, 12 if compact else 24,
                                        20 if compact else 32, 12 if compact else 24)
         for spacer, normal_height in self._rest_spacers:
             spacer.changeSize(0, 6 if compact else normal_height)
         self._layout.invalidate()
+
+    def resize(self, *size) -> None:
+        # Windows reads the current size hint before delivering resizeEvent.
+        # Collapse the illustration first so the first small resize can fit.
+        if hasattr(self, '_layout'):
+            self._adapt_layout(height=size[0].height() if len(size) == 1 else size[1])
+        super().resize(*size)
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
@@ -326,6 +333,7 @@ class BreakOverlay(QWidget):
             self._active_screen = app.screenAt(QCursor.pos()) or screens[0]
         area = self._active_screen.geometry()
         if self.geometry() != area:
+            self._adapt_layout(height=area.height())
             self.setGeometry(area)
         other_screens = [screen for screen in screens if screen != self._active_screen]
         while len(self._backdrops) < len(other_screens):

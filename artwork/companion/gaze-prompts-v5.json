@@ -1,0 +1,15 @@
+{
+  "tool": "built-in image_gen.imagegen",
+  "mode": "edit",
+  "transparent_background": true,
+  "identity_reference": "coherent-neutral-v3.png",
+  "layout_guide": "3x3 equal cells made by repeating cropped/scaled identity reference; development copy at work/pet-codex-b7/gaze-layout-guide.png",
+  "prompt": "Use case: identity-preserve. Asset type: connected full-body desktop pet direction sprites. EDIT the provided 3 by 3 layout guide. Keep its exact 3x3 grid, transparent background, one whole white snow ferret per cell, same body, tail, outline weight, soft pale blue fur shading, size, pink inner ears, black eyes and black tail as the reference. Change ONLY the head orientation and the naturally following neck fur, not the body or paws. Keep feet planted at the same height, same front-facing torso and attached forelegs; head stays attached to the shoulders. Do not rotate the whole character or cell, and do not merely move its pupils. Draw physically readable modest head yaw/pitch with nose and eye positions and ear overlap, cheek foreshortening, and little neck follow-through. The animal is cute, curious, smiling softly. CELL DIRECTIONS in screen/viewer coordinates: top row looks diagonally UP-LEFT, straight UP with chin raised, diagonally UP-RIGHT; middle row looks LEFT with a clear 3/4 head turn, straight AHEAD neutral identical to guide, RIGHT with clear 3/4 head turn; bottom row looks diagonally DOWN-LEFT, straight DOWN with chin lowered gently, diagonally DOWN-RIGHT. Keep both dark eyes readable except slight natural side foreshortening. Maintain the same friendly face proportions and head volume in all 9 cells. This must be an actual pose sheet with 9 distinct, accurate orientations, no labels, arrows, text, divisions, props or decorations. Comfortable gentle shapes, polished coherent cartoon artwork; no disconnected limbs, no changing body scale, no clipping ears or tail, no new accessories. The guide is the edit target, second image is identity detail reference.",
+  "selected_output": "gaze-keyposes-v5.png",
+  "output_size": [
+    1254,
+    1254
+  ],
+  "output_sha256": "8e33148729674f555a95c9d32539e3e34d6899172eb2b206cf06b261ceecf3bb",
+  "OpenAI_artwork_included": false
+}

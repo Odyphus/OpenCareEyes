@@ -175,8 +175,8 @@ def test_outfit_requires_its_own_idle_and_limits_total_frames():
         outfit(actions={'move': outfit().actions['move']})
 
     frame = PetFrame('outfits/skier/atlas.png', 100)
-    with pytest.raises(ValueError, match='60'):
-        outfit(actions={'idle': PetAction('idle', (frame,) * 61)})
+    with pytest.raises(ValueError, match='160'):
+        outfit(actions={'idle': PetAction('idle', (frame,) * 161)})
 
 
 def test_runtime_pet_state_accepts_only_a_safe_optional_outfit_id():

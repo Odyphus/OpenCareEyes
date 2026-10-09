@@ -1,4 +1,4 @@
-"""Compatibility launcher for the editable SVG icon build."""
+"""Compatibility launcher for the original ICO preview export."""
 
 try:
     from scripts.build_brand_icons import draw_eye_icon, main

@@ -106,11 +106,57 @@ def test_short_click_and_right_click_emit_semantic_signals(qtbot):
 
     qtbot.mouseClick(surface, Qt.LeftButton, pos=QPoint(48, 56))
     assert short.count() == 1
-    qtbot.waitUntil(lambda: bubble.count() == 1, timeout=1000)
-    assert bubble.count() == 1
+    qtbot.wait(350)
+    assert bubble.count() == 0
 
     qtbot.mouseClick(surface, Qt.RightButton, pos=QPoint(48, 56))
     assert right.count() == 1
+
+
+def test_right_click_opens_close_menu_without_click_or_drag_and_escape_dismisses(qtbot):
+    surface = PetSurface()
+    qtbot.addWidget(surface)
+    surface.set_pack('snow_ferret', _manifest())
+    surface.show()
+    clicked = QSignalSpy(surface.short_clicked)
+    dragged = QSignalSpy(surface.drag_started)
+    closed = QSignalSpy(surface.hide_requested)
+    qtbot.mouseClick(surface, Qt.RightButton, pos=QPoint(48, 56))
+    assert surface._context_menu.isVisible()
+    assert surface.property('contextMenuOpen')
+    assert surface._hide_action.text() == '关闭桌面伙伴'
+    assert clicked.count() == dragged.count() == closed.count() == 0
+    qtbot.keyClick(surface._context_menu, Qt.Key_Escape)
+    assert not surface._context_menu.isVisible()
+    assert not surface.property('contextMenuOpen')
+    assert surface.isVisible()
+
+
+def test_right_click_on_transparent_margin_does_not_open_pet_menu(qtbot):
+    surface = PetSurface()
+    qtbot.addWidget(surface)
+    image = QImage(96, 112, QImage.Format_RGBA8888)
+    image.fill(Qt.transparent)
+    image.setPixelColor(48, 56, Qt.white)
+    surface.set_pack('snow_ferret', _manifest())
+    surface._set_frame(image)
+    surface.show()
+    qtbot.mouseClick(surface, Qt.RightButton, pos=QPoint(1, 1))
+    assert not surface._context_menu.isVisible()
+
+
+def test_pet_context_menu_supports_keyboard_and_keeps_close_available_during_rest(qtbot):
+    surface = PetSurface()
+    qtbot.addWidget(surface)
+    surface.set_pack('snow_ferret', _manifest())
+    surface.set_context_interactions_enabled(False)
+    surface.show()
+    qtbot.keyClick(surface, Qt.Key_F10, modifier=Qt.ShiftModifier)
+    assert surface._context_menu.isVisible()
+    assert all(not action.isEnabled() for action, _ in surface._context_interactions.values())
+    assert surface._hide_action.isEnabled()
+    surface.hide()
+    assert not surface._context_menu.isVisible()
 
 
 def test_long_press_is_drag_not_short_click(qtbot):

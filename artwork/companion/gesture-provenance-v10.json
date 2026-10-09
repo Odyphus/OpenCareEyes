@@ -1,0 +1,12 @@
+{
+  "tool": "Built-in image_gen editing mode; no external CLI/API",
+  "edit_target": "coherent-neutral-v3.png",
+  "output": "gesture-underpainting-v10.png",
+  "native_size": [
+    1254,
+    1254
+  ],
+  "prompt": "Use case: precise-object-edit. Asset type: clean body underpainting for a rigged desktop-pet animation. Image 1 is the EDIT TARGET. Keep the same single white baby ferret, same front view, exactly the same image dimensions and character placement. Make only one edit: remove BOTH dangling front arms/paws from the front of its chest and abdomen, and paint the white chest fur underneath cleanly, with the same pale-blue fur shading, continuous outer shoulder/body contours and rounded belly. This is an animation underlayer; the animator will add the forelegs on top. Do not add new arms, stubs, hands or paw outlines. Preserve the entire head, ears, eyes, nose, mouth, whiskers, neck fur, torso width and height, hips, two hind feet, charcoal tail, outlines, and scale EXACTLY. Preserve original shoulders; neither narrow nor lengthen torso. The chest should look like uninterrupted natural fluffy white fur, NOT a blank hole. Same soft illustrated style and lighting. Transparent background with actual alpha, no black or white backdrop, no ground shadow, no grid, no labels, no text. Output one complete registered animal underlayer, NOT a sprite sheet. Again: only erase the two forearms and fill in their occupied area with matching chest fur; everything else should remain unchanged.",
+  "integration": "Only the small masked chest region uses the underpainting. The face, neck ruff, hips, feet, and tail retain original pixels; elbows drive continuous painted arm contours with fixed 38px/29px bone lengths. No whole-character warp or pose-sheet substitution in greeting/stretch.",
+  "rebuild": "python -m scripts.build_companion_motion --gestures-only"
+}

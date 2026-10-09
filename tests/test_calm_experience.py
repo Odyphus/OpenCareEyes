@@ -109,12 +109,14 @@ def test_finishing_an_action_keeps_the_next_animation_clock_running(qtbot):
 def test_registered_walk_has_real_intermediate_poses_and_safe_margins(qtbot):
     pack = PetPackRegistry(PETS_DIR).load('snow_ferret')
     frames = pack.actions['move'].frames
-    assert len(frames) >= 12
+    # Complete paw poses replace the former sixteen subtly warped copies.
+    assert len(frames) >= 4
     images = []
     bounds = []
     for frame in frames:
         image = QImage(str(Path(PETS_DIR) / 'snow_ferret' / frame.path)).copy(*frame.source_rect)
-        images.append(bytes(image.convertToFormat(QImage.Format_RGBA8888).constBits()))
+        rgba = image.convertToFormat(QImage.Format_RGBA8888)
+        images.append(bytes(rgba.constBits()))
         # Raw alpha outside the safe frame margin must stay transparent.
         assert all(image.pixelColor(x, y).alpha() == 0 for x, y in ((0, 0), (383, 0), (0, 383), (383, 383)))
         from PIL import Image
@@ -132,9 +134,78 @@ def test_gaze_animation_uses_directional_clip_and_outfits_keep_fallback(qtbot):
     qtbot.addWidget(surface)
     surface.set_pack(pack.pet_id, pack)
     surface.set_gaze_direction('left')
-    assert len(surface._action('look_cursor').frames) >= 5
+    assert len(surface._action('look_cursor').frames) == 1
     surface.set_outfit('navy_scarf')
     assert len(surface._action('look_cursor').frames) == 1
+
+
+@pytest.mark.parametrize('outfit', ['', 'navy_scarf'])
+def test_complete_gaze_poses_are_distinct_grounded_and_stop_the_frame_timer(qtbot, outfit):
+    from PIL import Image
+    pack = PetPackRegistry(PETS_DIR).load('snow_ferret')
+    surface = PetSurface()
+    qtbot.addWidget(surface)
+    surface.set_pack(pack.pet_id, pack)
+    surface.set_outfit(outfit)
+    pixels, bottoms = [], []
+    for direction in ('center', 'left', 'right', 'up', 'down',
+                      'up_left', 'up_right', 'down_left', 'down_right'):
+        surface.set_gaze_direction(direction)
+        action = surface._action('look_cursor')
+        assert len(action.frames) == 1
+        frame = action.frames[0]
+        with Image.open(Path(PETS_DIR) / 'snow_ferret' / frame.path) as atlas:
+            x, y, width, height = frame.source_rect
+            pose = atlas.convert('RGBA').crop((x, y, x + width, y + height))
+        pixels.append(pose.tobytes())
+        bounds = pose.getchannel('A').point(lambda a: 255 if a >= 192 else 0).getbbox()
+        assert bounds[0] > 8 and bounds[1] > 8 and bounds[2] < 376 and bounds[3] < 376
+        bottoms.append(bounds[3])
+        surface.play_action('look_cursor', restart=True)
+        assert not surface.animator.is_running
+    assert len(set(pixels)) == 9
+    assert max(bottoms) - min(bottoms) <= 2
+
+
+def test_leaving_directional_walk_cannot_mirror_a_drawn_gaze_pose(qtbot):
+    pack = PetPackRegistry(PETS_DIR).load('snow_ferret')
+    surface = PetSurface()
+    qtbot.addWidget(surface)
+    surface.set_pack(pack.pet_id, pack)
+    surface.play_action('move')
+    surface.set_facing_direction(1)
+    surface.set_gaze_direction('left')
+    surface.play_action('look_cursor')
+    assert surface.facing_direction == 0
+
+
+def test_trot_faces_the_same_direction_as_desktop_movement(qtbot):
+    pack = PetPackRegistry(PETS_DIR).load('snow_ferret')
+    surface = PetSurface()
+    qtbot.addWidget(surface)
+    surface.set_pack(pack.pet_id, pack)
+    surface.animator.stop()
+    surface.show()
+    for frame in pack.actions['move'].frames:
+        image = QImage(str(Path(PETS_DIR) / 'snow_ferret' / frame.path)).copy(*frame.source_rect)
+        surface._set_frame(image)
+        centers = []
+        for direction in (-1, 1):
+            surface.set_facing_direction(direction)
+            rendered = surface.grab().toImage()
+            # Pink inner ears identify the head in the low walking pose;
+            # the charcoal tail and white body cannot satisfy this check.
+            head_x = []
+            for y in range(rendered.height()):
+                for x in range(rendered.width()):
+                    color = rendered.pixelColor(x, y)
+                    if (color.alpha() >= 128 and color.red() > color.green() + 25
+                            and color.red() > color.blue() + 15):
+                        head_x.append(x)
+            assert len(head_x) > 4
+            # Captures use physical pixels; the thresholds below are logical.
+            centers.append(sum(head_x) / len(head_x) / rendered.devicePixelRatio())
+        assert centers[0] < 80 and centers[1] > 112
 
 
 def test_manual_interaction_is_available_from_keyboard_bubble(qtbot):
@@ -159,7 +230,7 @@ def test_paused_or_already_resting_home_cannot_start_another_rest():
     assert not StatusPresenter.project(replace(working, breaks=replace(working.breaks, phase='resting'))).can_start_rest
 
 
-def test_taskbar_theme_is_independent_of_application_theme(qtbot):
+def test_restored_tray_artwork_survives_theme_and_pause_changes(qtbot):
     manager = ThemeManager(theme_detector=lambda: 'light', taskbar_detector=lambda: 'dark')
     snapshot = manager.snapshot
     assert snapshot.resolved == 'light'
@@ -168,15 +239,17 @@ def test_taskbar_theme_is_independent_of_application_theme(qtbot):
     # Test the real icon projection without constructing unrelated menu services.
     from PySide6.QtWidgets import QSystemTrayIcon
     QSystemTrayIcon.__init__(tray)
-    tray._paused = False
     tray._icon_signature = None
     tray.apply_theme(snapshot)
     first = tray.icon().pixmap(32).toImage()
     tray.apply_theme(replace(snapshot, taskbar_resolved='light'))
     second = tray.icon().pixmap(32).toImage()
-    assert first != second
+    from opencareyes.constants import ICONS_DIR
+    from PySide6.QtGui import QIcon
+    assert first == QIcon(str(Path(ICONS_DIR) / 'tray_light.png')).pixmap(32).toImage()
+    assert first == second
     tray.apply_theme(snapshot, paused=True)
-    assert tray.icon().pixmap(32).toImage() != first
+    assert tray.icon().pixmap(32).toImage() == first
     tray.deleteLater()
 
 

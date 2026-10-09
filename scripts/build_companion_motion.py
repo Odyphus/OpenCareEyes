@@ -1,6 +1,6 @@
-"""Bake a registered 2D cutout rig into bounded, dependency-free pet atlases.
+"""Bake the 2D character into bounded, dependency-free pet atlases.
 
-The authored pivots, shared scale and easing below are the motion source. The
+Complete artwork, joint-driven arms, shared mesh and easing are the motion source. The
 desktop player keeps its existing deadline clock, cache limits and safety rules.
 Run from the repository root: python -m scripts.build_companion_motion
 """
@@ -11,183 +11,53 @@ import json
 import hashlib
 import math
 import os
+import argparse
 from pathlib import Path
 
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 
 from PIL import Image  # noqa: E402
-from PySide6.QtCore import QPointF, QRectF, Qt  # noqa: E402
-from PySide6.QtGui import QColor, QGuiApplication, QImage, QPainter, QPainterPath, QPen  # noqa: E402
+from PySide6.QtCore import Qt  # noqa: E402
+from PySide6.QtGui import QGuiApplication, QImage, QPainter  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 PET = ROOT / 'assets/pets/snow_ferret'
 CELL = 384
 
 
-class CutoutRig:
-    def __init__(self):
-        source = ROOT / 'artwork/companion/rig-parts.png'
-        self.parts = {}
-        names = ('head', 'half', 'closed', 'left', 'body', 'tail', 'arm_l',
-                 'arm_r', 'foot_l', 'foot_r', 'sleep', 'read')
-        with Image.open(source) as sheet:
-            for index, name in enumerate(names):
-                row, column = divmod(index, 4)
-                box = (column * 384, round(row * 1024 / 3),
-                       (column + 1) * 384, round((row + 1) * 1024 / 3))
-                if name == 'read':
-                    box = (1152, 640, 1536, 1024)
-                elif name == 'arm_r':
-                    # The authored reading pose extends above its nominal cell.
-                    box = (1152, 341, 1536, 630)
-                part = sheet.crop(box)
-                bounds = part.getchannel('A').point(lambda alpha: 255 if alpha > 12 else 0).getbbox()
-                if bounds is None:
-                    raise ValueError(f'Empty rig part: {name}')
-                part = part.crop(bounds)
-                image = QImage(part.tobytes(), part.width, part.height, QImage.Format_RGBA8888).copy()
-                self.parts[name] = image
-
-    def part(self, painter, name, rect, *, angle=0.0, pivot=None, mirror=False):
-        image = self.parts[name]
-        target = QRectF(*rect)
-        # Expressions are registered to one head box; limb pivots never change.
-        reference = image
-        scale = min(target.width() / reference.width(), target.height() / reference.height())
-        width, height = image.width() * scale, image.height() * scale
-        destination = QRectF(target.center().x() - width / 2, target.bottom() - height, width, height)
-        painter.save()
-        anchor = QPointF(*(pivot or (target.center().x(), target.top())))
-        painter.translate(anchor)
-        painter.rotate(angle)
-        painter.translate(-anchor)
-        if mirror:
-            painter.translate(2 * target.center().x(), 0)
-            painter.scale(-1, 1)
-        painter.drawImage(destination, image)
-        painter.restore()
-
-    def frame(self, action='idle', progress=0.0, *, expression='head', scarf=False):
-        result = QImage(CELL, CELL, QImage.Format_RGBA8888)
-        result.fill(Qt.transparent)
-        p = QPainter(result)
-        p.setRenderHints(QPainter.Antialiasing | QPainter.SmoothPixmapTransform)
-        if action == 'sleep' and scarf:
-            action, expression = 'idle', 'closed'
-        if action in {'sleep', 'read'}:
-            rect = (50, 116, 278, 232) if action == 'sleep' else (74, 26, 245, 323)
-            self.part(p, action, rect)
-            p.end()
-            return result
-
-        phase = progress * math.tau
-        envelope = math.sin(math.pi * progress) ** 2
-        bob = 0.0
-        head_angle = 0.0
-        tail_angle = 0.0
-        arm_l, arm_r = -4.0, 4.0
-        leg_l, leg_r = 0.0, 0.0
-        head_shift = 0.0
-        body_scale = 1.0
-        mirror_head = False
-        if action == 'move':
-            leg_l, leg_r = 9 * math.sin(phase), -9 * math.sin(phase)
-            arm_l, arm_r = -5 + 14 * math.sin(phase), 5 - 14 * math.sin(phase)
-            bob = -3 * math.cos(2 * phase)
-            tail_angle = 5 * math.sin(phase + 0.7)
-            head_angle = 2 * math.sin(phase)
-        elif action == 'click_reaction':
-            head_angle = -9 * envelope
-            arm_r = -65 * envelope
-            bob = -7 * envelope
-            tail_angle = 10 * envelope
-            expression = 'closed' if 0.25 < progress < 0.75 else 'head'
-        elif action == 'play':
-            head_angle = 9 * math.sin(phase) * envelope
-            arm_l = 32 * envelope
-            arm_r = -48 * envelope
-            bob = -9 * envelope
-            tail_angle = 12 * math.sin(phase) * envelope
-        elif action == 'drag_hold':
-            arm_l, arm_r = 30, -30
-            leg_l, leg_r = 7, 7
-            head_angle = 3 * math.sin(phase)
-            body_scale = 1.04
-        elif action == 'drag_release':
-            body_scale = 1.0 - 0.07 * math.sin(math.pi * progress)
-            bob = 6 * envelope
-            head_angle = 4 * math.sin(phase) * (1 - progress)
-        elif action == 'right_click_reaction':
-            head_angle = 11 * envelope
-            arm_l, arm_r = -4 - 17 * envelope, 4 + 17 * envelope
-            expression = 'half' if envelope > 0.6 else 'head'
-        elif action in {'rest_prompt', 'yawn'}:
-            arm_l, arm_r = 48 * envelope, -48 * envelope
-            head_angle = -7 * envelope
-            expression = 'closed' if action == 'yawn' and envelope > 0.6 else 'head'
-        elif action.startswith('look_'):
-            direction = -1 if action == 'look_left' else 1 if action == 'look_right' else 0
-            eased = 1 - (1 - progress) ** 3
-            head_shift = 5 * direction * eased
-            head_angle = 5 * direction * eased
-            if direction and progress > 0.6:
-                expression = 'left'
-                mirror_head = direction > 0
-
-        # Tail behind the torso; all pivots stay in the same 384px coordinate space.
-        self.part(p, 'tail', (207, 230 + bob, 120, 110), angle=tail_angle, pivot=(215, 316))
-        self.part(p, 'foot_l', (104, 319 + leg_l, 54, 33))
-        self.part(p, 'foot_r', (178, 319 + leg_r, 54, 33))
-        self.part(p, 'body', (103, 170 + bob, 131, 169 * body_scale))
-        self.part(p, 'arm_l', (96, 197 + bob, 46, 85), angle=arm_l, pivot=(118, 202 + bob))
-        self.part(p, 'arm_r', (192, 197 + bob, 46, 85), angle=arm_r, pivot=(216, 202 + bob))
-        if scarf:
-            fabric = QPainterPath()
-            fabric.moveTo(124, 198 + bob)
-            fabric.cubicTo(148, 210 + bob, 180, 210 + bob, 216, 194 + bob)
-            fabric.lineTo(214, 218 + bob)
-            fabric.cubicTo(184, 225 + bob, 157, 224 + bob, 139, 218 + bob)
-            fabric.lineTo(140, 255 + bob)
-            fabric.lineTo(120, 249 + bob)
-            fabric.closeSubpath()
-            p.setPen(QPen(QColor('#29445D'), 2))
-            p.setBrush(QColor('#4C718E'))
-            p.drawPath(fabric)
-        self.part(p, expression, (65 + head_shift, 32 + bob, 213, 183),
-                  angle=head_angle, pivot=(171, 193 + bob), mirror=mirror_head)
-        if action == 'play':
-            x = 278 - 30 * math.sin(phase) * envelope
-            y = 324 - 18 * envelope
-            p.setPen(QPen(QColor('#63897D'), 2))
-            p.setBrush(QColor('#A9CDB9'))
-            p.drawEllipse(QRectF(x, y, 22, 22))
-            p.drawArc(QRectF(x + 6, y, 10, 22), 90 * 16, 180 * 16)
-        p.end()
-        return result
+if __package__:
+    from .companion_mesh import CoherentRig
+else:
+    from companion_mesh import CoherentRig
 
 
 def build():
     app = QGuiApplication.instance() or QGuiApplication([])
-    rig = CutoutRig()
+    rig = CoherentRig()
     manifest_path = PET / 'manifest.json'
     manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
     clips = {}
-    idle_expressions = ['head', 'half', 'closed', 'half', 'head', 'half', 'closed', 'half', 'head']
-    clips['idle'] = ([rig.frame(expression=name) for name in idle_expressions],
-                     [2600, 80, 65, 80, 2400, 80, 65, 80, 1400], True)
+    idle_expressions = ['half' if i in (20, 22, 43, 45) else 'closed' if i in (21, 44)
+                        else 'head' for i in range(48)]
+    clips['idle'] = ([rig.frame('idle', i / 48, expression=name) for i, name in enumerate(idle_expressions)],
+                     [80 if i in (20, 22, 43, 45) else 65 if i in (21, 44)
+                      else 350 if i in (0, 24, 47) else 120 for i in range(48)], True)
     for action, count, duration, loop in (
-        ('move', 16, 60, True), ('click_reaction', 15, 60, False),
-        ('play', 21, 60, False), ('drag_hold', 12, 80, True),
-        ('drag_release', 13, 60, False), ('right_click_reaction', 15, 60, False),
-        ('rest_prompt', 17, 60, False), ('yawn', 19, 80, False),
-        ('look_left', 7, 60, False), ('look_center', 7, 60, False),
-        ('look_right', 7, 60, False),
+        ('move', 16, 70, True), ('click_reaction', 21, 50, False),
+        ('play', 29, 60, False), ('drag_hold', 12, 80, True),
+        ('drag_release', 17, 50, False), ('right_click_reaction', 17, 60, False),
+        ('rest_prompt', 32, 70, False), ('yawn', 23, 80, False),
+        *((f'look_{direction}', 1, 600, False) for direction in rig.poses.gaze),
     ):
-        frames = [rig.frame(action, index / (count if loop else count - 1)) for index in range(count)]
-        clips[action] = (frames, [duration] * count, loop)
+        beats = gesture_beats(action) if action in {'rest_prompt', 'yawn'} else [
+            (index / max(1, count if loop else count - 1), duration) for index in range(count)]
+        frames = [rig.frame(action, phase) for phase, _ in beats]
+        clips[action] = (frames, [ms for _, ms in beats], loop)
+    clips['look_grid'] = ([rig.gaze_frame(x / 2, y / 2) for y in range(-2, 3) for x in range(-2, 3)],
+                          [600] * 25, False)
     clips['sleep'] = ([rig.frame('sleep')], [5000], True)
     clips['read'] = ([rig.frame('read')], [5000], True)
-    clips['look_cursor'] = ([rig.frame('look_left', 1), rig.frame(), rig.frame('look_right', 1)],
+    clips['look_cursor'] = ([rig.frame('look_left'), rig.frame('look_center'), rig.frame('look_right')],
                             [600] * 3, False)
     for action, (frames, durations, loop) in clips.items():
         unique = {}
@@ -208,16 +78,27 @@ def build():
             if slot not in painted:
                 painter.drawImage(x, y, frame)
                 painted.add(slot)
-            declarations.append({'path': f'sprites/calm_{action}.png',
-                                 'duration_ms': durations[index], 'source_rect': [x, y, CELL, CELL]})
+            page, local = divmod(slot, 25)
+            suffix = '' if page == 0 else f'_{page + 1}'
+            declarations.append({'path': f'sprites/calm_{action}{suffix}.png',
+                                 'duration_ms': durations[index],
+                                 'source_rect': [local % columns * CELL,
+                                                 local // columns * CELL, CELL, CELL]})
         painter.end()
         raw = Image.frombytes('RGBA', (atlas.width(), atlas.height()), bytes(atlas.constBits()))
         # One palette per whole clip keeps colour stable across all its frames.
         # Indexed PNG cuts package/decode cost without adding a runtime codec.
-        raw.quantize(colors=256, method=Image.Quantize.FASTOCTREE,
-                     dither=Image.Dither.NONE).save(PET / f'sprites/calm_{action}.png', optimize=True)
+        indexed = raw.quantize(colors=256, method=Image.Quantize.FASTOCTREE,
+                               dither=Image.Dither.NONE)
+        # A page has at most 25 cells (1920² pixels), below the existing image
+        # decode limit. Quantize once before paging to keep one clip palette.
+        for page in range(math.ceil(len(unique) / 25)):
+            suffix = '' if page == 0 else f'_{page + 1}'
+            top = page * 5 * CELL
+            indexed.crop((0, top, indexed.width, min(top + 5 * CELL, indexed.height))).save(
+                PET / f'sprites/calm_{action}{suffix}.png', optimize=True)
         manifest['actions'][action] = {'loop': loop, 'frames': declarations}
-    manifest['pack_version'] = '3.1.0'
+    manifest['pack_version'] = '3.5.0'
     manifest['event_bindings']['application.focus'] = 'read'
     manifest['event_bindings']['item.play'] = 'play'
     manifest['event_bindings']['item.stretch'] = 'yawn'
@@ -239,20 +120,27 @@ def build_scarf(rig, manifest):
     frames = []
     actions = {}
     for action, count, duration, loop in (
-        ('idle', 5, 100, True), ('sleep', 1, 5000, True),
-        ('move', 12, 80, True), ('click_reaction', 7, 100, False),
-        ('drag_hold', 1, 800, True), ('drag_release', 7, 80, False),
-        ('right_click_reaction', 7, 100, False), ('rest_prompt', 7, 120, False),
-        ('play', 7, 120, False), ('look_cursor', 3, 600, False),
+        ('idle', 11, 600, True), ('sleep', 1, 5000, True),
+        ('move', 16, 70, True), ('click_reaction', 5, 200, False),
+        ('drag_hold', 1, 800, True), ('drag_release', 5, 80, False),
+        ('right_click_reaction', 5, 180, False), ('rest_prompt', 32, 70, False),
+        ('yawn', 23, 80, False), ('look_grid', 25, 600, False),
+        ('play', 7, 180, False), ('look_cursor', 3, 600, False),
+        *((f'look_{direction}', 1, 600, False) for direction in rig.poses.gaze),
     ):
         declarations = []
-        for index in range(count):
-            phase = index / max(1, count if loop else count - 1)
+        beats = gesture_beats(action) if action in {'rest_prompt', 'yawn'} else [
+            (index / max(1, count if loop else count - 1), duration) for index in range(count)]
+        for index, (phase, duration) in enumerate(beats):
             if action == 'idle':
-                pose = rig.frame(expression=['head', 'half', 'closed', 'half', 'head'][index], scarf=True)
-                ms = [3000, 80, 65, 80, 2400][index]
+                expression = 'half' if index in (7, 9) else 'closed' if index == 8 else 'head'
+                pose = rig.frame('idle', phase, expression=expression, scarf=True)
+                ms = 80 if index in (7, 9) else 65 if index == 8 else duration
             elif action == 'look_cursor':
-                pose = rig.frame(['look_left', 'idle', 'look_right'][index], 1, scarf=True)
+                pose = rig.frame(['look_left', 'look_center', 'look_right'][index], 1, scarf=True)
+                ms = duration
+            elif action == 'look_grid':
+                pose = rig.gaze_frame((index % 5 - 2) / 2, (index // 5 - 2) / 2, scarf=True)
                 ms = duration
             else:
                 pose = rig.frame(action, phase, scarf=True)
@@ -264,22 +152,97 @@ def build_scarf(rig, manifest):
                                  'source_rect': [(cell % 4) * CELL, (cell // 4) * CELL, CELL, CELL]})
             frames.append(pose)
         actions[action] = {'loop': loop, 'frames': declarations}
+    atlas = QImage(CELL * 4, math.ceil(len(frames) / 4) * CELL, QImage.Format_RGBA8888)
+    atlas.fill(Qt.transparent)
+    painter = QPainter(atlas)
+    for cell, frame in enumerate(frames):
+        painter.drawImage((cell % 4) * CELL, (cell // 4) * CELL, frame)
+    painter.end()
+    raw = Image.frombytes('RGBA', (atlas.width(), atlas.height()), bytes(atlas.constBits()))
+    indexed = raw.quantize(colors=256, method=Image.Quantize.FASTOCTREE, dither=Image.Dither.NONE)
+    # One palette for the whole outfit prevents fur/eye colours flickering
+    # when a long gesture crosses an atlas page. Runtime pages stay bounded.
     for start in range(0, len(frames), 16):
-        atlas = QImage(CELL * 4, CELL * 4, QImage.Format_RGBA8888)
-        atlas.fill(Qt.transparent)
-        painter = QPainter(atlas)
-        for cell, frame in enumerate(frames[start:start + 16]):
-            painter.drawImage((cell % 4) * CELL, (cell // 4) * CELL, frame)
-        painter.end()
-        raw = Image.frombytes('RGBA', (atlas.width(), atlas.height()), bytes(atlas.constBits()))
-        raw.quantize(colors=256, method=Image.Quantize.FASTOCTREE,
-                     dither=Image.Dither.NONE).save(folder / f'motion_{start // 16 + 1}.png', optimize=True)
+        top = start // 4 * CELL
+        indexed.crop((0, top, CELL * 4, min(top + CELL * 4, indexed.height))).save(
+            folder / f'motion_{start // 16 + 1}.png', optimize=True)
     outfit['actions'] = actions
-    outfit['description'] = '柔软的暮蓝围巾，陪你读书，也陪你休息。采用同一分层角色制作连贯动作。'
+    outfit['description'] = '柔软的暮蓝围巾，陪你读书，也陪你休息。自然小步走、平滑招呼、抬爪懒腰与持续鼠标注视。'
     (folder / 'motion.json').write_text(json.dumps(outfit, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
     rig.frame(scarf=True).scaled(512, 512, Qt.KeepAspectRatio, Qt.SmoothTransformation).save(str(folder / 'preview.png'))
     rig.frame(scarf=True).scaled(256, 256, Qt.KeepAspectRatio, Qt.SmoothTransformation).save(str(folder / 'thumbnail.png'))
 
 
+def gesture_beats(action):
+    """Spend frames on movement; a held stretch needs one long-lived frame."""
+    if action == 'yawn':
+        return ([(0, 80)] + [(.08 + .24 * i / 10, 60) for i in range(1, 11)]
+                + [(.52, 500)] + [(.72 + .24 * i / 10, 60) for i in range(1, 11)]
+                + [(1, 80)])
+    if action == 'rest_prompt':
+        return ([(0, 50)] + [(.08 + .24 * i / 8, 60) for i in range(1, 9)]
+                + [(.32 + .40 * i / 14, 70) for i in range(1, 15)]
+                + [(.72 + .24 * i / 8, 60) for i in range(1, 9)] + [(1, 100)])
+    raise ValueError(f'Not a gesture: {action}')
+
+
+def build_gestures():
+    """Replace only the two gesture cells, retaining every other outfit pixel."""
+    app = QGuiApplication.instance() or QGuiApplication([])
+    rig = CoherentRig()
+    manifest_path = PET / 'manifest.json'
+    manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
+    scarf_pages = {}
+    for action in ('rest_prompt', 'yawn'):
+        beats = gesture_beats(action)
+        frames = [rig.frame(action, phase) for phase, _ in beats]
+        declarations = []
+        for start in range(0, len(frames), 25):
+            page_frames = frames[start:start + 25]
+            columns = min(5, len(page_frames))
+            atlas = QImage(columns * CELL, math.ceil(len(page_frames) / columns) * CELL,
+                           QImage.Format_RGBA8888)
+            atlas.fill(Qt.transparent)
+            painter = QPainter(atlas)
+            suffix = '' if start == 0 else f'_{start // 25 + 1}'
+            path = f'sprites/calm_{action}{suffix}.png'
+            for local, frame in enumerate(page_frames):
+                x, y = local % columns * CELL, local // columns * CELL
+                painter.drawImage(x, y, frame)
+                declarations.append({'path': path, 'duration_ms': beats[start + local][1],
+                                     'source_rect': [x, y, CELL, CELL]})
+            painter.end()
+            # These two small clips stay lossless: no palette drift is allowed
+            # in the immutable face/lower-body region between moving frames.
+            if not atlas.save(str(PET / path)):
+                raise OSError(f'Could not save {path}')
+        manifest['actions'][action] = {'loop': False, 'frames': declarations}
+        scarf = manifest['outfits']['navy_scarf']['actions'][action]
+        if len(scarf['frames']) != len(beats):
+            raise ValueError('Gesture repair must preserve existing outfit frame slots')
+        for declaration, (phase, ms) in zip(scarf['frames'], beats):
+            path = declaration['path']
+            if path not in scarf_pages:
+                with Image.open(PET / path) as image:
+                    scarf_pages[path] = image.convert('RGBA')
+            x, y, w, h = declaration['source_rect']
+            frame = rig.frame(action, phase, scarf=True)
+            scarf_pages[path].paste(Image.frombytes('RGBA', (w, h), bytes(frame.constBits())), (x, y))
+            declaration['duration_ms'] = ms
+        scarf['loop'] = False
+    for path, image in scarf_pages.items():
+        image.save(PET / path, optimize=True)
+    manifest['pack_version'] = '3.5.1'
+    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+    folder = PET / 'outfits/navy_scarf'
+    (folder / 'motion.json').write_text(
+        json.dumps(manifest['outfits']['navy_scarf'], ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+    print('Repaired 32 greeting and 23 stretch frames in base and navy-scarf outfits.')
+    return app
+
+
 if __name__ == '__main__':
-    build()
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--gestures-only', action='store_true')
+    args = parser.parse_args()
+    build_gestures() if args.gestures_only else build()

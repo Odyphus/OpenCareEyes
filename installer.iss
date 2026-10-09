@@ -34,7 +34,7 @@ OutputDir=installer_output
 OutputBaseFilename=OpenCareEyes_Setup_{#MyAppVersion}
 SetupIconFile=assets\icons\opencareyes.ico
 LicenseFile=LICENSE
-UninstallDisplayIcon={app}\{#MyAppExeName}
+UninstallDisplayIcon={app}\OpenCareEyes.ico
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
@@ -59,6 +59,7 @@ Name: "autostart"; Description: "开机自动启动"; GroupDescription: "其他�
 
 [Files]
 Source: "dist\OpenCareEyes.exe"; DestDir: "{app}"; DestName: "{#MyAppExeName}"; Flags: ignoreversion
+Source: "assets\icons\opencareyes.ico"; DestDir: "{app}"; DestName: "OpenCareEyes.ico"; Flags: ignoreversion
 Source: "LICENSE"; DestDir: "{app}"; Flags: ignoreversion
 Source: "THIRD_PARTY_NOTICES.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "licenses\*"; DestDir: "{app}\licenses"; Flags: ignoreversion recursesubdirs createallsubdirs
@@ -66,9 +67,9 @@ Source: "README.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "使用说明.md"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
-Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
+Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\OpenCareEyes.ico"
 Name: "{group}\卸载 {#MyAppName}"; Filename: "{uninstallexe}"
-Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
+Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\OpenCareEyes.ico"; Tasks: desktopicon
 
 [Registry]
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "{#MyAppName}"; ValueData: """{app}\{#MyAppExeName}"""; Flags: uninsdeletevalue; Tasks: autostart
