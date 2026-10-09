@@ -1,0 +1,995 @@
+{
+  "restored_from": "v0.9.0",
+  "preserved_from": "v0.10.0b10",
+  "right_click": "menu_only; neutral schema placeholder and event unbound",
+  "variants": {
+    "base": {
+      "restored_actions": {
+        "idle": {
+          "loop": true,
+          "frames": [
+            {
+              "path": "sprites/ferret_atlas_2x.png",
+              "duration_ms": 1800,
+              "source_rect": [
+                0,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "sprites/ferret_atlas_2x.png",
+              "duration_ms": 160,
+              "source_rect": [
+                384,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "sprites/ferret_atlas_2x.png",
+              "duration_ms": 2100,
+              "source_rect": [
+                0,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "sprites/ferret_atlas_2x.png",
+              "duration_ms": 700,
+              "source_rect": [
+                768,
+                0,
+                384,
+                384
+              ]
+            }
+          ]
+        },
+        "sleep": {
+          "loop": true,
+          "frames": [
+            {
+              "path": "sprites/ferret_atlas_2x.png",
+              "duration_ms": 1600,
+              "source_rect": [
+                768,
+                768,
+                384,
+                384
+              ]
+            }
+          ]
+        },
+        "move": {
+          "loop": true,
+          "frames": [
+            {
+              "path": "sprites/ferret_atlas_2x.png",
+              "duration_ms": 240,
+              "source_rect": [
+                0,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "sprites/ferret_atlas_2x.png",
+              "duration_ms": 240,
+              "source_rect": [
+                384,
+                384,
+                384,
+                384
+              ]
+            }
+          ]
+        },
+        "drag_hold": {
+          "loop": true,
+          "frames": [
+            {
+              "path": "sprites/ferret_atlas_2x.png",
+              "duration_ms": 420,
+              "source_rect": [
+                0,
+                1152,
+                384,
+                384
+              ]
+            }
+          ]
+        },
+        "drag_release": {
+          "frames": [
+            {
+              "path": "sprites/ferret_atlas_2x.png",
+              "duration_ms": 650,
+              "source_rect": [
+                384,
+                1152,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "sprites/ferret_atlas_2x.png",
+              "duration_ms": 180,
+              "source_rect": [
+                0,
+                0,
+                384,
+                384
+              ]
+            }
+          ]
+        },
+        "rest_prompt": {
+          "frames": [
+            {
+              "path": "sprites/ferret_atlas_2x.png",
+              "duration_ms": 420,
+              "source_rect": [
+                768,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "sprites/ferret_atlas_2x.png",
+              "duration_ms": 1100,
+              "source_rect": [
+                1152,
+                1152,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "sprites/ferret_atlas_2x.png",
+              "duration_ms": 180,
+              "source_rect": [
+                0,
+                0,
+                384,
+                384
+              ]
+            }
+          ]
+        },
+        "yawn": {
+          "frames": [
+            {
+              "path": "sprites/ferret_atlas_2x.png",
+              "duration_ms": 950,
+              "source_rect": [
+                1152,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "sprites/ferret_atlas_2x.png",
+              "duration_ms": 180,
+              "source_rect": [
+                0,
+                0,
+                384,
+                384
+              ]
+            }
+          ]
+        },
+        "edge_paw": {
+          "frames": [
+            {
+              "path": "sprites/ferret_atlas_2x.png",
+              "duration_ms": 1000,
+              "source_rect": [
+                768,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "sprites/ferret_atlas_2x.png",
+              "duration_ms": 180,
+              "source_rect": [
+                0,
+                0,
+                384,
+                384
+              ]
+            }
+          ]
+        },
+        "look_cursor": {
+          "frames": [
+            {
+              "path": "sprites/ferret_atlas_2x.png",
+              "duration_ms": 620,
+              "source_rect": [
+                768,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "sprites/ferret_atlas_2x.png",
+              "duration_ms": 180,
+              "source_rect": [
+                0,
+                0,
+                384,
+                384
+              ]
+            }
+          ]
+        }
+      },
+      "restored_assets": {
+        "sprites/ferret_atlas_2x.png": "df8f4b7846f2b76008674ca1c2f500ca2a13b6342791d915433803662c78e2fd"
+      },
+      "preserved_clips": {
+        "click_reaction": {
+          "loop": false,
+          "frames": [
+            {
+              "duration_ms": 50,
+              "size": [
+                384,
+                384
+              ],
+              "rgba_sha256": "650d07864897a43e1f863707843dfbbb345dc07a84ce95201dafcae7b768f0b8"
+            },
+            {
+              "duration_ms": 50,
+              "size": [
+                384,
+                384
+              ],
+              "rgba_sha256": "c94b3305a28f155afe7005f04df29a1e6d051b3f37a26fbbf116cebbb6bf8f90"
+            },
+            {
+              "duration_ms": 50,
+              "size": [
+                384,
+                384
+              ],
+              "rgba_sha256": "623e65f449e56cf0bcae41b42da040af60fefe4483eef5fccb32e78a0ccc91c6"
+            },
+            {
+              "duration_ms": 50,
+              "size": [
+                384,
+                384
+              ],
+              "rgba_sha256": "cb2572094e784db6c5351fc23319ceb2469d3db5e9e07440fcd8dd2adbd69b01"
+            },
+            {
+              "duration_ms": 50,
+              "size": [
+                384,
+                384
+              ],
+              "rgba_sha256": "1bdcaeafe99b8b918f0d1f78162178e9661821b1670d8d14336370a7ecb5c31f"
+            },
+            {
+              "duration_ms": 50,
+              "size": [
+                384,
+                384
+              ],
+              "rgba_sha256": "f3a257f31be15bb1db955a76aae762b8b0499ef445cea3db97b1898a30bca178"
+            },
+            {
+              "duration_ms": 50,
+              "size": [
+                384,
+                384
+              ],
+              "rgba_sha256": "4dee95d7fc8c4283d8170ffc3aadbbef36bbe76c269b7b57631a9810eed71477"
+            },
+            {
+              "duration_ms": 50,
+              "size": [
+                384,
+                384
+              ],
+              "rgba_sha256": "11427629b7c0fc5f004565359919bb747ccd0add591ad7a9605a5fe04b074dbe"
+            },
+            {
+              "duration_ms": 50,
+              "size": [
+                384,
+                384
+              ],
+              "rgba_sha256": "619fe5a94661d692752e65162457d24458f3b6c115deb52e115b3dc4b8152ed3"
+            },
+            {
+              "duration_ms": 50,
+              "size": [
+                384,
+                384
+              ],
+              "rgba_sha256": "1bcb6e249d4eb5bdeb65446f3ae86912aec48ae7c00d4679c0848e9e15b8c51d"
+            },
+            {
+              "duration_ms": 50,
+              "size": [
+                384,
+                384
+              ],
+              "rgba_sha256": "11480e0d3047318705fe57ecda6385b094ec9f09abf61200a7a2ad6742c5f607"
+            },
+            {
+              "duration_ms": 50,
+              "size": [
+                384,
+                384
+              ],
+              "rgba_sha256": "41bfdab2b385b950b6051e9ebb1dee820e35730f5ad2c11d089dc4a4be594950"
+            },
+            {
+              "duration_ms": 50,
+              "size": [
+                384,
+                384
+              ],
+              "rgba_sha256": "643f888d84d72563332b5518181687c0c9d214ff56f576013240bbb16c001c52"
+            },
+            {
+              "duration_ms": 50,
+              "size": [
+                384,
+                384
+              ],
+              "rgba_sha256": "a940ad4cd393766103c40f5e3d9570dcfa0b75bd5d5596c239441e73f3dbb7c8"
+            },
+            {
+              "duration_ms": 50,
+              "size": [
+                384,
+                384
+              ],
+              "rgba_sha256": "a1f4b8075d61364417b5da8c9784467359160625e6bc65d9f09ed3484e32d22c"
+            },
+            {
+              "duration_ms": 50,
+              "size": [
+                384,
+                384
+              ],
+              "rgba_sha256": "e1c42f52bab383cdb02590c3999b031293e425ad9bc7e3b395f345bf812eaa3b"
+            },
+            {
+              "duration_ms": 50,
+              "size": [
+                384,
+                384
+              ],
+              "rgba_sha256": "a68dce5c12eb3e40229ffdf87fdf7fc7b4811a409471a566a978a245e0878518"
+            },
+            {
+              "duration_ms": 50,
+              "size": [
+                384,
+                384
+              ],
+              "rgba_sha256": "fd78f3e6983df110db13b9246d03de52f0516475985d1810e1f4b5ad1dedb4ba"
+            },
+            {
+              "duration_ms": 50,
+              "size": [
+                384,
+                384
+              ],
+              "rgba_sha256": "f4bdb798986d73042e273f7ed0e795e662b5409a2d98dab0f29fe73c99d985ad"
+            },
+            {
+              "duration_ms": 50,
+              "size": [
+                384,
+                384
+              ],
+              "rgba_sha256": "aa50d149cb43f6e8ea1a5d5b247bb3e52079ac133cccd18449004a97cc3d4e6c"
+            },
+            {
+              "duration_ms": 50,
+              "size": [
+                384,
+                384
+              ],
+              "rgba_sha256": "650d07864897a43e1f863707843dfbbb345dc07a84ce95201dafcae7b768f0b8"
+            }
+          ]
+        },
+        "play": {
+          "loop": false,
+          "frames": [
+            {
+              "duration_ms": 60,
+              "size": [
+                384,
+                384
+              ],
+              "rgba_sha256": "cd6a86ea079af9cd1cdbd08bf4a214521b7d0b6b9ca659d12d28e82c845f3b1c"
+            },
+            {
+              "duration_ms": 60,
+              "size": [
+                384,
+                384
+              ],
+              "rgba_sha256": "5270d5f5cb22e44a1966fc3c2f5564340b993b05773f56f4a826fe189761003d"
+            },
+            {
+              "duration_ms": 60,
+              "size": [
+                384,
+                384
+              ],
+              "rgba_sha256": "43472f960355eee01b993bfa5fa80ea146cde219ac0a37f99d67dc2e143cdde3"
+            },
+            {
+              "duration_ms": 60,
+              "size": [
+                384,
+                384
+              ],
+              "rgba_sha256": "81fd9dcfb35094a0e3ffca31c319e23d5a3c169c1a5039b33b25064d3200998e"
+            },
+            {
+              "duration_ms": 60,
+              "size": [
+                384,
+                384
+              ],
+              "rgba_sha256": "9b16b38c0051ce1624908fe2d458e72f0e0f61cef6324fab6965fba700366bd1"
+            },
+            {
+              "duration_ms": 60,
+              "size": [
+                384,
+                384
+              ],
+              "rgba_sha256": "d24b5ca4ec970084d585a8824a77383eb1ee9ad26a47b7272bc6e0511d56457b"
+            },
+            {
+              "duration_ms": 60,
+              "size": [
+                384,
+                384
+              ],
+              "rgba_sha256": "40063d8db259be2e53ffe0b4fdfd0282051994a152d0b11f4b26cfac38d9629f"
+            },
+            {
+              "duration_ms": 60,
+              "size": [
+                384,
+                384
+              ],
+              "rgba_sha256": "270ff565eb47e8e22cb5448a6e0620ac91b4c561646f6f471ce3dbf93d5b5f73"
+            },
+            {
+              "duration_ms": 60,
+              "size": [
+                384,
+                384
+              ],
+              "rgba_sha256": "df2b0276764f2049b49cfb3a3d5e623d7edf98d5ec2c4f99c19e48f85442be0d"
+            },
+            {
+              "duration_ms": 60,
+              "size": [
+                384,
+                384
+              ],
+              "rgba_sha256": "1eadc223fcca411756aec81543d0c0da3cafec5d965921d59659582058ed60c1"
+            },
+            {
+              "duration_ms": 60,
+              "size": [
+                384,
+                384
+              ],
+              "rgba_sha256": "5ccffb905e1f7f3910315c6fea7db6252cecb84fc5bdab6af1d49da524fc927f"
+            },
+            {
+              "duration_ms": 60,
+              "size": [
+                384,
+                384
+              ],
+              "rgba_sha256": "a04a9af717beb997db5fbc6c628d0d1e6fb3a8c106fe201576650548100455a8"
+            },
+            {
+              "duration_ms": 60,
+              "size": [
+                384,
+                384
+              ],
+              "rgba_sha256": "9ee0d72b7ff752cc493ea7372ad47882e62f8f9b76ea99f4fe0844712a3c22fc"
+            },
+            {
+              "duration_ms": 60,
+              "size": [
+                384,
+                384
+              ],
+              "rgba_sha256": "865e0aebb34dc8dbe2a7aeb2cfee468ecfb662ed0ed1df7547b44c27f2da8b7e"
+            },
+            {
+              "duration_ms": 60,
+              "size": [
+                384,
+                384
+              ],
+              "rgba_sha256": "55c3c144658e79afd3b9127d59df7e4c20893fe6f2bafed80f8742bbc324a18b"
+            },
+            {
+              "duration_ms": 60,
+              "size": [
+                384,
+                384
+              ],
+              "rgba_sha256": "1d257084dbaf91b726a3b7af8d09fcb7b05bddf7eab0868219e90cb9fdff600d"
+            },
+            {
+              "duration_ms": 60,
+              "size": [
+                384,
+                384
+              ],
+              "rgba_sha256": "c4ea5cceb6ea02a64fcd45f44b7561aa7f51c5425a08833f74dff91e5b7304ae"
+            },
+            {
+              "duration_ms": 60,
+              "size": [
+                384,
+                384
+              ],
+              "rgba_sha256": "9f3ed8965e700783cc0af23f05874877ae43904e4d1c08772479133bb2ffddba"
+            },
+            {
+              "duration_ms": 60,
+              "size": [
+                384,
+                384
+              ],
+              "rgba_sha256": "57412f66063db3f2dd045062571bdef038037cfad076dde5428e148d0c1f7fb9"
+            },
+            {
+              "duration_ms": 60,
+              "size": [
+                384,
+                384
+              ],
+              "rgba_sha256": "eb6eda71b22e38d6ed76f66bf1fd2b6df84d866ec85fe872118232c58814579c"
+            },
+            {
+              "duration_ms": 60,
+              "size": [
+                384,
+                384
+              ],
+              "rgba_sha256": "54d01e9afe5c9af48153155cdbf7bf7cd999631643ba6338767dcd3c65e40251"
+            },
+            {
+              "duration_ms": 60,
+              "size": [
+                384,
+                384
+              ],
+              "rgba_sha256": "433187b3c836f3a84cfb55ee8f29a031ecb2bc0d79cd5fe5dd6346441faf5b76"
+            },
+            {
+              "duration_ms": 60,
+              "size": [
+                384,
+                384
+              ],
+              "rgba_sha256": "ba00ea94a6933bc6aec38739765983ef782f032cd6818cda205bd7f9ffaf4403"
+            },
+            {
+              "duration_ms": 60,
+              "size": [
+                384,
+                384
+              ],
+              "rgba_sha256": "e1bb561e6fa2cec7a718abf6e08a091416a509c5fb959c21d661d33fd6645942"
+            },
+            {
+              "duration_ms": 60,
+              "size": [
+                384,
+                384
+              ],
+              "rgba_sha256": "038f5b0754bfc5e62362ab2a6ab606efd4e22be0d1fb25e7324abfa8e658bca9"
+            },
+            {
+              "duration_ms": 60,
+              "size": [
+                384,
+                384
+              ],
+              "rgba_sha256": "4f2a8dac315fb19e472f880fc40f2061c44327392cbc1be1cb71c136411e8ffd"
+            },
+            {
+              "duration_ms": 60,
+              "size": [
+                384,
+                384
+              ],
+              "rgba_sha256": "e84969a36c25ff32596051e6dd931b71d8254462a567e05618ddb3bfa784a2d2"
+            },
+            {
+              "duration_ms": 60,
+              "size": [
+                384,
+                384
+              ],
+              "rgba_sha256": "1222ca52f5d9f7fdb3b6506701bcfdb05dfce3b29814957ade078bf3f053a7b8"
+            },
+            {
+              "duration_ms": 60,
+              "size": [
+                384,
+                384
+              ],
+              "rgba_sha256": "cd6a86ea079af9cd1cdbd08bf4a214521b7d0b6b9ca659d12d28e82c845f3b1c"
+            }
+          ]
+        }
+      }
+    },
+    "navy_scarf": {
+      "restored_actions": {
+        "idle": {
+          "frames": [
+            {
+              "path": "outfits/navy_scarf/navy_scarf_atlas_1.png",
+              "duration_ms": 900,
+              "source_rect": [
+                0,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/navy_scarf/navy_scarf_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                384,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/navy_scarf/navy_scarf_atlas_1.png",
+              "duration_ms": 1100,
+              "source_rect": [
+                768,
+                0,
+                384,
+                384
+              ]
+            }
+          ],
+          "loop": true
+        },
+        "sleep": {
+          "frames": [
+            {
+              "path": "outfits/navy_scarf/navy_scarf_atlas_1.png",
+              "duration_ms": 1250,
+              "source_rect": [
+                1152,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/navy_scarf/navy_scarf_atlas_1.png",
+              "duration_ms": 1250,
+              "source_rect": [
+                0,
+                384,
+                384,
+                384
+              ]
+            }
+          ],
+          "loop": true
+        },
+        "move": {
+          "frames": [
+            {
+              "path": "outfits/navy_scarf/navy_scarf_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                384,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/navy_scarf/navy_scarf_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                768,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/navy_scarf/navy_scarf_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                1152,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/navy_scarf/navy_scarf_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                0,
+                768,
+                384,
+                384
+              ]
+            }
+          ],
+          "loop": true
+        },
+        "drag_hold": {
+          "frames": [
+            {
+              "path": "outfits/navy_scarf/navy_scarf_atlas_1.png",
+              "duration_ms": 500,
+              "source_rect": [
+                0,
+                1152,
+                384,
+                384
+              ]
+            }
+          ],
+          "loop": true
+        },
+        "drag_release": {
+          "frames": [
+            {
+              "path": "outfits/navy_scarf/navy_scarf_atlas_1.png",
+              "duration_ms": 180,
+              "source_rect": [
+                384,
+                1152,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/navy_scarf/navy_scarf_atlas_1.png",
+              "duration_ms": 240,
+              "source_rect": [
+                768,
+                1152,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/navy_scarf/navy_scarf_atlas_1.png",
+              "duration_ms": 520,
+              "source_rect": [
+                1152,
+                1152,
+                384,
+                384
+              ]
+            }
+          ]
+        },
+        "rest_prompt": {
+          "frames": [
+            {
+              "path": "outfits/navy_scarf/navy_scarf_atlas_2.png",
+              "duration_ms": 480,
+              "source_rect": [
+                1152,
+                0,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/navy_scarf/navy_scarf_atlas_2.png",
+              "duration_ms": 620,
+              "source_rect": [
+                0,
+                384,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/navy_scarf/navy_scarf_atlas_2.png",
+              "duration_ms": 760,
+              "source_rect": [
+                384,
+                384,
+                384,
+                384
+              ]
+            }
+          ],
+          "loop": true
+        },
+        "look_cursor": {
+          "frames": [
+            {
+              "path": "outfits/navy_scarf/navy_scarf_atlas_2.png",
+              "duration_ms": 600,
+              "source_rect": [
+                768,
+                768,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/navy_scarf/navy_scarf_atlas_2.png",
+              "duration_ms": 600,
+              "source_rect": [
+                1152,
+                768,
+                384,
+                384
+              ]
+            },
+            {
+              "path": "outfits/navy_scarf/navy_scarf_atlas_2.png",
+              "duration_ms": 600,
+              "source_rect": [
+                0,
+                1152,
+                384,
+                384
+              ]
+            }
+          ]
+        }
+      },
+      "restored_assets": {
+        "outfits/navy_scarf/navy_scarf_atlas_1.png": "4747b9c17f5faf1226520dd635bd71ce76736d131ce64ee824a0e6211786801d",
+        "outfits/navy_scarf/navy_scarf_atlas_2.png": "63ff5572cd9e3421ab8813c6afb899d7e59834fe87a1abee1cbea3b59dbb2d53"
+      },
+      "preserved_clips": {
+        "click_reaction": {
+          "loop": false,
+          "frames": [
+            {
+              "duration_ms": 200,
+              "size": [
+                384,
+                384
+              ],
+              "rgba_sha256": "5533b4a80089d4928082767254a6929f7e50251dadb039f699547df73807b3f8"
+            },
+            {
+              "duration_ms": 200,
+              "size": [
+                384,
+                384
+              ],
+              "rgba_sha256": "c918ff72f6acbe1b69dc2f1d3d4fa442700581fdbec3421d5f8828f93ccd35ac"
+            },
+            {
+              "duration_ms": 200,
+              "size": [
+                384,
+                384
+              ],
+              "rgba_sha256": "3887cba65bdd67237d32fd67d5c36b604c92a383685304f70da99a0332b0ca39"
+            },
+            {
+              "duration_ms": 200,
+              "size": [
+                384,
+                384
+              ],
+              "rgba_sha256": "cb2110a836b9b39542ce4cd6558fa516a8df037c92f80614e76c2bf7679385c5"
+            },
+            {
+              "duration_ms": 200,
+              "size": [
+                384,
+                384
+              ],
+              "rgba_sha256": "5533b4a80089d4928082767254a6929f7e50251dadb039f699547df73807b3f8"
+            }
+          ]
+        },
+        "play": {
+          "loop": false,
+          "frames": [
+            {
+              "duration_ms": 180,
+              "size": [
+                384,
+                384
+              ],
+              "rgba_sha256": "0fbc5f069057fb52339f6c77f1cd6c01c6879a730ba8c3137c711345aee2d9fa"
+            },
+            {
+              "duration_ms": 180,
+              "size": [
+                384,
+                384
+              ],
+              "rgba_sha256": "f7730a95f6178402b954e2db3095d215f64ee2b71e74f1d9c5243848d736ad62"
+            },
+            {
+              "duration_ms": 180,
+              "size": [
+                384,
+                384
+              ],
+              "rgba_sha256": "4c66abcf3c6b2300dad68ab33acd3d0a781b20ac6ab51dde6e61a58a4a275bc4"
+            },
+            {
+              "duration_ms": 180,
+              "size": [
+                384,
+                384
+              ],
+              "rgba_sha256": "50510cadce58552bdd2436febd79487b5eac6500401cef7fab111dee6002e2a1"
+            },
+            {
+              "duration_ms": 180,
+              "size": [
+                384,
+                384
+              ],
+              "rgba_sha256": "f2a6ab6c481337cd909c22f79a22dd7c1ad9242006dafb3d57603623376f03bb"
+            },
+            {
+              "duration_ms": 180,
+              "size": [
+                384,
+                384
+              ],
+              "rgba_sha256": "67b43983e09240010e50b0e98cf1e3625ccd1dfa165c5281956188f6fbff35e3"
+            },
+            {
+              "duration_ms": 180,
+              "size": [
+                384,
+                384
+              ],
+              "rgba_sha256": "0fbc5f069057fb52339f6c77f1cd6c01c6879a730ba8c3137c711345aee2d9fa"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

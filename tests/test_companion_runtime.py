@@ -721,11 +721,11 @@ def test_manual_interaction_returns_to_focus_and_cannot_interrupt_rest(qtbot):
     controller._state = replace(controller.state, focus=replace(controller.state.focus, enabled=True))
     runtime.sync_state(controller.state)
     assert companion.state.behavior.event_kind == 'application.focus'
-    assert surface.action_id == 'read'
+    assert surface.action_id == 'idle'
     assert runtime.interact('item.play')
     assert surface.action_id == 'play'
     runtime._finish_pet_action('play')
-    assert surface.action_id == 'read'
+    assert surface.action_id == 'idle'
     bubble.is_rest_prompt_active = True
     assert not runtime.interact('item.play')
     bubble.is_rest_prompt_active = False

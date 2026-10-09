@@ -151,7 +151,7 @@ jobs:
 
           function Install-Package([string]$Installer, [string]$Label) {
             & $Installer /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP- `
-              /MERGETASKS=!desktopicon,!autostart "/DIR=$installDir"
+              /MERGETASKS=desktopicon,!autostart "/DIR=$installDir"
             if ($LASTEXITCODE -ne 0) {
               throw "$Label installer exited with code $LASTEXITCODE"
             }
@@ -179,6 +179,24 @@ jobs:
             }
             if ($actualVersion -ne $ExpectedVersion) {
               throw "$Label installed version $actualVersion; expected $ExpectedVersion"
+            }
+            if ($ExpectedVersion -eq $currentVersion) {
+              $icon = Join-Path $installDir 'OpenCareEyes-v09-9f222925.ico'
+              if (-not (Test-Path -LiteralPath $icon)) {
+                throw "$Label did not install the independent original icon"
+              }
+              $expectedIconHash = (Get-FileHash -LiteralPath '.\assets\icons\opencareyes.ico').Hash
+              if ((Get-FileHash -LiteralPath $icon).Hash -ne $expectedIconHash) {
+                throw "$Label installed an unexpected icon"
+              }
+              $shortcutPath = Join-Path ([Environment]::GetFolderPath('DesktopDirectory')) 'OpenCareEyes.lnk'
+              if (-not (Test-Path -LiteralPath $shortcutPath)) {
+                throw "$Label did not create the desktop shortcut"
+              }
+              $shortcut = (New-Object -ComObject WScript.Shell).CreateShortcut($shortcutPath)
+              if ($shortcut.TargetPath -ne $exe -or $shortcut.IconLocation -ne ($icon + ',0')) {
+                throw "$Label desktop shortcut does not use the installed executable and original icon"
+              }
             }
             return $exe
           }

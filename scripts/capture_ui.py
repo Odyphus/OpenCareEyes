@@ -5,8 +5,10 @@ from __future__ import annotations
 import argparse
 import os
 import sys
+from dataclasses import replace
 from datetime import datetime, timedelta
 from pathlib import Path
+from types import SimpleNamespace
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -15,6 +17,8 @@ from PySide6.QtGui import QColor, QFont, QFontDatabase, QPixmap
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication
 
+from opencareyes.application.pet_asset_repository import PetAssetRepository
+from opencareyes.application.pet_pack_registry import PetPackRegistry
 from opencareyes.constants import PETS_DIR, STYLES_DIR
 from opencareyes.state import (
     AppState,
@@ -34,6 +38,7 @@ from opencareyes.state import (
     PetCatalogState,
 )
 from opencareyes.ui.main_panel import MainPanel
+from opencareyes.ui.break_overlay import BreakOverlay
 
 
 class DemoController(QObject):
@@ -113,10 +118,8 @@ class DemoController(QObject):
                     PetCatalogEntryState(
                         pet_id="snow_ferret",
                         display_name="鼬鼬 · 白鼬",
-                        pack_version="2.0.0",
-                        preview_path=str(
-                            Path(PETS_DIR) / "snow_ferret" / "preview.png"
-                        ),
+                        pack_version="3.6.0",
+                        preview_path="preview.png",
                     ),
                 ),
                 active_pet_id="snow_ferret",
@@ -136,6 +139,7 @@ def main() -> int:
         default="陪伴屋",
     )
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--rest-scene", choices=("gaze", "snow_breathing", "stretch", "sleep"))
     args = parser.parse_args()
 
     app = QApplication.instance() or QApplication(sys.argv)
@@ -147,9 +151,25 @@ def main() -> int:
     app.setFont(QFont("Microsoft YaHei UI", 10))
     stylesheet = Path(STYLES_DIR) / f"{args.theme}.qss"
     app.setStyleSheet(stylesheet.read_text(encoding="utf-8"))
-    panel = MainPanel(DemoController(args.theme))
+    if args.rest_scene:
+        panel = BreakOverlay()
+        panel._cover_all_screens = lambda: None
+        panel.resize(1280, 720)
+        panel.apply_theme(SimpleNamespace(resolved=args.theme, high_contrast=False,
+                                          motion_profile='reduced'))
+        state = DemoController(args.theme).state
+        panel.render(replace(state, breaks=replace(state.breaks, phase='resting',
+                                                  remaining=20, rest_scene=args.rest_scene)))
+        app.processEvents()
+        QTest.qWait(200)
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        saved = panel.grab().save(str(args.output), "PNG")
+        panel.close()
+        return 0 if saved else 1
+    repository = PetAssetRepository(PetPackRegistry(PETS_DIR))
+    panel = MainPanel(DemoController(args.theme), asset_repository=repository)
     # The offscreen plugin exposes an 800 px virtual desktop. Keep the real
-    # 920x640 product layout for documentation captures instead of triggering
+    # 980x720 product layout for documentation captures instead of triggering
     # the compact responsive fallback used on genuinely small screens.
     panel._fit_available_geometry = lambda: None
     panel.show()
