@@ -6,6 +6,8 @@ from PySide6.QtCore import QSignalBlocker, Qt, QTimer, QUrl
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QCheckBox,
+    QBoxLayout,
+    QFrame,
     QGridLayout,
     QHBoxLayout,
     QLabel,
@@ -59,11 +61,11 @@ class BlueLightPage(ScrollPage):
     def _build_ui(self) -> None:
         self.layout.addWidget(PageHeader(
             "屏幕舒适度",
-            "调节夜间色温与屏幕明暗，改善主观观看舒适度。显示方案不会改变休息或专注设置。",
+            "先选一个方案，再按环境微调色温和明暗。",
         ))
 
-        health_card = Card("效果状态", "OpenCareEyes 会区分保存的偏好和实际显示效果。")
-        health_row = QHBoxLayout()
+        health_card = Card("实际显示状态")
+        health_row = self._health_row = QBoxLayout(QBoxLayout.LeftToRight)
         self._health_label = QLabel("正在检查显示能力…")
         self._health_label.setObjectName("sectionLead")
         self._health_label.setWordWrap(True)
@@ -90,10 +92,9 @@ class BlueLightPage(ScrollPage):
         health_row.addWidget(self._recheck_button)
         health_row.addWidget(self._restore_button)
         health_card.body.addLayout(health_row)
-        self.layout.addWidget(health_card)
 
-        profile_card = Card("显示方案", "一键应用常用组合，之后仍可微调。")
-        profile_grid = QGridLayout()
+        profile_card = Card("屏幕调节")
+        profile_grid = self._profile_grid = QGridLayout()
         profile_grid.setHorizontalSpacing(10)
         profile_grid.setVerticalSpacing(10)
         self._profile_buttons: dict[str, QPushButton] = {}
@@ -109,9 +110,9 @@ class BlueLightPage(ScrollPage):
             profile_grid.addWidget(button, index // 2, index % 2)
             self._profile_buttons[key] = button
         profile_card.body.addLayout(profile_grid)
-        self.layout.addWidget(profile_card)
 
-        temperature_card = Card("色温", "数值越低，画面越偏暖。")
+        temperature_card = profile_card
+        temperature_card.body.addSpacing(8)
         temperature_top = QHBoxLayout()
         self._filter_toggle = QCheckBox("启用色温调节")
         set_accessible(self._filter_toggle, "启用色温调节")
@@ -142,9 +143,12 @@ class BlueLightPage(ScrollPage):
         temperature_range.addStretch()
         temperature_range.addWidget(maximum)
         temperature_card.body.addLayout(temperature_range)
-        self.layout.addWidget(temperature_card)
 
-        dim_card = Card("屏幕调暗", "在系统最低亮度仍然刺眼时，叠加柔和的调暗效果。")
+        divider = QFrame()
+        divider.setObjectName('sectionDivider')
+        divider.setFrameShape(QFrame.HLine)
+        profile_card.body.addWidget(divider)
+        dim_card = profile_card
         dim_top = QHBoxLayout()
         self._dimmer_toggle = QCheckBox("启用屏幕调暗")
         set_accessible(self._dimmer_toggle, "启用屏幕调暗")
@@ -167,7 +171,18 @@ class BlueLightPage(ScrollPage):
         dim_range.addWidget(QLabel("100%  最暗"))
         dim_card.body.addLayout(dim_range)
         self.layout.addWidget(dim_card)
+        self.layout.addWidget(health_card)
         self.layout.addStretch()
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        compact = self.viewport().width() < 600
+        self._health_row.setDirection(QBoxLayout.TopToBottom if compact else QBoxLayout.LeftToRight)
+        columns = 2 if compact else 4
+        while self._profile_grid.count():
+            self._profile_grid.takeAt(0)
+        for index, button in enumerate(self._profile_buttons.values()):
+            self._profile_grid.addWidget(button, index // columns, index % columns)
 
     def _connect_signals(self) -> None:
         self._filter_toggle.toggled.connect(
@@ -187,6 +202,8 @@ class BlueLightPage(ScrollPage):
         self._update_temperature_label(value)
         if self._temperature_slider.isSliderDown():
             self._temperature_timer.start()
+        else:
+            self._commit_temperature()
 
     def _send_temperature_preview(self) -> None:
         self._controller.set_color_temperature(self._preview_temperature, persist=False)
@@ -201,6 +218,8 @@ class BlueLightPage(ScrollPage):
         self._dim_slider.setAccessibleDescription(f"当前调暗 {percent}%")
         if self._dim_slider.isSliderDown():
             self._dim_timer.start()
+        else:
+            self._commit_dim()
 
     def _send_dim_preview(self) -> None:
         try:

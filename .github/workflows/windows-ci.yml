@@ -41,7 +41,7 @@ jobs:
           cache: pip
       - run: python -m pip install -e ".[dev]"
       - run: python -m ruff check src tests scripts
-      - run: python -m pytest -q
+      - run: python -X faulthandler -m pytest -q
 
   build:
     name: Onefile build and smoke test
@@ -311,7 +311,8 @@ jobs:
     if: >-
       github.event_name == 'schedule' ||
       github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'push' && github.ref == 'refs/heads/main')
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      startsWith(github.ref, 'refs/tags/v')
     needs: build
     runs-on: windows-latest
     env:
@@ -347,7 +348,7 @@ jobs:
   release:
     name: Package release
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [build, installer]
+    needs: [build, installer, stability]
     runs-on: windows-latest
     permissions:
       contents: write
@@ -368,10 +369,14 @@ jobs:
         shell: pwsh
         run: |
           $version = python -c "import pathlib, tomllib; print(tomllib.loads(pathlib.Path('pyproject.toml').read_text(encoding='utf-8'))['project']['version'])"
+          $isPrerelease = python -c "import sys; from scripts.release_version import resolve_release_version; print(int(resolve_release_version(sys.argv[1]).is_prerelease))" $version
+          "IS_PRERELEASE=$isPrerelease" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           $installer = Get-Item .\installer_output\OpenCareEyes_Setup_*.exe
-          python scripts\generate_winget_manifest.py $installer.FullName --version $version
-          if ($LASTEXITCODE -ne 0) { throw "WinGet manifest generation failed" }
-          Compress-Archive -Path ".\winget_output\manifests" -DestinationPath ".\OpenCareEyes_WinGet_$version.zip"
+          if ($isPrerelease -eq '0') {
+            python scripts\generate_winget_manifest.py $installer.FullName --version $version
+            if ($LASTEXITCODE -ne 0) { throw "WinGet manifest generation failed" }
+            Compress-Archive -Path ".\winget_output\manifests" -DestinationPath ".\OpenCareEyes_WinGet_$version.zip"
+          }
           Compress-Archive -LiteralPath @(
             '.\dist\OpenCareEyes.exe',
             '.\README.md',
@@ -384,9 +389,11 @@ jobs:
             Get-Item .\dist\OpenCareEyes.exe
             Get-Item .\installer_output\OpenCareEyes_Setup_*.exe
             Get-Item ".\OpenCareEyes_Portable_$version.zip"
-            Get-Item ".\OpenCareEyes_WinGet_$version.zip"
             Get-Item .\THIRD_PARTY_NOTICES.md
           )
+          if ($isPrerelease -eq '0') {
+            $files += Get-Item ".\OpenCareEyes_WinGet_$version.zip"
+          }
           $lines = foreach ($file in $files) {
             $hash = (Get-FileHash -Algorithm SHA256 $file.FullName).Hash.ToLowerInvariant()
             "$hash  $($file.Name)"
@@ -403,9 +410,11 @@ jobs:
             Get-Item .\dist\OpenCareEyes.exe
             Get-Item .\installer_output\OpenCareEyes_Setup_*.exe
             Get-Item .\OpenCareEyes_Portable_*.zip
-            Get-Item .\OpenCareEyes_WinGet_*.zip
             Get-Item .\THIRD_PARTY_NOTICES.md
           )
+          if ($env:IS_PRERELEASE -eq '0') {
+            $releaseFiles += Get-Item .\OpenCareEyes_WinGet_*.zip
+          }
           $pathsByName = @{}
           foreach ($file in $releaseFiles) {
             $pathsByName[$file.Name] = $file.FullName
@@ -432,4 +441,16 @@ jobs:
         run: |
           $installer = Get-Item .\installer_output\OpenCareEyes_Setup_*.exe
           $version = $env:GITHUB_REF_NAME.TrimStart('v')
-          gh release create $env:GITHUB_REF_NAME --verify-tag --generate-notes --title "OpenCareEyes $env:GITHUB_REF_NAME" .\dist\OpenCareEyes.exe $installer.FullName ".\OpenCareEyes_Portable_$version.zip" ".\OpenCareEyes_WinGet_$version.zip" .\SHA256SUMS.txt .\THIRD_PARTY_NOTICES.md
+          $releaseArgs = @(
+            'release', 'create', $env:GITHUB_REF_NAME, '--verify-tag', '--generate-notes',
+            '--title', "OpenCareEyes $env:GITHUB_REF_NAME",
+            '.\dist\OpenCareEyes.exe', $installer.FullName,
+            ".\OpenCareEyes_Portable_$version.zip", '.\SHA256SUMS.txt', '.\THIRD_PARTY_NOTICES.md'
+          )
+          if ($env:IS_PRERELEASE -eq '1') {
+            $releaseArgs += '--prerelease'
+          } else {
+            $releaseArgs += ".\OpenCareEyes_WinGet_$version.zip"
+          }
+          gh @releaseArgs
+          if ($LASTEXITCODE -ne 0) { throw 'GitHub Release creation failed' }

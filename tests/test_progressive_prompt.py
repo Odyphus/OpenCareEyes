@@ -338,12 +338,12 @@ def test_prompt_and_undo_toast_share_light_dark_and_high_contrast_theme(qtbot):
 
     prompt.apply_theme(SimpleNamespace(resolved="light", high_contrast=False))
     assert prompt._theme_signature == ("light", False)
-    assert prompt._theme_colors["card"] == "#F8FBFF"
+    assert prompt._theme_colors["card"] == "#17242C"
     assert prompt._undo_toast._theme_signature == ("light", False)
 
     prompt.apply_theme(SimpleNamespace(resolved="dark", high_contrast=False))
     assert prompt._theme_signature == ("dark", False)
-    assert prompt._theme_colors["card"] == "#172033"
+    assert prompt._theme_colors["card"] == "#17242C"
 
     prompt.apply_theme(SimpleNamespace(resolved="dark", high_contrast=True))
     native = QApplication.palette()

@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from PySide6.QtCore import QSignalBlocker, Qt
-from PySide6.QtWidgets import QCheckBox, QComboBox, QHBoxLayout, QLabel, QPushButton, QSlider
+from PySide6.QtWidgets import QBoxLayout, QComboBox, QHBoxLayout, QLabel, QPushButton, QSlider
 
 from opencareyes.ui.widgets import Card, PageHeader, ScrollPage, first_state_value, set_accessible
+from opencareyes.application.status_presenter import StatusPresenter
 
 
 _FOCUS_DIM_MAX = 255
@@ -28,7 +29,7 @@ class FocusPage(ScrollPage):
         ))
 
         start_card = Card("快速开始", "选择一个专注时长，或保持开启直到手动结束。")
-        row = QHBoxLayout()
+        row = self._session_row = QBoxLayout(QBoxLayout.LeftToRight)
         self._duration_combo = QComboBox()
         for text, minutes in (
             ("25 分钟", 25),
@@ -41,13 +42,15 @@ class FocusPage(ScrollPage):
         self._start_button = QPushButton("开始专注")
         self._start_button.setObjectName("primaryButton")
         set_accessible(self._start_button, "开始专注")
-        self._toggle = QCheckBox("专注模式")
-        set_accessible(self._toggle, "启用专注模式")
         row.addWidget(self._duration_combo)
         row.addWidget(self._start_button)
         row.addStretch()
-        row.addWidget(self._toggle)
         start_card.body.addLayout(row)
+        self._session_status = QLabel()
+        self._session_status.setWordWrap(True)
+        self._session_status.setObjectName('statusDetail')
+        self._session_status.setAccessibleName('专注实际状态')
+        start_card.body.addWidget(self._session_status)
         self.layout.addWidget(start_card)
 
         dim_card = Card("背景暗化", "仅调节周边区域的暗化强度。")
@@ -79,23 +82,30 @@ class FocusPage(ScrollPage):
         self.layout.addStretch()
 
     def _connect_signals(self) -> None:
-        self._toggle.toggled.connect(
-            lambda enabled: self._controller.set_feature_enabled("focus", enabled)
-        )
         self._start_button.clicked.connect(self._start_focus)
-        self._dim_slider.valueChanged.connect(
-            lambda value: self._dim_value.setText(f"{value}%")
-        )
+        self._dim_slider.valueChanged.connect(self._on_dim_changed)
         self._dim_slider.sliderReleased.connect(self._commit_dim)
         self._controller.state_changed.connect(self.render)
 
     def _start_focus(self) -> None:
+        if bool(first_state_value(self._controller.state, 'focus.enabled', default=False)):
+            self._controller.set_feature_enabled('focus', False)
+            return
         minutes = int(self._duration_combo.currentData())
         start_session = getattr(self._controller, "start_focus_session", None)
         if minutes and callable(start_session):
             start_session(minutes)
         else:
             self._controller.set_feature_enabled("focus", True)
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self._session_row.setDirection(QBoxLayout.LeftToRight)
+
+    def _on_dim_changed(self, value: int) -> None:
+        self._dim_value.setText(f'{value}%')
+        if not self._dim_slider.isSliderDown():
+            self._commit_dim()
 
     def _commit_dim(self) -> None:
         level = round(self._dim_slider.value() * _FOCUS_DIM_MAX / 100)
@@ -106,13 +116,19 @@ class FocusPage(ScrollPage):
         level = int(first_state_value(state, "focus.dim_level", default=150))
         available = bool(first_state_value(state, "capabilities.focus_available", default=True))
         percent = round(level * 100 / _FOCUS_DIM_MAX)
-        with QSignalBlocker(self._toggle):
-            self._toggle.setChecked(enabled)
         if not self._dim_slider.isSliderDown():
             with QSignalBlocker(self._dim_slider):
                 self._dim_slider.setValue(percent)
             self._dim_value.setText(f"{percent}%")
-        self._start_button.setText("正在专注" if enabled else "开始专注")
-        self._start_button.setEnabled(available and not enabled)
-        self._toggle.setEnabled(available)
+        self._start_button.setText("结束专注" if enabled else "开始专注")
+        self._start_button.setAccessibleName(self._start_button.text())
+        self._start_button.setEnabled(available or enabled)
+        self._duration_combo.setEnabled(available and not enabled)
+        status = StatusPresenter.project(state).focus
+        end = first_state_value(state, 'focus.session_ends_at')
+        if enabled:
+            timing = f'预计 {end.astimezone().strftime("%H:%M")} 结束' if end is not None else '持续开启，可随时结束'
+            self._session_status.setText(f'{status.detail} · {timing}')
+        else:
+            self._session_status.setText('选择时长后开始；结束专注后恢复原来的显示。')
         self._dim_slider.setEnabled(available)

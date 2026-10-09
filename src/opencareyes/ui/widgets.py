@@ -13,9 +13,12 @@ from typing import Any
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QFrame,
+    QFormLayout,
     QHBoxLayout,
     QLabel,
     QScrollArea,
+    QSizePolicy,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
@@ -186,6 +189,46 @@ class Card(QFrame):
             self.body.addWidget(copy)
 
 
+class Disclosure(QFrame):
+    """An explicit, keyboard-operable reveal for occasional settings."""
+
+    def __init__(self, title: str, description: str = '', parent=None):
+        super().__init__(parent)
+        self.setObjectName('disclosure')
+        self._title = title
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        self.toggle = QToolButton()
+        self.toggle.setObjectName('disclosureButton')
+        self.toggle.setText(title)
+        self.toggle.setCheckable(True)
+        self.toggle.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        self.toggle.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.toggle.setMinimumHeight(44)
+        self.toggle.setToolTip(description)
+        layout.addWidget(self.toggle)
+        self.contents = QWidget()
+        self.contents.setObjectName('disclosureContent')
+        self.body = QVBoxLayout(self.contents)
+        self.body.setContentsMargins(20, 12, 20, 18)
+        self.body.setSpacing(12)
+        if description:
+            copy = QLabel(description)
+            copy.setObjectName('cardDescription')
+            copy.setWordWrap(True)
+            self.body.addWidget(copy)
+        layout.addWidget(self.contents)
+        self.toggle.toggled.connect(self.set_expanded)
+        self.set_expanded(False)
+
+    def set_expanded(self, expanded: bool) -> None:
+        self.toggle.setChecked(expanded)
+        self.toggle.setArrowType(Qt.DownArrow if expanded else Qt.RightArrow)
+        self.toggle.setAccessibleName(f'{"收起" if expanded else "展开"}{self._title}')
+        self.contents.setVisible(expanded)
+
+
 class StatusCard(Card):
     """Compact summary card with a status badge and a primary value."""
 
@@ -245,6 +288,14 @@ class ScrollPage(QScrollArea):
         self.layout.setContentsMargins(28, 24, 28, 28)
         self.layout.setSpacing(16)
         self.setWidget(self.content)
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        compact = self.viewport().width() < 600
+        self.layout.setContentsMargins(18 if compact else 28, 20, 18 if compact else 28, 24)
+        for form in self.content.findChildren(QFormLayout):
+            form.setRowWrapPolicy(QFormLayout.WrapLongRows)
+            form.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
 
 
 def refresh_property(widget: QWidget, name: str, value: Any) -> None:

@@ -10,6 +10,7 @@ from PySide6.QtCore import QSignalBlocker, QTime
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
+    QBoxLayout,
     QComboBox,
     QDoubleSpinBox,
     QFileDialog,
@@ -78,12 +79,12 @@ class AutomationPage(ScrollPage):
 
     def _build_ui(self) -> None:
         self.layout.addWidget(PageHeader(
-            "自动化",
+            "自动日程",
             "按固定时间或当地日出日落切换显示效果。手动调整会保持到下一次自动切换。",
         ))
 
         status_card = Card("下一次动作")
-        status_row = QHBoxLayout()
+        status_row = self._status_row = QBoxLayout(QBoxLayout.LeftToRight)
         self._next_event = QLabel("尚未启用自动化")
         self._next_event.setObjectName("statusValue")
         self._next_event.setWordWrap(True)
@@ -189,7 +190,7 @@ class AutomationPage(ScrollPage):
         self.layout.addWidget(rule_card)
 
         context_card = Card("当前情境", "只使用本机系统状态，不读取窗口标题或屏幕内容。")
-        context_row = QHBoxLayout()
+        context_row = self._context_row = QBoxLayout(QBoxLayout.LeftToRight)
         self._context_status = QLabel("正在检测当前情境…")
         self._context_status.setWordWrap(True)
         self._context_status.setObjectName("statusValue")
@@ -211,28 +212,31 @@ class AutomationPage(ScrollPage):
         smart_form.setVerticalSpacing(10)
         self._smart_pause_toggle = QCheckBox("启用情境感知")
         self._fullscreen_pause_toggle = QCheckBox("全屏、演示和游戏时暂停")
-        self._natural_rest_toggle = QCheckBox(
-            "离开 2 分钟后暂停，达到 5 分钟视为自然休息"
-        )
+        self._natural_rest_toggle = QCheckBox("离开电脑时暂停提醒")
         set_accessible(self._smart_pause_toggle, "启用智能免打扰")
         set_accessible(self._fullscreen_pause_toggle, "全屏时自动暂停")
         set_accessible(self._natural_rest_toggle, "启用自然休息")
         smart_form.addRow("总开关", self._smart_pause_toggle)
         smart_form.addRow("全屏场景", self._fullscreen_pause_toggle)
         smart_form.addRow("离开电脑", self._natural_rest_toggle)
+        natural_rest_hint = QLabel('离开 2 分钟后暂停；达到 5 分钟按自然休息处理。')
+        natural_rest_hint.setWordWrap(True)
+        natural_rest_hint.setObjectName('cardDescription')
+        smart_form.addRow('', natural_rest_hint)
         smart_card.body.addLayout(smart_form)
         self.layout.addWidget(smart_card)
 
         apps_card = Card(
             "应用例外",
-            "仅保存程序文件名。添加后可分别控制休息、专注、色温与调暗。",
+            "勾选的效果会在该应用中暂停。仅保存程序文件名。",
         )
-        app_actions = QHBoxLayout()
+        app_actions = self._app_actions = QBoxLayout(QBoxLayout.LeftToRight)
         self._current_app_label = QLabel("当前应用：尚未识别")
         self._current_app_label.setObjectName("cardDescription")
+        self._current_app_label.setWordWrap(True)
         self._add_current_app_button = QPushButton("添加当前应用")
         self._add_current_app_button.setObjectName("secondaryButton")
-        self._choose_app_button = QPushButton("选择可执行程序…")
+        self._choose_app_button = QPushButton("选择程序…")
         self._choose_app_button.setObjectName("secondaryButton")
         set_accessible(self._add_current_app_button, "添加当前前台应用")
         set_accessible(self._choose_app_button, "选择要添加例外规则的程序")
@@ -269,6 +273,17 @@ class AutomationPage(ScrollPage):
         self.layout.addStretch()
         self._update_mode_visibility()
         self._city_changed(0)
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        compact = self.viewport().width() < 600
+        direction = QBoxLayout.TopToBottom if compact else QBoxLayout.LeftToRight
+        for row in (self._status_row, self._context_row, self._app_actions):
+            row.setDirection(direction)
+        self._rules_table.setHorizontalHeaderLabels(
+            ('程序', '休息', '专注', '色温', '调暗', '') if compact
+            else ('应用', '暂停休息', '隐藏专注', '暂停色温', '暂停调暗', '')
+        )
 
     def _connect_signals(self) -> None:
         self._schedule_toggle.toggled.connect(self._toggle_schedule)

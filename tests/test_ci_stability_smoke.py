@@ -140,7 +140,7 @@ def test_workflow_builds_installer_once_and_reuses_artifact_for_release():
     )
 
     assert workflow.count("- name: Build Inno Setup installer") == 1
-    assert "needs: [build, installer]" in workflow
+    assert "needs: [build, installer, stability]" in workflow
     assert workflow.count("name: OpenCareEyes-installer") == 2
     assert "path: installer_output/OpenCareEyes_Setup_*.exe" in workflow
 

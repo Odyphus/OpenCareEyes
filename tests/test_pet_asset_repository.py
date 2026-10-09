@@ -51,7 +51,7 @@ def test_manifest_preload_deduplicates_shared_atlas(qtbot, tmp_path):
         pet_id='snow_ferret',
         actions={
             'idle': SimpleNamespace(frames=(frame, frame)),
-            'move': SimpleNamespace(frames=(frame,)),
+            'move': SimpleNamespace(frames=(SimpleNamespace(path='sprites/move.png'),)),
         },
     )
 

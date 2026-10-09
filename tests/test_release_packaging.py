@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 def test_release_is_the_single_project_version_source():
     project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
 
-    assert project["project"]["version"] == "0.9.0"
+    assert project["project"]["version"] == "0.10.0b10"
 
 
 def test_prerelease_build_uses_numeric_windows_version_and_skips_winget():
@@ -37,6 +37,10 @@ def test_prerelease_build_uses_numeric_windows_version_and_skips_winget():
     assert "$windowsVersion = python -c" in workflow
     assert "resolve_release_version(sys.argv[1]).windows" in workflow
     assert '"/DMyWindowsVersion=$windowsVersion"' in workflow
+    assert "needs: [build, installer, stability]" in workflow
+    assert "if ($isPrerelease -eq '0')" in workflow
+    assert "if ($env:IS_PRERELEASE -eq '1')" in workflow
+    assert "$releaseArgs += '--prerelease'" in workflow
 
 
 def test_installer_can_replace_the_running_tray_executable_during_upgrade():

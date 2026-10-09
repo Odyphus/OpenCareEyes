@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import math
 import time
 from collections.abc import Callable
 
@@ -59,6 +60,8 @@ class CompanionRuntime:
 
         self._autonomous_motion = None
         self._autonomous_end = None
+        self._interaction_end = None
+        self._interaction_kind = ''
         self._autonomous_timer = None
         self._cursor_timer = None
         self._window_avoidance = None
@@ -108,6 +111,13 @@ class CompanionRuntime:
     def sync_state(self, state) -> None:
         if self._shutdown:
             return
+        set_menu_enabled = getattr(self._surface, 'set_context_interactions_enabled', None)
+        if callable(set_menu_enabled):
+            set_menu_enabled(not (
+                state.companion.suppressed_by or state.global_pause.active
+                or state.breaks.phase == 'resting'
+                or state.break_prompt.stage not in {'none', 'hidden'}
+            ))
         break_visual_suppressed = bool(
             state.global_pause.active
             or not state.companion.visible
@@ -154,6 +164,22 @@ class CompanionRuntime:
         if self._started:
             self._sync_chime(state)
             self._sync_anchor()
+        self._sync_focus_behavior(state)
+
+    def _sync_focus_behavior(self, state) -> None:
+        if self._companion is None:
+            return
+        focusing = bool(
+            state.focus.enabled and state.companion.visible
+            and not state.global_pause.active and not state.companion.suppressed_by
+        )
+        has_action = getattr(self._surface, 'has_action', None)
+        if focusing and callable(has_action) and has_action('read'):
+            self.dispatch_pet_event('application.focus')
+        elif self._companion.state.behavior.event_kind == 'application.focus':
+            if self._companion.clear_event('application.focus'):
+                self._surface.play_action(self._companion.current_action.action_id)
+                self._controller.refresh_companion_presentation(force=True)
 
     def sync_presentation(self, presentation) -> None:
         if self._shutdown:
@@ -180,6 +206,10 @@ class CompanionRuntime:
         set_outfit = getattr(self._surface, 'set_outfit', None)
         if callable(set_outfit):
             set_outfit(getattr(presentation, 'outfit_id', ''))
+        set_capabilities = getattr(self._bubble, 'set_interaction_capabilities', None)
+        has_action = getattr(self._surface, 'has_action', None)
+        if callable(set_capabilities) and callable(has_action):
+            set_capabilities(has_action)
         self._surface.set_appearance(presentation.appearance)
         if self._started:
             self._sync_anchor()
@@ -202,6 +232,9 @@ class CompanionRuntime:
         self._refresh_timer_state()
 
     def apply_theme(self, snapshot) -> None:
+        surface_theme = getattr(self._surface, 'apply_theme', None)
+        if callable(surface_theme):
+            surface_theme(snapshot)
         apply_theme = getattr(self._bubble, 'apply_theme', None)
         if callable(apply_theme):
             apply_theme(snapshot)
@@ -209,15 +242,12 @@ class CompanionRuntime:
             self._bubble.set_theme(snapshot)
 
     def show_bubble(self, *, focusable: bool = False) -> bool:
-        '''Show the companion bubble through an explicit input-mode boundary.'''
+        '''The retired status card has no product entry point.
 
-        if self._shutdown or not self._surface.isVisible():
-            return False
-        self._bubble.show_for(self._surface, focusable=bool(focusable))
-        if self._companion is not None:
-            self._companion.set_bubble_visible(True)
-            self._controller.refresh_companion_presentation(force=True)
-        return True
+        The rest-due prompt still uses its dedicated reminder path.
+        '''
+
+        return False
 
     def set_motion_reduced(self, reduced: bool) -> None:
         reduced = bool(reduced)
@@ -244,6 +274,8 @@ class CompanionRuntime:
         self._last_break_semantic = None
         self._stop_window_avoidance(restore=False)
         self._stop_all_timers()
+        if self._interaction_end is not None:
+            self._interaction_end.stop()
         self._bubble.clear_rest_prompt()
         self._bubble.hide()
 
@@ -328,6 +360,7 @@ class CompanionRuntime:
             and not self._motion_reduced
             and not self._surface.is_dragging
             and not self._bubble.isVisible()
+            and not bool(self._surface.property('contextMenuOpen'))
             and not bool(self._surface.property('autonomousMoving'))
         )
 
@@ -358,8 +391,10 @@ class CompanionRuntime:
             'drag_hold': 'drag.hold',
             'drag_release': 'drag.release',
         }.get(str(kind), str(kind))
-        if semantic in {'click', 'right_click', 'drag.hold', 'drag.release'}:
+        if semantic in {'click', 'right_click', 'drag.hold', 'drag.release'} or semantic.startswith('item.'):
             self._stop_autonomous_action(complete=False)
+            if self._interaction_end is not None:
+                self._interaction_end.stop()
         safe_payload = payload if isinstance(payload, dict) else {}
         try:
             changed = self._companion.dispatch_kind(semantic, safe_payload)
@@ -372,6 +407,13 @@ class CompanionRuntime:
                 restart=True,
             )
             self._controller.refresh_companion_presentation(force=True)
+            action = self._companion.current_action
+            manual = semantic in {'click', 'right_click', 'drag.release'} or semantic.startswith('item.')
+            if (manual and self._interaction_end is not None
+                    and (action.loop or self._motion_reduced)):
+                duration = sum(frame.duration_ms for frame in action.frames)
+                self._interaction_kind = semantic
+                self._interaction_end.start(max(300, min(5000, duration)))
         return changed
 
     def _build_timers(self) -> None:
@@ -380,19 +422,24 @@ class CompanionRuntime:
             b'pos',
             self._surface,
         )
-        self._autonomous_motion.setEasingCurve(QEasingCurve.InOutSine)
+        # Constant travel speed matches the authored walk-cycle cadence.
+        self._autonomous_motion.setEasingCurve(QEasingCurve.Linear)
         self._autonomous_motion.finished.connect(self._finish_autonomous_action)
 
         self._autonomous_end = QTimer(self._surface)
         self._autonomous_end.setSingleShot(True)
         self._autonomous_end.timeout.connect(self._finish_autonomous_action)
 
+        self._interaction_end = QTimer(self._surface)
+        self._interaction_end.setSingleShot(True)
+        self._interaction_end.timeout.connect(self._finish_interaction)
+
         self._autonomous_timer = QTimer(self._surface)
         self._autonomous_timer.setSingleShot(True)
         self._autonomous_timer.timeout.connect(self._run_autonomous_action)
 
         self._cursor_timer = QTimer(self._surface)
-        self._cursor_timer.setInterval(500)
+        self._cursor_timer.setInterval(50)
         self._cursor_timer.timeout.connect(self._probe_cursor)
         self._last_cursor_position = self._cursor_position()
 
@@ -400,6 +447,15 @@ class CompanionRuntime:
         self._surface.position_changed.connect(self._persist_pet_position)
         self._surface.reset_requested.connect(self._reset_pet_anchor)
         self._surface.pet_event.connect(self.dispatch_pet_event)
+        hide_requested = getattr(self._surface, 'hide_requested', None)
+        if hide_requested is not None:
+            hide_requested.connect(self._hide_pet)
+        interaction_requested = getattr(self._surface, 'interaction_requested', None)
+        if interaction_requested is not None:
+            interaction_requested.connect(self.interact)
+        context_menu_changed = getattr(self._surface, 'context_menu_changed', None)
+        if context_menu_changed is not None:
+            context_menu_changed.connect(self._context_menu_changed)
         self._controller.pet_event_requested.connect(self.dispatch_pet_event)
         self._surface.pack_switched.connect(
             lambda _pet_id: self._controller.refresh_companion_presentation(
@@ -414,9 +470,35 @@ class CompanionRuntime:
         if layer_failed is not None:
             layer_failed.connect(self._handle_outfit_layer_failure)
         self._surface.animator.animation_finished.connect(self._finish_pet_action)
-        self._surface.bubble_requested.connect(self._toggle_pet_bubble)
         self._bubble.dismissed.connect(self._dismiss_pet_bubble)
         self._bubble.tool_requested.connect(self._handle_pet_tool)
+        interaction = getattr(self._bubble, 'interaction_requested', None)
+        if interaction is not None:
+            interaction.connect(self.interact)
+
+    def interact(self, kind: str) -> bool:
+        """Explicit play obeys the same reminder and safety arbitration as clicks."""
+
+        if kind not in {'click', 'item.play', 'item.stretch', 'item.wave'}:
+            return False
+        if self._shutdown or not self._surface.isVisible():
+            return False
+        state = self._controller.state
+        if (state.companion.suppressed_by or state.global_pause.active
+                or state.breaks.phase == 'resting' or self._bubble.is_rest_prompt_active):
+            return False
+        action_id = {
+            'click': 'click_reaction', 'item.play': 'play',
+            'item.stretch': 'yawn', 'item.wave': 'rest_prompt',
+        }[kind]
+        has_action = getattr(self._surface, 'has_action', None)
+        if callable(has_action) and not has_action(action_id):
+            return False
+        changed = self.dispatch_pet_event(kind)
+        if changed:
+            self._bubble.hide()
+            self._dismiss_pet_bubble()
+        return changed
 
     def _apply_temporary_move(self, request) -> None:
         self._surface.setProperty('serviceTransientPlacement', True)
@@ -429,6 +511,22 @@ class CompanionRuntime:
     def _reset_pet_anchor(self) -> None:
         self._surface.setProperty('serviceTransientPlacement', False)
         self._controller.reset_pet_position()
+
+    def _hide_pet(self) -> None:
+        if not self._shutdown:
+            self._controller.set_companion_enabled(False)
+
+    def _context_menu_changed(self, opened: bool) -> None:
+        if self._shutdown:
+            return
+        if opened:
+            self._bubble.hide()
+            self._dismiss_pet_bubble()
+            self._stop_all_timers()
+            self._stop_autonomous_action(complete=True)
+            self._stop_window_avoidance(restore=False)
+        else:
+            self._refresh_timer_state()
 
     def _handle_pack_switch_failure(self, _pet_id: str, _detail: str) -> None:
         if self._companion is not None and self._surface.pet_id:
@@ -469,10 +567,21 @@ class CompanionRuntime:
         )
 
     def _finish_pet_action(self, action_id: str) -> None:
+        if (self._companion is not None and action_id == 'look_cursor'
+                and self._companion.state.behavior.event_kind == 'cursor.near'):
+            return
         if self._companion is None or not self._companion.complete_action(action_id):
             return
+        if self._interaction_end is not None:
+            self._interaction_end.stop()
         self._surface.play_action(self._companion.current_action.action_id)
         self._controller.refresh_companion_presentation(force=True)
+        self._sync_focus_behavior(self._controller.state)
+
+    def _finish_interaction(self) -> None:
+        if (not self._shutdown and self._companion is not None
+                and self._companion.state.behavior.event_kind == self._interaction_kind):
+            self._finish_pet_action(self._companion.current_action.action_id)
 
     def _finish_autonomous_action(self) -> None:
         if self._companion is not None:
@@ -482,6 +591,7 @@ class CompanionRuntime:
                 self._controller.refresh_companion_presentation(force=True)
         if hasattr(self._surface, 'setProperty'):
             self._surface.setProperty('autonomousMoving', False)
+        self._sync_focus_behavior(self._controller.state)
 
     def _schedule_autonomous_action(self) -> None:
         if self._autonomous_timer is None:
@@ -489,6 +599,7 @@ class CompanionRuntime:
         if (
             self._companion is None
             or not self._surface.isVisible()
+            or bool(self._surface.property('contextMenuOpen'))
             or self._motion_reduced
         ):
             self._autonomous_timer.stop()
@@ -503,8 +614,10 @@ class CompanionRuntime:
             or self._surface.is_dragging
             or not self._surface.isVisible()
             or self._bubble.isVisible()
+            or bool(self._surface.property('contextMenuOpen'))
             or self._motion_reduced
             or state.breaks.phase == 'resting'
+            or state.focus.enabled
             or state.break_prompt.stage not in {'none', 'hidden'}
             or bool(self._surface.property('serviceTransientPlacement'))
         ):
@@ -562,6 +675,8 @@ class CompanionRuntime:
             self._companion is None
             or not self._surface.isVisible()
             or self._surface.is_dragging
+            or bool(self._surface.property('contextMenuOpen'))
+            or self._motion_reduced
         ):
             self._set_cursor_interval(500)
             return
@@ -577,29 +692,38 @@ class CompanionRuntime:
         if bool(self._surface.property('autonomousMoving')):
             self._set_cursor_interval(500)
             return
-        distance = (position - self._surface.geometry().center()).manhattanLength()
-        if distance <= 180:
-            self._set_cursor_interval(100)
-            horizontal = position.x() - self._surface.geometry().center().x()
-            gaze = 'center'
-            if horizontal < -12:
-                gaze = 'left'
-            elif horizontal > 12:
-                gaze = 'right'
+        state = self._controller.state
+        if (state.breaks.phase == 'resting' or state.focus.enabled
+                or state.global_pause.active or state.companion.suppressed_by
+                or state.break_prompt.stage not in {'none', 'hidden'}
+                or self._companion.current_action.action_id == 'sleep'):
+            self._set_cursor_interval(500)
+            return
+        self._set_cursor_interval(50)
+        offset = position - self._surface.geometry().center()
+        gaze = self._cursor_gaze_direction(offset.x(), offset.y())
+        set_target = getattr(self._surface, 'set_gaze_target', None)
+        if callable(set_target):
+            set_target(offset.x(), offset.y())
+        else:
             set_gaze = getattr(self._surface, 'set_gaze_direction', None)
             if callable(set_gaze):
                 set_gaze(gaze)
-            if now - self._last_cursor_reaction >= 2.0:
-                self._last_cursor_reaction = now
-                self.dispatch_pet_event('cursor.near', {'gaze': gaze})
-        elif (
-            now - self._last_cursor_motion >= 45
-            and self._companion.state.behavior.event_kind == 'autonomous.idle'
-        ):
-            self._set_cursor_interval(500)
-            self.dispatch_pet_event('cursor.still')
-        else:
-            self._set_cursor_interval(500)
+        # Enter tracking once. Re-dispatching the same event used to restart
+        # the action every two seconds; a fixed cursor now holds its pose.
+        if self._companion.state.behavior.event_kind != 'cursor.near':
+            self._last_cursor_reaction = now
+            self.dispatch_pet_event('cursor.near', {'gaze': gaze})
+
+    @staticmethod
+    def _cursor_gaze_direction(horizontal: int, vertical: int) -> str:
+        if math.hypot(horizontal, vertical) <= 18:
+            return 'center'
+        # Eight readable screen directions; a small central dead zone avoids
+        # rapid left/right flips as the pointer crosses the character's nose.
+        sector = round(math.atan2(-vertical, horizontal) / (math.pi / 4)) % 8
+        return ('right', 'up_right', 'up', 'up_left', 'left',
+                'down_left', 'down', 'down_right')[sector]
 
     def _set_cursor_interval(self, interval: int) -> None:
         if self._cursor_timer is not None and self._cursor_timer.interval() != interval:
@@ -636,6 +760,9 @@ class CompanionRuntime:
             self._stop_all_timers()
             self._stop_window_avoidance()
             return
+        if bool(self._surface.property('contextMenuOpen')):
+            self._stop_all_timers()
+            return
         if self._motion_reduced:
             self._cursor_timer.stop()
             self._stop_autonomous_action(complete=True)
@@ -648,10 +775,7 @@ class CompanionRuntime:
             self._schedule_autonomous_action()
 
     def _toggle_pet_bubble(self) -> None:
-        self._bubble.toggle_for(self._surface, focusable=False)
-        if self._companion is not None:
-            self._companion.set_bubble_visible(self._bubble.isVisible())
-            self._controller.refresh_companion_presentation(force=True)
+        return
 
     def _start_window_avoidance(self) -> None:
         if self._window_avoidance is None or self._window_avoidance_running:
@@ -681,12 +805,6 @@ class CompanionRuntime:
     def _handle_hourly_chime(self, hour: int, may_play_sound: bool) -> None:
         if not self.dispatch_pet_event('reminder.hourly', {'hour': int(hour)}):
             return
-        if self._surface.isVisible():
-            self._bubble.set_status(
-                f'{hour} 点啦',
-                '活动一下肩颈，再继续专注吧。',
-            )
-            self._bubble.show_for(self._surface)
         if (
             not may_play_sound
             or self._companion is None

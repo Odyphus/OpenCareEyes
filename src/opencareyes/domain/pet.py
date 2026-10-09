@@ -224,8 +224,8 @@ class PetOutfitDefinition:
             raise ValueError('Outfit action map keys must match action identifiers')
         if 'idle' not in actions:
             raise ValueError('Outfit is missing required idle action')
-        if sum(len(action.frames) for action in actions.values()) > 60:
-            raise ValueError('An outfit cannot exceed 60 frame descriptions')
+        if sum(len(action.frames) for action in actions.values()) > 160:
+            raise ValueError('An outfit cannot exceed 160 frame descriptions')
 
         layers: dict[str, str] = {}
         for raw_layer_id, raw_path in self.ambient_layers.items():

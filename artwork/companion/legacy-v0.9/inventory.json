@@ -1,0 +1,92 @@
+[
+  {
+    "path": "sprites/blink.png",
+    "bytes": 41761,
+    "sha256": "0835a12b2b53cfe5b715e9e0f234c01400d9a47ecc3a10d042e74b36aa085092"
+  },
+  {
+    "path": "sprites/cursor_paw.png",
+    "bytes": 39536,
+    "sha256": "cd4d8f7bbce6b8b82f8725e1c3abcfffa87d6278acef02eaeb04b99ce8a64cc0"
+  },
+  {
+    "path": "sprites/drag_hold.png",
+    "bytes": 42686,
+    "sha256": "930fce7eda54ebf8f3f22a20ade35f48da0fa0a890096c71e208aba135117a2c"
+  },
+  {
+    "path": "sprites/edge_paw.png",
+    "bytes": 23626,
+    "sha256": "7d2c7b3614cbf17d7ea9d39a358b6be280ad21e41eec82acd1c3d0966f5021c4"
+  },
+  {
+    "path": "sprites/head_tilt.png",
+    "bytes": 44860,
+    "sha256": "9aa97c1700bbbc98f57889960cd31bc51258715ee9c72cc252b1666fdd07c6aa"
+  },
+  {
+    "path": "sprites/idle.png",
+    "bytes": 43038,
+    "sha256": "e8b598eba841f00b5dca2be1ee637408c2a10d6e1c5a8dfc6efdbad32458ebe7"
+  },
+  {
+    "path": "sprites/jump.png",
+    "bytes": 44077,
+    "sha256": "82db0c8cbc1bf24bb84ee659daefd99cfb69e40c361ba74cfb79d594add05ef5"
+  },
+  {
+    "path": "sprites/rest_prompt.png",
+    "bytes": 44236,
+    "sha256": "c3392e866f74b23d02d78a3f58f457a2dc14867f511d04d75cb3b2776c4342b5"
+  },
+  {
+    "path": "sprites/roll.png",
+    "bytes": 44606,
+    "sha256": "dcd5d85a5770dfa58d25a9d33c60d756e8441993916c0ed975a3f55f3669290e"
+  },
+  {
+    "path": "sprites/shy_back.png",
+    "bytes": 36237,
+    "sha256": "1f79fd3809741a44c42d1b770e37810de39c7cce9853d1644dc040b1e7ae0478"
+  },
+  {
+    "path": "sprites/sleep.png",
+    "bytes": 36856,
+    "sha256": "753694767ff42c3e5e60131b3c173b3117a2cc70b0fa20f5bbacf78bc98bacef"
+  },
+  {
+    "path": "sprites/stumble.png",
+    "bytes": 44760,
+    "sha256": "1e447ab25baee83d779b3afc9caab05b68717a93ebfff6f15cc4885b44577820"
+  },
+  {
+    "path": "sprites/tail_chase.png",
+    "bytes": 41574,
+    "sha256": "e44744dff510e0030fb79fd4d11ac073c42f5d12b4c37f38972c7e4334568246"
+  },
+  {
+    "path": "sprites/walk_1.png",
+    "bytes": 36614,
+    "sha256": "31990abbef8e3379abae4331ed11ad74b31288e5d52a78f5f089a92d444c48e1"
+  },
+  {
+    "path": "sprites/walk_2.png",
+    "bytes": 36684,
+    "sha256": "a8aeb8378911b4ff4fc01e604613dffc5312df9628194366d8bfc1000998427e"
+  },
+  {
+    "path": "sprites/yawn.png",
+    "bytes": 48426,
+    "sha256": "7909b53a000409667b115b8b696ab7887b7cb0c997c4a934531c0433cb5bb925"
+  },
+  {
+    "path": "outfits/navy_scarf/navy_scarf_atlas_1.png",
+    "bytes": 2129860,
+    "sha256": "4747b9c17f5faf1226520dd635bd71ce76736d131ce64ee824a0e6211786801d"
+  },
+  {
+    "path": "outfits/navy_scarf/navy_scarf_atlas_2.png",
+    "bytes": 1716435,
+    "sha256": "63ff5572cd9e3421ab8813c6afb899d7e59834fe87a1abee1cbea3b59dbb2d53"
+  }
+]

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "opencareyes"
-version = "0.9.0"
+version = "0.10.0b10"
 description = "Windows 桌面陪伴与护眼助手"
 readme = { file = "README.md", content-type = "text/markdown" }
 license = "Apache-2.0"
@@ -24,7 +24,8 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
-    "PySide6>=6.6",
+    # Keep the shipped Qt runtime identical to the one used for desktop validation.
+    "PySide6==6.10.2",
     "astral>=3.2",
     "darkdetect>=0.8",
 ]

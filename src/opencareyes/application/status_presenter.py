@@ -42,6 +42,7 @@ class StatusPresentation:
     dimmer: FeatureStatusPresentation
     breaks: FeatureStatusPresentation
     focus: FeatureStatusPresentation
+    can_start_rest: bool = False
 
     @property
     def effects(self) -> tuple[FeatureStatusPresentation, ...]:
@@ -189,6 +190,12 @@ class StatusPresenter:
             dimmer=dimmer_status,
             breaks=breaks_status,
             focus=focus_status,
+            can_start_rest=(
+                breaks_status.desired_enabled and not global_pause
+                and not breaks_status.suppressed_by
+                and bool(_read(state, 'capabilities.breaks_available', True))
+                and str(_read(state, 'breaks.phase', 'stopped')) != 'resting'
+            ),
         )
 
     @staticmethod

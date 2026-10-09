@@ -6,7 +6,7 @@ import sys
 from dataclasses import replace
 from pathlib import Path
 
-from PySide6.QtCore import QAbstractAnimation, QObject, QPoint, Signal
+from PySide6.QtCore import QAbstractAnimation, QObject, QPoint, Signal, Qt
 from PySide6.QtWidgets import QApplication, QWidget
 
 from opencareyes.application.companion_coordinator import CompanionCoordinator
@@ -323,7 +323,7 @@ def test_reduced_motion_stops_activity_and_restores_permanent_anchor():
     surface.close()
 
 
-def test_explicit_bubble_entry_can_request_keyboard_focus():
+def test_retired_status_card_cannot_be_opened():
     QApplication.instance() or QApplication(sys.argv)
     settings = Settings(MemoryStore())
     companion = CompanionCoordinator(
@@ -336,9 +336,10 @@ def test_explicit_bubble_entry_can_request_keyboard_focus():
     bubble = FakeBubble()
     runtime = CompanionRuntime(controller, companion, surface, bubble)
 
-    assert runtime.show_bubble(focusable=True) is True
-    assert bubble.visible is True
-    assert bubble.show_focusable is True
+    assert runtime.show_bubble(focusable=True) is False
+    runtime._toggle_pet_bubble()
+    assert bubble.visible is False
+    assert bubble.show_focusable is None
 
     runtime.shutdown()
     surface.close()
@@ -623,3 +624,147 @@ def test_missing_outfit_move_never_starts_window_motion(monkeypatch):
     assert runtime._autonomous_motion.state() == QAbstractAnimation.Stopped
     runtime.shutdown()
     surface.close()
+
+
+def _calm_runtime(qtbot):
+    from opencareyes.constants import PETS_DIR
+    companion = CompanionCoordinator(PetPackRegistry(PETS_DIR), 'snow_ferret')
+    controller = AppController(Settings(MemoryStore()), companion=companion)
+    surface = RuntimeSurface()
+    qtbot.addWidget(surface)
+    bubble = FakeBubble()
+    runtime = CompanionRuntime(controller, companion, surface, bubble,
+                               application=RuntimeApplication())
+    runtime.start()
+    return runtime, controller, companion, surface, bubble
+
+
+def test_right_click_close_persists_stays_closed_and_tray_restores_without_resetting_break(qtbot):
+    from opencareyes.constants import PETS_DIR
+    from opencareyes.ui.pet_surface import PetSurface
+    from opencareyes.ui.tray_icon import TrayIcon
+
+    store = MemoryStore()
+    settings = Settings(store)
+    companion = CompanionCoordinator(PetPackRegistry(PETS_DIR), 'snow_ferret')
+    reminder = BreakReminder(clock=lambda: 0.0)
+    controller = AppController(settings, companion=companion, break_reminder=reminder)
+    surface = PetSurface()
+    qtbot.addWidget(surface)
+    surface.set_pack(companion.state.pet_id, companion.manifest)
+    panel = QWidget()
+    qtbot.addWidget(panel)
+    bubble = FakeBubble()
+    runtime = CompanionRuntime(controller, companion, surface, bubble, application=RuntimeApplication())
+    runtime.start()
+    tray = TrayIcon(controller, panel, surface, companion_runtime=runtime)
+    reminder.start()
+    before = controller.state.breaks
+    bubble.visible = True
+    qtbot.mouseClick(surface, Qt.RightButton, pos=surface.rect().center())
+    assert surface._context_menu.isVisible()
+    assert not bubble.isVisible()
+    assert not runtime._autonomous_timer.isActive()
+    assert not runtime._cursor_timer.isActive()
+    # Use the actual menu hit target, not a direct controller call.
+    qtbot.mouseClick(surface._context_menu, Qt.LeftButton,
+                     pos=surface._context_menu.actionGeometry(surface._hide_action).center())
+    assert not surface.isVisible()
+    assert not controller.state.companion.enabled
+    assert not Settings(store).companion_enabled
+    assert not tray._pet_action.isChecked()
+    controller.refresh_companion_presentation(force=True)
+    runtime.sync_state(controller.state)
+    assert not surface.isVisible()
+    assert controller.state.breaks == before
+    assert reminder._timer.isActive()
+    tray._pet_action.trigger()
+    assert controller.state.companion.enabled
+    assert Settings(store).companion_enabled
+    assert surface.isVisible()
+    assert tray._pet_action.isChecked()
+    assert controller.state.breaks == before
+    runtime.shutdown()
+    reminder.stop()
+
+
+def test_cursor_gaze_reads_all_eight_screen_directions_and_central_dead_zone():
+    for offset, direction in (
+        ((80, 0), 'right'), ((80, -80), 'up_right'), ((0, -80), 'up'),
+        ((-80, -80), 'up_left'), ((-80, 0), 'left'),
+        ((-80, 80), 'down_left'), ((0, 80), 'down'), ((80, 80), 'down_right'),
+        ((1, -1), 'center'), ((0, 0), 'center'),
+    ):
+        assert CompanionRuntime._cursor_gaze_direction(*offset) == direction
+
+
+def test_open_pet_menu_blocks_cursor_and_autonomous_activity(qtbot):
+    runtime, controller, companion, surface, bubble = _calm_runtime(qtbot)
+    surface.setProperty('contextMenuOpen', True)
+    runtime._context_menu_changed(True)
+    before = companion.state.behavior
+    runtime._cursor_position = lambda: surface.geometry().center() + QPoint(90, 0)
+    runtime._probe_cursor()
+    runtime._run_autonomous_action()
+    assert companion.state.behavior == before
+    assert not runtime._cursor_timer.isActive()
+    assert not runtime._autonomous_timer.isActive()
+    assert not runtime.can_move_for_window_avoidance()
+    surface.setProperty('contextMenuOpen', False)
+    runtime._context_menu_changed(False)
+    assert runtime._cursor_timer.isActive()
+    runtime.shutdown()
+
+
+def test_manual_interaction_returns_to_focus_and_cannot_interrupt_rest(qtbot):
+    runtime, controller, companion, surface, bubble = _calm_runtime(qtbot)
+    controller._state = replace(controller.state, focus=replace(controller.state.focus, enabled=True))
+    runtime.sync_state(controller.state)
+    assert companion.state.behavior.event_kind == 'application.focus'
+    assert surface.action_id == 'read'
+    assert runtime.interact('item.play')
+    assert surface.action_id == 'play'
+    runtime._finish_pet_action('play')
+    assert surface.action_id == 'read'
+    bubble.is_rest_prompt_active = True
+    assert not runtime.interact('item.play')
+    bubble.is_rest_prompt_active = False
+    controller._state = replace(controller.state, breaks=replace(controller.state.breaks, phase='resting'))
+    runtime.sync_state(controller.state)
+    assert surface.action_id == 'sleep'
+    assert not runtime.interact('item.wave')
+    runtime.shutdown()
+
+
+def test_reduced_motion_manual_gesture_expires_without_stealing_new_rest(qtbot):
+    runtime, controller, companion, surface, bubble = _calm_runtime(qtbot)
+    runtime._application.motion_enabled = False
+    runtime.set_motion_reduced(True)
+    assert runtime.interact('item.play')
+    assert runtime._interaction_end.isActive()
+    runtime._finish_interaction()
+    assert companion.state.behavior.event_kind == 'autonomous.idle'
+    assert runtime.interact('item.wave')
+    controller._state = replace(controller.state, breaks=replace(controller.state.breaks, phase='resting'))
+    runtime.sync_state(controller.state)
+    runtime._finish_interaction()
+    assert companion.state.behavior.event_kind == 'rest.sleep'
+    runtime.shutdown()
+    assert not runtime._interaction_end.isActive()
+
+
+def test_looping_outfit_wave_ends_and_cursor_gaze_continues_across_screen(qtbot):
+    runtime, controller, companion, surface, bubble = _calm_runtime(qtbot)
+    companion.set_outfit('snow_slope_skier')
+    assert runtime.interact('item.wave')
+    assert runtime._interaction_end.isActive()
+    runtime._finish_interaction()
+    assert companion.state.behavior.event_kind == 'autonomous.idle'
+    companion.dispatch_kind('cursor.near')
+    runtime._finish_pet_action('look_cursor')
+    assert companion.state.behavior.event_kind == 'cursor.near'
+    runtime._cursor_position = lambda: surface.geometry().center() + QPoint(500, 500)
+    runtime._probe_cursor()
+    assert companion.state.behavior.event_kind == 'cursor.near'
+    assert surface.gaze_directions[-1] == 'down_right'
+    runtime.shutdown()

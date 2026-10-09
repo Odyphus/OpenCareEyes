@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
+import math
 
 from PySide6.QtCore import (
     QEasingCurve,
@@ -16,7 +17,7 @@ from PySide6.QtCore import (
     Qt,
 )
 from PySide6.QtGui import QColor, QImage, QMouseEvent, QPainter, QPainterPath, QPen
-from PySide6.QtWidgets import QApplication, QWidget
+from PySide6.QtWidgets import QApplication, QMenu, QWidget
 
 from opencareyes.ui.pet_animator import PetAnimator
 
@@ -40,6 +41,9 @@ class PetSurface(QWidget):
     short_clicked = Signal()
     bubble_requested = Signal()
     right_clicked = Signal()
+    hide_requested = Signal()
+    interaction_requested = Signal(str)
+    context_menu_changed = Signal(bool)
     drag_started = Signal(QPoint)
     drag_moved = Signal(QPoint)
     drag_finished = Signal(QPoint)
@@ -65,6 +69,9 @@ class PetSurface(QWidget):
         self._failed_ambient_paths: set[str] = set()
         self._facing_direction = 0
         self._gaze_direction = 'center'
+        self._gaze_point = QPointF()
+        self._gaze_target = QPointF()
+        self._gaze_cell = (2, 2)
         self._scale_percent = 100
         self._reduced_motion = False
         self._suppressed = False
@@ -93,7 +100,8 @@ class PetSurface(QWidget):
         self.setCursor(Qt.OpenHandCursor)
         self.setFixedSize(128, 128)
         self.setAccessibleName('桌面伙伴')
-        self.setToolTip('单击互动，长按拖动，右键看看伙伴的反应')
+        self.setToolTip('单击互动，长按拖动；右键可以互动、重置位置或关闭伙伴')
+        self.setContextMenuPolicy(Qt.PreventContextMenu)
 
         self.animator = PetAnimator(repository, self)
         self.animator.frame_changed.connect(self._set_frame)
@@ -128,8 +136,39 @@ class PetSurface(QWidget):
         self._preview_timer.setSingleShot(True)
         self._preview_timer.setInterval(5000)
         self._preview_timer.timeout.connect(self._finish_preview)
+
+        self._gaze_timer = QTimer(self)
+        self._gaze_timer.setTimerType(Qt.PreciseTimer)
+        self._gaze_timer.setInterval(50)
+        self._gaze_timer.timeout.connect(self._advance_gaze)
         self._preview_active = False
         self._presentation_visible = False
+        self._menu_interactions_allowed = True
+        self._context_menu = QMenu(self)
+        self._context_menu.setAccessibleName('桌面伙伴菜单')
+        interaction_menu = self._context_menu.addMenu('和伙伴互动')
+        self._context_interactions = {}
+        for label, kind, action_id in (
+            ('摸摸头', 'click', 'click_reaction'),
+            ('玩一会儿', 'item.play', 'play'),
+            ('伸个懒腰', 'item.stretch', 'yawn'),
+            ('打个招呼', 'item.wave', 'rest_prompt'),
+        ):
+            action = interaction_menu.addAction(label)
+            self._context_interactions[kind] = (action, action_id)
+            action.triggered.connect(
+                lambda _checked=False, event=kind: self.interaction_requested.emit(event)
+            )
+        self._context_menu.addAction('重置位置').triggered.connect(
+            lambda _checked=False: self.reset_requested.emit()
+        )
+        self._context_menu.addSeparator()
+        self._hide_action = self._context_menu.addAction('关闭桌面伙伴')
+        self._hide_action.setToolTip('关闭后可在托盘菜单中重新勾选“显示桌面伙伴”')
+        self._hide_action.triggered.connect(lambda _checked=False: self.hide_requested.emit())
+        self._context_menu.aboutToShow.connect(lambda: self._set_context_menu_open(True))
+        self._context_menu.aboutToHide.connect(lambda: self._set_context_menu_open(False))
+        self.apply_theme(None)
 
     @property
     def pet_id(self) -> str:
@@ -288,7 +327,64 @@ class PetSurface(QWidget):
             self.animator.stop(clear_frame=True)
             self.update()
             return False
-        return self.animator.play(action_id, action, restart=restart)
+        if action_id != 'move':
+            self.set_facing_direction(0)
+        result = self.animator.play(action_id, action, restart=restart)
+        if action_id == 'look_cursor' and not self._reduced_motion and self._exact_action('look_grid'):
+            if self._gaze_point != self._gaze_target:
+                self._gaze_timer.start()
+        else:
+            self._gaze_timer.stop()
+            self._gaze_point = QPointF()
+            self._gaze_cell = (2, 2)
+        return result
+
+    def apply_theme(self, snapshot) -> None:
+        '''Give the small menu a muted surface, preserving native high contrast.'''
+
+        if bool(getattr(snapshot, 'high_contrast', False)):
+            self._context_menu.setStyleSheet('')
+            return
+        dark = getattr(snapshot, 'resolved', 'dark') == 'dark'
+        surface = '#151C29' if dark else '#EEF2F5'
+        text = '#F1F5FA' if dark else '#263447'
+        border = '#35415A' if dark else '#C7D0DB'
+        hover = '#2D3A52' if dark else '#DBE5ED'
+        disabled = '#8794A9' if dark else '#7E8A99'
+        self._context_menu.setStyleSheet(
+            f'QMenu {{ background: {surface}; color: {text}; border: 1px solid {border}; '
+            'border-radius: 9px; padding: 5px; } '
+            'QMenu::item { padding: 8px 28px 8px 12px; border-radius: 6px; } '
+            f'QMenu::item:selected {{ background: {hover}; }} '
+            f'QMenu::item:disabled {{ color: {disabled}; }} '
+            f'QMenu::separator {{ height: 1px; background: {border}; margin: 5px 8px; }}'
+        )
+
+    def set_context_interactions_enabled(self, enabled: bool) -> None:
+        self._menu_interactions_allowed = bool(enabled)
+
+    def _show_context_menu(self, global_position: QPoint) -> None:
+        self._bubble_timer.stop()
+        self._hold_timer.stop()
+        self._reset_pointer_state()
+        for action, action_id in self._context_interactions.values():
+            action.setEnabled(self._menu_interactions_allowed and self.has_action(action_id))
+        self._context_menu.popup(global_position)
+
+    def _set_context_menu_open(self, opened: bool) -> None:
+        self.setProperty('contextMenuOpen', bool(opened))
+        if opened:
+            self._gaze_timer.stop()
+        self.context_menu_changed.emit(bool(opened))
+
+    def keyPressEvent(self, event) -> None:
+        if event.key() == Qt.Key_Menu or (
+            event.key() == Qt.Key_F10 and event.modifiers() & Qt.ShiftModifier
+        ):
+            self._show_context_menu(self.mapToGlobal(self.rect().center()))
+            event.accept()
+            return
+        super().keyPressEvent(event)
 
     def set_reduced_motion(self, reduced: bool) -> None:
         reduced = bool(reduced)
@@ -296,6 +392,8 @@ class PetSurface(QWidget):
             return
         self._reduced_motion = reduced
         self.animator.set_reduced_motion(self._reduced_motion)
+        if self._reduced_motion:
+            self._gaze_timer.stop()
         if self._reduced_motion and self._switch_phase != 'idle':
             self._complete_switch_immediately()
 
@@ -314,14 +412,73 @@ class PetSurface(QWidget):
         '''Select a stable head-gaze frame without mirroring the whole sprite.'''
 
         normalised = str(direction).strip().lower()
-        if normalised not in {'left', 'center', 'right'}:
+        if normalised not in {
+            'left', 'center', 'right', 'up', 'down',
+            'up_left', 'up_right', 'down_left', 'down_right',
+        }:
             raise ValueError(f'Unsupported gaze direction: {direction!r}')
-        if normalised == self._gaze_direction:
+        changed = normalised != self._gaze_direction
+        if self._exact_action('look_grid') is not None:
+            cell = {
+                'center': (2, 2), 'left': (0, 2), 'right': (4, 2),
+                'up': (2, 0), 'down': (2, 4),
+                'up_left': (0, 0), 'up_right': (4, 0),
+                'down_left': (0, 4), 'down_right': (4, 4),
+            }[normalised]
+            changed = changed or cell != self._gaze_cell
+            self._gaze_cell = cell
+            self._gaze_point = QPointF(cell[0] / 2 - 1, cell[1] / 2 - 1)
+            self._gaze_target = QPointF(self._gaze_point)
+            self._gaze_timer.stop()
+        if not changed:
             return False
         self._gaze_direction = normalised
         if self.animator.action_id == 'look_cursor':
             self.play_action('look_cursor', restart=True)
         return True
+
+    def set_gaze_target(self, horizontal: float, vertical: float) -> None:
+        '''Follow screen-wide pointer offsets, easing on the surface only.'''
+
+        if not (math.isfinite(horizontal) and math.isfinite(vertical)):
+            return
+        if self._exact_action('look_grid') is None:
+            sector = round(math.atan2(-vertical, horizontal) / (math.pi / 4)) % 8
+            direction = ('right', 'up_right', 'up', 'up_left', 'left',
+                         'down_left', 'down', 'down_right')[sector]
+            self.set_gaze_direction('center' if math.hypot(horizontal, vertical) <= 18 else direction)
+            return
+        extent = max(180.0, abs(horizontal), abs(vertical))
+        self._gaze_target = QPointF(horizontal / extent, vertical / extent)
+        if self._reduced_motion or not self.isVisible():
+            self._gaze_timer.stop()
+            return
+        if self.animator.action_id == 'look_cursor' and self._exact_action('look_grid'):
+            if self._gaze_point != self._gaze_target:
+                self._gaze_timer.start()
+
+    def _advance_gaze(self) -> None:
+        if (not self.isVisible() or self._reduced_motion
+                or self.animator.action_id != 'look_cursor'
+                or bool(self.property('contextMenuOpen'))):
+            self._gaze_timer.stop()
+            return
+        delta = self._gaze_target - self._gaze_point
+        if math.hypot(delta.x(), delta.y()) < .012:
+            self._gaze_point = QPointF(self._gaze_target)
+            self._gaze_timer.stop()
+        else:
+            self._gaze_point += delta * .38
+        cell = list(self._gaze_cell)
+        for axis, value in enumerate((self._gaze_point.x(), self._gaze_point.y())):
+            candidate = max(0, min(4, round((value + 1) * 2)))
+            # Hysteresis prevents a still pointer near a grid boundary from
+            # repeatedly switching frames because of one-pixel input noise.
+            if candidate != cell[axis] and abs(value - (cell[axis] / 2 - 1)) > .29:
+                cell[axis] = candidate
+        if tuple(cell) != self._gaze_cell:
+            self._gaze_cell = tuple(cell)
+            self.animator.play('look_cursor', self._action('look_cursor'), restart=True)
 
     def face_towards_cursor(
         self,
@@ -525,6 +682,8 @@ class PetSurface(QWidget):
         self._sync_animation_activity()
 
     def hideEvent(self, event) -> None:
+        self._gaze_timer.stop()
+        self._context_menu.hide()
         if self._switch_phase != 'idle':
             self._complete_switch_immediately()
         self._preview_active = False
@@ -608,7 +767,6 @@ class PetSurface(QWidget):
             else:
                 self.short_clicked.emit()
                 self.pet_event.emit('click', None)
-                self._bubble_timer.start()
             self._reset_pointer_state()
             event.accept()
             return
@@ -616,7 +774,7 @@ class PetSurface(QWidget):
         if event.button() == Qt.RightButton and self._right_pressed:
             self._right_pressed = False
             self.right_clicked.emit()
-            self.pet_event.emit('right_click', None)
+            self._show_context_menu(event.globalPosition().toPoint())
             event.accept()
             return
         super().mouseReleaseEvent(event)
@@ -653,11 +811,21 @@ class PetSurface(QWidget):
     def _action(self, action_id: str):
         action = self._exact_action(action_id)
         if action is not None and action_id == 'look_cursor':
+            grid = self._exact_action('look_grid')
+            if grid is not None and len(grid.frames) == 25:
+                column, row = self._gaze_cell
+                return _StableGazeAction(action_id='look_cursor', frames=(grid.frames[row * 5 + column],))
+            turn = self._exact_action(f'look_{self._gaze_direction}')
+            if turn is not None:
+                return _StableGazeAction(
+                    action_id='look_cursor', frames=tuple(turn.frames),
+                )
             frames = tuple(getattr(action, 'frames', ()))
             if frames:
-                requested = {'left': 0, 'center': 1, 'right': 2}[
-                    self._gaze_direction
-                ]
+                requested = (
+                    0 if self._gaze_direction.endswith('left')
+                    else 2 if self._gaze_direction.endswith('right') else 1
+                )
                 frame = frames[min(requested, len(frames) - 1)]
                 return _StableGazeAction(
                     action_id=str(getattr(action, 'action_id', action_id)),

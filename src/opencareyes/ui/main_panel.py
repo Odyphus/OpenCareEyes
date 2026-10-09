@@ -22,25 +22,27 @@ from PySide6.QtWidgets import (
 )
 
 from opencareyes.constants import ICONS_DIR
-from opencareyes.ui.automation_page import AutomationPage
 from opencareyes.ui.companion_pages import (
-    CompanionBreakPage,
     CompanionHomePage,
     PetCatalogPage,
-    StudyDeskPage,
+    ScreenRestPage,
+    PreferencesPage,
 )
-from opencareyes.ui.settings_page import SettingsPage
 from opencareyes.ui.widgets import first_state_value
 
 
 _PAGES = (
-    ('陪伴屋', CompanionHomePage, 'nav-overview.svg'),
-    ('宠物图鉴', PetCatalogPage, 'nav-focus.svg'),
-    ('学习桌', StudyDeskPage, 'nav-display.svg'),
-    ('休息角', CompanionBreakPage, 'nav-breaks.svg'),
-    ('自动日程', AutomationPage, 'nav-automation.svg'),
-    ('设置', SettingsPage, 'nav-settings.svg'),
+    ('首页', CompanionHomePage, 'nav-overview.svg'),
+    ('伙伴', PetCatalogPage, 'nav-focus.svg'),
+    ('屏幕与休息', ScreenRestPage, 'nav-display.svg'),
+    ('设置', PreferencesPage, 'nav-settings.svg'),
 )
+
+_PAGE_ROUTES = {
+    '陪伴屋': ('首页', ''), '宠物图鉴': ('伙伴', ''),
+    '学习桌': ('屏幕与休息', '专注'), '屏幕舒适': ('屏幕与休息', '屏幕'),
+    '休息角': ('屏幕与休息', '休息'), '自动日程': ('设置', '自动日程'),
+}
 
 
 class MainPanel(QWidget):
@@ -54,7 +56,7 @@ class MainPanel(QWidget):
         self._applied_theme = ""
         self.setObjectName("mainPanel")
         self.setWindowTitle('OpenCareEyes · 桌面伙伴')
-        self.resize(920, 640)
+        self.resize(980, 720)
         # Pages scroll independently, so a compact top-level minimum is safer
         # on 200% DPI laptops than forcing the window below the work area.
         self.setMinimumSize(480, 320)
@@ -73,7 +75,7 @@ class MainPanel(QWidget):
         self._sidebar = QFrame()
         self._sidebar.setObjectName("sidebar")
         self._sidebar.setAttribute(Qt.WA_StyledBackground, True)
-        self._sidebar.setFixedWidth(218)
+        self._sidebar.setFixedWidth(188)
         sidebar_layout = QVBoxLayout(self._sidebar)
         self._sidebar_layout = sidebar_layout
         sidebar_layout.setContentsMargins(18, 22, 18, 18)
@@ -82,7 +84,7 @@ class MainPanel(QWidget):
         self._brand = QLabel("OpenCareEyes")
         self._brand.setObjectName("brandTitle")
         self._brand.setAccessibleName("OpenCareEyes 主导航")
-        self._subtitle = QLabel('Windows 桌面陪伴与护眼助手')
+        self._subtitle = QLabel('陪你专注，也陪你休息')
         self._subtitle.setObjectName("brandSubtitle")
         sidebar_layout.addWidget(self._brand)
         sidebar_layout.addWidget(self._subtitle)
@@ -124,11 +126,12 @@ class MainPanel(QWidget):
         self._message.setObjectName("messageBanner")
         self._message.setWordWrap(True)
         self._message.setAccessibleName("操作提示")
-        self._message.setContentsMargins(0, 0, 28, 0)
+        self._message.setContentsMargins(0, 0, 36, 0)
+        self._message.setTextInteractionFlags(Qt.TextSelectableByMouse)
         self._message_close = QPushButton('×', self._message)
         self._message_close.setObjectName('quietButton')
         self._message_close.setAccessibleName('关闭操作提示')
-        self._message_close.setFixedSize(24, 24)
+        self._message_close.setFixedSize(32, 32)
         self._message_close.clicked.connect(self._message.hide)
         self._message.hide()
         self._message_timer = QTimer(self)
@@ -152,6 +155,9 @@ class MainPanel(QWidget):
             shortcut = QShortcut(QKeySequence(f"Ctrl+{index + 1}"), self)
             shortcut.activated.connect(lambda page=index: self._navigation.setCurrentRow(page))
             self._shortcuts.append(shortcut)
+        escape = QShortcut(QKeySequence('Esc'), self)
+        escape.activated.connect(self._dismiss_or_hide)
+        self._shortcuts.append(escape)
         self._update_responsive_layout()
 
     def _ensure_page(self, index: int) -> QWidget:
@@ -172,6 +178,9 @@ class MainPanel(QWidget):
         placeholder.deleteLater()
         self._stack.insertWidget(index, page)
         self._pages[index] = page
+        route_requested = getattr(page, 'page_requested', None)
+        if route_requested is not None and hasattr(route_requested, 'connect'):
+            route_requested.connect(self.show_page)
         return page
 
     def _select_page(self, index: int) -> None:
@@ -209,7 +218,7 @@ class MainPanel(QWidget):
         self._applied_theme = str(resolved)
 
     def _update_responsive_layout(self) -> None:
-        narrow = self.width() < 720
+        narrow = self.width() < 760
         compact = self.width() < 880
         if narrow:
             self._root_layout.setDirection(QBoxLayout.TopToBottom)
@@ -225,8 +234,8 @@ class MainPanel(QWidget):
             self._root_layout.setDirection(QBoxLayout.LeftToRight)
             self._sidebar.setMinimumHeight(0)
             self._sidebar.setMaximumHeight(16777215)
-            self._sidebar.setFixedWidth(82 if compact else 218)
-            self._sidebar_layout.setContentsMargins(18, 22, 18, 18)
+            self._sidebar.setFixedWidth(188)
+            self._sidebar_layout.setContentsMargins(10 if compact else 18, 22, 10 if compact else 18, 18)
             self._navigation.setFlow(QListView.TopToBottom)
             self._navigation.setWrapping(False)
             self._navigation.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
@@ -236,8 +245,15 @@ class MainPanel(QWidget):
         self._privacy.setVisible(not compact)
         for index, label in enumerate(self._nav_labels):
             item = self._navigation.item(index)
-            item.setText("" if compact or narrow else label)
-            item.setSizeHint(QSize(48 if narrow else 0, 44))
+            item.setText(label)
+            if narrow:
+                item.setIcon(QIcon())
+                available = max(0, self.width() - 16)
+                unit = (available - 48) // 4
+                item.setSizeHint(QSize(unit + (48 if label == '屏幕与休息' else 0), 44))
+            else:
+                item.setIcon(QIcon(os.path.join(ICONS_DIR, _PAGES[index][2])))
+                item.setSizeHint(QSize(0, 44))
             item.setToolTip(
                 f"{label} · Ctrl+{index + 1}" if compact else f"Ctrl+{index + 1}"
             )
@@ -296,24 +312,34 @@ class MainPanel(QWidget):
         self._message.adjustSize()
         self._message.move(
             max(16, self._content_area.width() - width - 16),
-            16,
+            max(12, self._content_area.height() - self._message.height() - 16),
         )
-        self._message_close.move(width - 30, 4)
+        self._message_close.move(width - 36, 4)
         self._message_close.raise_()
+
+    def _dismiss_or_hide(self) -> None:
+        if self._message.isVisible():
+            self._message.hide()
+            self._message_timer.stop()
+        else:
+            self.hide()
 
     def show_page(self, name: str) -> None:
         """Open a named page; used by tray menu shortcuts."""
 
-        normalized = name.strip()
+        normalized, section = _PAGE_ROUTES.get(name.strip(), (name.strip(), ""))
         for index, (label, _, _) in enumerate(_PAGES):
             if normalized == label:
                 self._navigation.setCurrentRow(index)
+                page = self._ensure_page(index)
+                if section and hasattr(page, "show_section"):
+                    page.show_section(section)
                 break
         self.show_and_activate()
 
     def focus_wardrobe(self) -> None:
         for index, (label, _, _) in enumerate(_PAGES):
-            if label != '宠物图鉴':
+            if label != '伙伴':
                 continue
             self._navigation.setCurrentRow(index)
             page = self._ensure_page(index)

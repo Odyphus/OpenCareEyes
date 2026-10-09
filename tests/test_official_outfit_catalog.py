@@ -56,8 +56,16 @@ def test_completed_catalog_entries_match_the_production_manifest():
 
     assert set(manifest.outfits) == completed
     for outfit in manifest.outfits.values():
-        assert set(outfit.actions) == set(ACTION_LAYOUT)
-        assert sum(len(action.frames) for action in outfit.actions.values()) == 29
+        expected_actions = set(ACTION_LAYOUT)
+        if outfit.outfit_id == 'navy_scarf':
+            expected_actions.update({'yawn', 'look_grid'})
+            expected_actions.update(f'look_{direction}' for direction in (
+                'center', 'left', 'right', 'up', 'down',
+                'up_left', 'up_right', 'down_left', 'down_right',
+            ))
+        assert set(outfit.actions) == expected_actions
+        expected_frames = 143 if outfit.outfit_id == 'navy_scarf' else 29
+        assert sum(len(action.frames) for action in outfit.actions.values()) == expected_frames
 
 
 def test_official_pet_pack_stays_inside_the_64_mib_budget():

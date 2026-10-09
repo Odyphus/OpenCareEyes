@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import QTimer, Qt, Signal
-from PySide6.QtGui import QColor, QKeyEvent, QPainter, QPalette
+from PySide6.QtGui import QColor, QKeyEvent, QPainter
 from PySide6.QtWidgets import (
     QApplication,
     QHBoxLayout,
@@ -16,6 +16,8 @@ from PySide6.QtWidgets import (
 )
 
 from opencareyes.ui.widgets import first_state_value
+from opencareyes.ui.theme import rest_palette
+from opencareyes.ui.rest_scene import GentleEntrance
 
 
 class _UndoToast(QWidget):
@@ -59,26 +61,7 @@ class _UndoToast(QWidget):
             return
         self._theme_signature = signature
         self.setProperty("highContrast", high_contrast)
-        if high_contrast:
-            palette = QApplication.palette()
-            colors = {
-                "card": palette.color(QPalette.Window).name(),
-                "text": palette.color(QPalette.WindowText).name(),
-                "border": palette.color(QPalette.Mid).name(),
-                "button": palette.color(QPalette.Button).name(),
-                "button_text": palette.color(QPalette.ButtonText).name(),
-                "focus": palette.color(QPalette.Highlight).name(),
-            }
-        elif resolved == "light":
-            colors = {
-                "card": "#FFFFFF", "text": "#172033", "border": "#CAD5E5",
-                "button": "#EAF0FA", "button_text": "#172033", "focus": "#365FBD",
-            }
-        else:
-            colors = {
-                "card": "#172033", "text": "#F7FAFF", "border": "#3A4963",
-                "button": "#253149", "button_text": "#F7FAFF", "focus": "#8FB2FF",
-            }
+        colors = rest_palette(snapshot)
         self._theme_colors = colors
         self.setStyleSheet(
             "QWidget#undoToast { "
@@ -119,6 +102,7 @@ class BreakPrompt(QWidget):
         self._kind = "short"
         self._stage = "gentle"
         self._handling_action = False
+        self._entrance = GentleEntrance(self, 320)
         self._theme_signature = None
         self._theme_colors: dict[str, str] = {}
         self.setObjectName("breakPrompt")
@@ -234,6 +218,8 @@ class BreakPrompt(QWidget):
     def apply_theme(self, snapshot) -> None:
         """Apply the shared theme to the prompt and its undo notice."""
 
+        self._entrance.configure(snapshot)
+
         resolved = str(getattr(snapshot, "resolved", "dark"))
         resolved = resolved if resolved in {"light", "dark"} else "dark"
         high_contrast = bool(getattr(snapshot, "high_contrast", False))
@@ -243,38 +229,7 @@ class BreakPrompt(QWidget):
             return
         self._theme_signature = signature
         self.setProperty("highContrast", high_contrast)
-        if high_contrast:
-            palette = QApplication.palette()
-            colors = {
-                "card": palette.color(QPalette.Window).name(),
-                "prominent": palette.color(QPalette.Window).name(),
-                "text": palette.color(QPalette.WindowText).name(),
-                "muted": palette.color(QPalette.Text).name(),
-                "border": palette.color(QPalette.Mid).name(),
-                "button": palette.color(QPalette.Button).name(),
-                "button_text": palette.color(QPalette.ButtonText).name(),
-                "primary": palette.color(QPalette.Highlight).name(),
-                "primary_text": palette.color(QPalette.HighlightedText).name(),
-                "focus": palette.color(QPalette.Highlight).name(),
-                "accent": palette.color(QPalette.Highlight).name(),
-                "shadow": palette.color(QPalette.Shadow).name(),
-            }
-        elif resolved == "light":
-            colors = {
-                "card": "#F8FBFF", "prominent": "#EEF3FC", "text": "#172033",
-                "muted": "#58677F", "border": "#CAD5E5", "button": "#EAF0FA",
-                "button_text": "#172033", "primary": "#5B8DEF",
-                "primary_text": "#FFFFFF", "focus": "#365FBD",
-                "accent": "#F2A65A", "shadow": "#71809A",
-            }
-        else:
-            colors = {
-                "card": "#172033", "prominent": "#29354D", "text": "#F7FAFF",
-                "muted": "#C4CFE1", "border": "#3A4963", "button": "#253149",
-                "button_text": "#F7FAFF", "primary": "#5B8DEF",
-                "primary_text": "#FFFFFF", "focus": "#8FB2FF",
-                "accent": "#F2A65A", "shadow": "#000000",
-            }
+        colors = rest_palette(snapshot)
         self._theme_colors = colors
         self._title.setStyleSheet(
             f"color: {colors['text']}; background: transparent; "
@@ -337,7 +292,7 @@ class BreakPrompt(QWidget):
         if not self.isVisible():
             # WA_ShowWithoutActivating keeps the user's editor in front of the
             # keyboard focus while the card becomes visible.
-            self.show()
+            self._entrance.show()
         self.raise_()
 
     def render(self, state) -> None:
@@ -462,6 +417,10 @@ class BreakPrompt(QWidget):
             event.accept()
             return
         super().keyPressEvent(event)
+
+    def hideEvent(self, event) -> None:
+        self._entrance.cancel()
+        super().hideEvent(event)
 
     def closeEvent(self, event) -> None:
         if self.isVisible() and not self._handling_action:

@@ -3,7 +3,7 @@
 import logging
 import os
 
-from PySide6.QtCore import QTimer, Signal
+from PySide6.QtCore import QDir, QTimer, Signal
 from PySide6.QtGui import QFont, QIcon, QPalette
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWidgets import QApplication
@@ -50,6 +50,7 @@ class OpenCareEyesApp(QApplication):
         super().__init__(argv)
         OpenCareEyesApp._instance = self
         self.setApplicationName(APP_NAME)
+        QDir.addSearchPath('careIcons', ICONS_DIR)
         self._load_windows_fonts()
         icon_path = os.path.join(ICONS_DIR, "opencareyes.ico")
         if os.path.isfile(icon_path):

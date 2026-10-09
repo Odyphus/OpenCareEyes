@@ -211,7 +211,7 @@ def test_companion_home_reflows_below_640_pixels():
     page.show()
     app.processEvents()
     assert page._hero_layout.direction() == QBoxLayout.LeftToRight
-    assert page._hero_layout.stretch(0) == 58
+    assert page._hero_layout.stretch(0) < page._hero_layout.stretch(1)
 
     page.resize(560, 500)
     app.processEvents()
@@ -284,7 +284,7 @@ def test_wardrobe_is_manifest_driven_and_only_explicit_activation_wears_outfit(
     controller = _Controller()
     page = PetCatalogPage(controller)
 
-    assert page.layout.indexOf(page._wardrobe_card) == 1
+    assert page.layout.indexOf(page._wardrobe_card) == 3
     assert page._wardrobe_model.rowCount() == 3
     assert page._wardrobe_status.text() == '已锁定：雪坡滑雪客'
     assert page._wardrobe_detail_title.text() == '雪坡滑雪客'
@@ -538,10 +538,11 @@ def test_onboarding_starts_with_the_companion_and_tray_is_grouped():
     top_level = [action.text() for action in tray._menu.actions() if not action.isSeparator()]
     assert '现在休息' in top_level
     assert '色温调节' not in top_level
-    assert '屏幕舒适与专注' in top_level
+    assert '更多操作' in top_level
+    assert '屏幕舒适与专注' not in top_level
 
 
-def test_tray_opens_companion_bubble_with_keyboard_focus():
+def test_tray_has_no_retired_companion_status_card_entry(qtbot):
     controller = _Controller()
     panel = SimpleNamespace(show_page=lambda _name: None, show=lambda: None)
     requests = []
@@ -550,7 +551,21 @@ def test_tray_opens_companion_bubble_with_keyboard_focus():
     )
     tray = TrayIcon(controller, panel, companion_runtime=runtime)
 
-    assert tray._open_pet_bubble_action.isEnabled()
-    tray._open_pet_bubble_action.trigger()
+    def labels(menu):
+        result = []
+        for action in menu.actions():
+            result.append(action.text())
+            if action.menu() is not None:
+                result.extend(labels(action.menu()))
+        return result
 
-    assert requests == [{'focusable': True}]
+    assert '打开伙伴气泡' not in labels(tray._menu)
+    assert not hasattr(tray, '_open_pet_bubble_action')
+    assert requests == []
+
+    opened = []
+    controller.show_quick_tool = opened.append
+    tools = next(action.menu() for action in tray._menu.actions() if action.text() == '小工具')
+    for action in tools.actions():
+        action.trigger()
+    assert opened == ['timer', 'notes', 'system']

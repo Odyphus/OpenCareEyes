@@ -8,6 +8,7 @@ from PySide6.QtCore import QSignalBlocker, QStandardPaths, QUrl
 from PySide6.QtGui import QDesktopServices, QKeySequence
 from PySide6.QtWidgets import (
     QCheckBox,
+    QBoxLayout,
     QComboBox,
     QFileDialog,
     QFormLayout,
@@ -19,7 +20,7 @@ from PySide6.QtWidgets import (
 )
 
 from opencareyes.constants import APP_NAME, APP_VERSION
-from opencareyes.ui.widgets import Card, PageHeader, ScrollPage, first_state_value, set_accessible
+from opencareyes.ui.widgets import Card, Disclosure, PageHeader, ScrollPage, first_state_value, set_accessible
 
 
 _HOTKEY_FIELDS = (
@@ -35,6 +36,7 @@ class SettingsPage(ScrollPage):
         super().__init__(parent)
         self._controller = controller
         self._rendering = False
+        self._hotkeys_dirty = False
         self._build_ui()
         self._connect_signals()
         self.render(controller.state)
@@ -42,10 +44,10 @@ class SettingsPage(ScrollPage):
     def _build_ui(self) -> None:
         self.layout.addWidget(PageHeader(
             "设置",
-            "管理外观、开机启动、快捷键与本地数据。所有核心功能均可离线使用。",
+            "按你的习惯调整。常规选项修改后会自动保存。",
         ))
 
-        general_card = Card("常规")
+        general_card = Card("外观与启动")
         general_form = QFormLayout()
         general_form.setHorizontalSpacing(24)
         general_form.setVerticalSpacing(12)
@@ -67,7 +69,7 @@ class SettingsPage(ScrollPage):
         general_card.body.addLayout(general_form)
         self.layout.addWidget(general_card)
 
-        hotkey_card = Card("快捷键", "点击输入框后按下组合键。保存时会检查冲突。")
+        hotkey_card = self._hotkey_section = Disclosure("快捷键", "点击输入框后按下组合键，再保存。")
         hotkey_form = QFormLayout()
         hotkey_form.setHorizontalSpacing(24)
         hotkey_form.setVerticalSpacing(10)
@@ -78,21 +80,25 @@ class SettingsPage(ScrollPage):
             set_accessible(edit, f"{label}快捷键")
             hotkey_form.addRow(label, edit)
             self._hotkey_edits[key] = edit
+            edit.keySequenceChanged.connect(self._hotkeys_edited)
         hotkey_card.body.addLayout(hotkey_form)
-        hotkey_actions = QHBoxLayout()
+        hotkey_actions = self._hotkey_actions = QBoxLayout(QBoxLayout.LeftToRight)
+        self._hotkey_notice = QLabel('')
+        self._hotkey_notice.setObjectName('statusDetail')
+        self._hotkey_notice.setWordWrap(True)
         self._reset_hotkeys_button = QPushButton("恢复默认")
         self._reset_hotkeys_button.setObjectName("quietButton")
         self._save_hotkeys_button = QPushButton("保存快捷键")
         self._save_hotkeys_button.setObjectName("primaryButton")
         set_accessible(self._reset_hotkeys_button, "恢复默认快捷键")
         set_accessible(self._save_hotkeys_button, "保存快捷键")
-        hotkey_actions.addStretch()
+        hotkey_actions.addWidget(self._hotkey_notice, 1)
         hotkey_actions.addWidget(self._reset_hotkeys_button)
         hotkey_actions.addWidget(self._save_hotkeys_button)
         hotkey_card.body.addLayout(hotkey_actions)
         self.layout.addWidget(hotkey_card)
 
-        data_card = Card(
+        data_card = self._data_section = Disclosure(
             "隐私与诊断",
             "无账号、无遥测。诊断文件不包含窗口标题、前台程序完整路径或位置坐标。",
         )
@@ -144,7 +150,7 @@ class SettingsPage(ScrollPage):
         self._motion_combo.currentIndexChanged.connect(self._motion_changed)
         self._autostart_toggle.toggled.connect(self._autostart_changed)
         self._save_hotkeys_button.clicked.connect(self._save_hotkeys)
-        self._reset_hotkeys_button.clicked.connect(self._controller.reset_hotkeys)
+        self._reset_hotkeys_button.clicked.connect(self._reset_hotkeys)
         self._check_update_button.clicked.connect(self._check_updates)
         self._open_release_button.clicked.connect(self._open_release)
         self._export_button.clicked.connect(self._export_diagnostics)
@@ -176,10 +182,29 @@ class SettingsPage(ScrollPage):
             return
         setter = getattr(self._controller, "set_hotkeys", None)
         if callable(setter):
-            setter(mapping)
-            return
-        for action, value in mapping.items():
-            self._controller.set_hotkey(action, value)
+            success = setter(mapping)
+        else:
+            results = [self._controller.set_hotkey(action, value) for action, value in mapping.items()]
+            success = all(results)
+        if success:
+            self._hotkeys_dirty = False
+            self._hotkey_notice.setText('快捷键已保存')
+            self.render(self._controller.state)
+
+    def _hotkeys_edited(self, _sequence) -> None:
+        if not self._rendering:
+            self._hotkeys_dirty = True
+            self._hotkey_notice.setText('修改尚未保存')
+
+    def _reset_hotkeys(self) -> None:
+        if self._controller.reset_hotkeys():
+            self._hotkeys_dirty = False
+            self._hotkey_notice.setText('已恢复默认快捷键')
+            self.render(self._controller.state)
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self._hotkey_actions.setDirection(QBoxLayout.TopToBottom if self.viewport().width() < 580 else QBoxLayout.LeftToRight)
 
     def _check_updates(self) -> None:
         checker = getattr(self._controller, "check_for_updates", None)
@@ -249,7 +274,7 @@ class SettingsPage(ScrollPage):
                     f"hotkeys.{action}",
                     default="",
                 ))
-                if not edit.hasFocus():
+                if not self._hotkeys_dirty and not edit.hasFocus():
                     with QSignalBlocker(edit):
                         edit.setKeySequence(QKeySequence(value))
             hotkeys_available = bool(first_state_value(

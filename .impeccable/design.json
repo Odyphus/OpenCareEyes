@@ -1,0 +1,297 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-09T11:06:13.400Z",
+  "title": "OpenCareEyes v0.10 设计规范",
+  "extensions": {
+    "colorMeta": {
+      "primary-light": {
+        "role": "primary",
+        "displayName": "亮色柔和灰蓝主操作"
+      },
+      "primary-dark": {
+        "role": "primary",
+        "displayName": "暗色柔和灰蓝主操作"
+      },
+      "background-light": {
+        "role": "neutral",
+        "displayName": "亮色灰蓝底面"
+      },
+      "background-dark": {
+        "role": "neutral",
+        "displayName": "暗色青灰底面"
+      },
+      "card-light": {
+        "role": "neutral",
+        "displayName": "亮色灰绿卡片"
+      },
+      "card-dark": {
+        "role": "neutral",
+        "displayName": "暗色灰蓝卡片"
+      },
+      "text-light": {
+        "role": "neutral",
+        "displayName": "亮色深灰正文"
+      },
+      "text-dark": {
+        "role": "neutral",
+        "displayName": "暗色浅灰正文"
+      },
+      "warm-value-light": {
+        "role": "secondary",
+        "displayName": "亮色深暖色数值"
+      },
+      "warm-accent": {
+        "role": "secondary",
+        "displayName": "共享暖色强调"
+      },
+      "brand-accent": {
+        "role": "primary",
+        "displayName": "共享品牌快照强调"
+      },
+      "pet-accent": {
+        "role": "tertiary",
+        "displayName": "伙伴强调"
+      },
+      "focus-light": {
+        "role": "neutral",
+        "displayName": "亮色导航与折叠焦点"
+      },
+      "focus-dark": {
+        "role": "neutral",
+        "displayName": "暗色导航与折叠焦点"
+      }
+    },
+    "typographyMeta": {
+      "title": {
+        "displayName": "页面标题",
+        "purpose": "主页面标题。"
+      },
+      "card-title": {
+        "displayName": "卡片标题",
+        "purpose": "任务分区标题。"
+      },
+      "body": {
+        "displayName": "正文与控件",
+        "purpose": "普通标签和操作控件。"
+      },
+      "label": {
+        "displayName": "辅助标签",
+        "purpose": "侧栏辅助文字及状态徽标。"
+      }
+    },
+    "shadows": [],
+    "breakpoints": [
+      {
+        "name": "navigation-top",
+        "value": "760 logical px",
+        "scope": "MainPanel.width()",
+        "behavior": "低于阈值切换顶部导航；不低于阈值保留188宽侧栏。"
+      },
+      {
+        "name": "home-and-companion-single-column",
+        "value": "640 logical px",
+        "scope": "page viewport width",
+        "behavior": "首页和伙伴页切换单列。"
+      },
+      {
+        "name": "screen-compact",
+        "value": "600 logical px",
+        "scope": "page viewport width",
+        "behavior": "屏幕方案两列，实际状态操作纵向排列。"
+      },
+      {
+        "name": "settings-hotkey-actions",
+        "value": "580 logical px",
+        "scope": "page viewport width",
+        "behavior": "快捷键操作纵向排列。"
+      }
+    ],
+    "native": {
+      "platform": "windows",
+      "renderer": "PySide6 Qt Widgets",
+      "sourceVersion": "0.10.0b9",
+      "incumbentDocumentLanguage": "zh-CN",
+      "documentPolicy": "保留现有中文原生规范结构，仅合并已实现的b9界面事实。",
+      "tokenSources": [
+        "assets/styles/light.qss",
+        "assets/styles/dark.qss",
+        "src/opencareyes/ui/theme.py",
+        "src/opencareyes/ui/widgets.py"
+      ],
+      "primitiveOwner": "DESIGN.md frontmatter",
+      "componentRepresentation": "原生Qt选择器及源码引用；不以HTML/CSS片段冒充真实组件。",
+      "depth": "主界面使用底面色差、轻边框和间距，不新增阴影token。",
+      "defaultWindowLogicalSize": [
+        980,
+        720
+      ],
+      "minimumWindowLogicalSize": [
+        480,
+        320
+      ],
+      "sidebarLogicalWidth": 188,
+      "topNavigationLogicalHeight": 64,
+      "homeStretch": [
+        40,
+        60
+      ],
+      "notifications": {
+        "position": "content bottom right",
+        "pushesLayout": false,
+        "informationalTimeoutMilliseconds": 6000,
+        "errors": "手动关闭前保持可见。",
+        "escape": "先关闭可见提示，否则隐藏主窗口到托盘。"
+      },
+      "nativeComponents": [
+        {
+          "name": "主要按钮",
+          "kind": "button",
+          "selectors": [
+            "QPushButton#primaryButton",
+            "QToolButton#primaryButton"
+          ],
+          "source": "assets/styles/light.qss; assets/styles/dark.qss",
+          "tokens": [
+            "colors.primary-light",
+            "colors.primary-dark",
+            "rounded.button"
+          ],
+          "states": [
+            "default",
+            "hover",
+            "focus",
+            "disabled"
+          ]
+        },
+        {
+          "name": "次要与安静按钮",
+          "kind": "button",
+          "selectors": [
+            "QPushButton#secondaryButton",
+            "QPushButton#quietButton"
+          ],
+          "source": "assets/styles/light.qss; assets/styles/dark.qss",
+          "states": [
+            "default",
+            "hover",
+            "focus"
+          ]
+        },
+        {
+          "name": "输入与组合键捕获",
+          "kind": "input",
+          "selectors": [
+            "QLineEdit",
+            "QKeySequenceEdit",
+            "QComboBox",
+            "QSpinBox",
+            "QTimeEdit"
+          ],
+          "source": "assets/styles/light.qss; assets/styles/dark.qss",
+          "tokens": [
+            "rounded.field"
+          ],
+          "states": [
+            "default",
+            "hover",
+            "focus",
+            "disabled"
+          ]
+        },
+        {
+          "name": "中文页面导航",
+          "kind": "nav",
+          "selectors": [
+            "QListWidget#navigation"
+          ],
+          "source": "src/opencareyes/ui/main_panel.py",
+          "states": [
+            "default",
+            "hover",
+            "selected",
+            "focus"
+          ],
+          "behavior": "四项完整中文名称在侧栏和顶部均保留。"
+        },
+        {
+          "name": "任务卡片",
+          "kind": "card",
+          "selectors": [
+            "QFrame#card",
+            "QFrame#companionHeroCard"
+          ],
+          "source": "src/opencareyes/ui/widgets.py; src/opencareyes/ui/companion_pages.py",
+          "tokens": [
+            "rounded.card",
+            "rounded.companion-card"
+          ]
+        },
+        {
+          "name": "按需展开设置",
+          "kind": "custom",
+          "selectors": [
+            "QFrame#disclosure",
+            "QToolButton#disclosureButton"
+          ],
+          "source": "src/opencareyes/ui/widgets.py",
+          "tokens": [
+            "rounded.disclosure"
+          ],
+          "states": [
+            "collapsed",
+            "expanded",
+            "hover",
+            "focus"
+          ],
+          "behavior": "默认收起，标题行最小44逻辑像素，可用键盘操作。"
+        },
+        {
+          "name": "右下角操作提示",
+          "kind": "custom",
+          "selectors": [
+            "QLabel#messageBanner"
+          ],
+          "source": "src/opencareyes/ui/main_panel.py",
+          "states": [
+            "info",
+            "error"
+          ],
+          "behavior": "浮层不推动页面，Esc优先关闭。"
+        }
+      ],
+      "preview": {
+        "file": "docs/images/v0.10/home-dark.png",
+        "sourceCapture": "confirm-native-150/首页-dark-980.png",
+        "platform": "windows",
+        "devicePixelRatio": 1.5,
+        "logicalSize": [
+          980,
+          720
+        ],
+        "displayAndTimerState": "demonstration",
+        "physicalDisplayEffectsEnabledForCapture": false,
+        "petAssets": "actual bundled b8 resources"
+      }
+    }
+  },
+  "components": [],
+  "narrative": {
+    "northStar": "伙伴小屋 × Windows Soft Fluent",
+    "overview": "本文件是“伙伴小屋 × Windows Soft Fluent”界面与宠物表现的实现约束。它描述可验证规则，不替代业务状态机或平台安全规则。",
+    "keyCharacteristics": [
+      "柔和灰蓝、灰绿底面",
+      "完整中文导航",
+      "按需展开设置",
+      "期望与实际状态分开表达"
+    ],
+    "rules": [],
+    "dos": [
+      "状态必须同时提供文字，不能只依赖颜色、宠物表情或动画。",
+      "衣橱、宠物和方案选择必须有明确选中态，并可通过键盘到达。"
+    ],
+    "donts": [
+      "输入控件和核心按钮不得被裁切，不以横向滚动作为响应式方案。",
+      "图标使用统一语义资源，不用 Emoji 充当产品图标。"
+    ]
+  }
+}

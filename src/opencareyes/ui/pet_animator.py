@@ -42,6 +42,7 @@ class PetAnimator(QObject):
         self._action_id = ''
         self._frame_index = 0
         self._action_finished = False
+        self._waiting_for_resource: str | None = None
         self._surface_visible = False
         self._reduced_motion = False
         self._clock = clock or time.monotonic
@@ -57,6 +58,9 @@ class PetAnimator(QObject):
         ready = getattr(repository, 'resource_ready', None)
         if ready is not None:
             ready.connect(self._on_resource_ready)
+        failed = getattr(repository, 'resource_failed', None)
+        if failed is not None:
+            failed.connect(self._on_resource_failed)
 
     @property
     def action_id(self) -> str:
@@ -137,6 +141,7 @@ class PetAnimator(QObject):
         self._action = resolved
         self._action_id = resolved_id
         self._action_finished = False
+        self._waiting_for_resource = None
         self._frame_deadline = None
         self._frame_index = (
             self._static_frame_index(resolved) if self._reduced_motion else 0
@@ -153,6 +158,7 @@ class PetAnimator(QObject):
         self._frame_index = 0
         self._action_finished = False
         self._frame_deadline = None
+        self._waiting_for_resource = None
         if clear_frame:
             self.frame_changed.emit(None)
 
@@ -212,6 +218,7 @@ class PetAnimator(QObject):
             or self._reduced_motion
             or self._action is None
             or self._action_finished
+            or self._waiting_for_resource is not None
         ):
             self._timer.stop()
             return
@@ -270,8 +277,10 @@ class PetAnimator(QObject):
                         self._emit_current_frame()
                     self._action_finished = True
                     self._frame_deadline = None
-                    self.animation_finished.emit(self._action_id)
                     self._timer.stop()
+                    # A receiver can synchronously start the next action.
+                    # Stop the old clock first so that new animation survives.
+                    self.animation_finished.emit(self._action_id)
                     return
 
             self._frame_index = next_index
@@ -293,7 +302,16 @@ class PetAnimator(QObject):
             self.frame_changed.emit(None)
             return
         index = max(0, min(self._frame_index, len(frames) - 1))
-        self.frame_changed.emit(self._load_image(frames[index]))
+        image = self._load_image(frames[index])
+        if image is None and getattr(self._repository, 'resource_ready', None) is not None:
+            # Retain the previous pose while a new clip decodes. Do not spend
+            # its playback time on a placeholder or flash the fallback animal.
+            self._waiting_for_resource = str(getattr(frames[index], 'path', ''))
+            self._frame_deadline = None
+            self._timer.stop()
+            return
+        self._waiting_for_resource = None
+        self.frame_changed.emit(image)
 
     def _load_image(self, frame) -> QImage | None:
         direct_image = getattr(frame, 'image', None)
@@ -446,3 +464,13 @@ class PetAnimator(QObject):
         if not any(str(getattr(frame, 'path', '')) == resource_path for frame in frames):
             return
         self._emit_current_frame()
+        self._schedule_current_frame()
+
+    @Slot(str, str)
+    def _on_resource_failed(self, pet_id: str, resource_path: str) -> None:
+        if pet_id != self._pet_id or resource_path != self._waiting_for_resource:
+            return
+        self._waiting_for_resource = None
+        self._timer.stop()
+        self._frame_deadline = None
+        self.frame_changed.emit(None)

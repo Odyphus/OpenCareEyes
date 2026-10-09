@@ -1,0 +1,1544 @@
+{
+  "display_name": "蓝围巾小鼬",
+  "description": "柔软的暮蓝围巾，陪你读书，也陪你休息。自然小步走、平滑招呼、抬爪懒腰与持续鼠标注视。",
+  "thumbnail_path": "outfits/navy_scarf/thumbnail.png",
+  "preview_path": "outfits/navy_scarf/preview.png",
+  "actions": {
+    "idle": {
+      "loop": true,
+      "frames": [
+        {
+          "path": "outfits/navy_scarf/motion_1.png",
+          "duration_ms": 600,
+          "source_rect": [
+            0,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_1.png",
+          "duration_ms": 600,
+          "source_rect": [
+            384,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_1.png",
+          "duration_ms": 600,
+          "source_rect": [
+            768,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_1.png",
+          "duration_ms": 600,
+          "source_rect": [
+            1152,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_1.png",
+          "duration_ms": 600,
+          "source_rect": [
+            0,
+            384,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_1.png",
+          "duration_ms": 600,
+          "source_rect": [
+            384,
+            384,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_1.png",
+          "duration_ms": 600,
+          "source_rect": [
+            768,
+            384,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_1.png",
+          "duration_ms": 80,
+          "source_rect": [
+            1152,
+            384,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_1.png",
+          "duration_ms": 65,
+          "source_rect": [
+            0,
+            768,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_1.png",
+          "duration_ms": 80,
+          "source_rect": [
+            384,
+            768,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_1.png",
+          "duration_ms": 600,
+          "source_rect": [
+            768,
+            768,
+            384,
+            384
+          ]
+        }
+      ]
+    },
+    "sleep": {
+      "loop": true,
+      "frames": [
+        {
+          "path": "outfits/navy_scarf/motion_1.png",
+          "duration_ms": 5000,
+          "source_rect": [
+            1152,
+            768,
+            384,
+            384
+          ]
+        }
+      ]
+    },
+    "move": {
+      "loop": true,
+      "frames": [
+        {
+          "path": "outfits/navy_scarf/motion_1.png",
+          "duration_ms": 70,
+          "source_rect": [
+            0,
+            1152,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_1.png",
+          "duration_ms": 70,
+          "source_rect": [
+            384,
+            1152,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_1.png",
+          "duration_ms": 70,
+          "source_rect": [
+            768,
+            1152,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_1.png",
+          "duration_ms": 70,
+          "source_rect": [
+            1152,
+            1152,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_2.png",
+          "duration_ms": 70,
+          "source_rect": [
+            0,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_2.png",
+          "duration_ms": 70,
+          "source_rect": [
+            384,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_2.png",
+          "duration_ms": 70,
+          "source_rect": [
+            768,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_2.png",
+          "duration_ms": 70,
+          "source_rect": [
+            1152,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_2.png",
+          "duration_ms": 70,
+          "source_rect": [
+            0,
+            384,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_2.png",
+          "duration_ms": 70,
+          "source_rect": [
+            384,
+            384,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_2.png",
+          "duration_ms": 70,
+          "source_rect": [
+            768,
+            384,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_2.png",
+          "duration_ms": 70,
+          "source_rect": [
+            1152,
+            384,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_2.png",
+          "duration_ms": 70,
+          "source_rect": [
+            0,
+            768,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_2.png",
+          "duration_ms": 70,
+          "source_rect": [
+            384,
+            768,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_2.png",
+          "duration_ms": 70,
+          "source_rect": [
+            768,
+            768,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_2.png",
+          "duration_ms": 70,
+          "source_rect": [
+            1152,
+            768,
+            384,
+            384
+          ]
+        }
+      ]
+    },
+    "click_reaction": {
+      "loop": false,
+      "frames": [
+        {
+          "path": "outfits/navy_scarf/motion_2.png",
+          "duration_ms": 200,
+          "source_rect": [
+            0,
+            1152,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_2.png",
+          "duration_ms": 200,
+          "source_rect": [
+            384,
+            1152,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_2.png",
+          "duration_ms": 200,
+          "source_rect": [
+            768,
+            1152,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_2.png",
+          "duration_ms": 200,
+          "source_rect": [
+            1152,
+            1152,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_3.png",
+          "duration_ms": 200,
+          "source_rect": [
+            0,
+            0,
+            384,
+            384
+          ]
+        }
+      ]
+    },
+    "drag_hold": {
+      "loop": true,
+      "frames": [
+        {
+          "path": "outfits/navy_scarf/motion_3.png",
+          "duration_ms": 800,
+          "source_rect": [
+            384,
+            0,
+            384,
+            384
+          ]
+        }
+      ]
+    },
+    "drag_release": {
+      "loop": false,
+      "frames": [
+        {
+          "path": "outfits/navy_scarf/motion_3.png",
+          "duration_ms": 80,
+          "source_rect": [
+            768,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_3.png",
+          "duration_ms": 80,
+          "source_rect": [
+            1152,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_3.png",
+          "duration_ms": 80,
+          "source_rect": [
+            0,
+            384,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_3.png",
+          "duration_ms": 80,
+          "source_rect": [
+            384,
+            384,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_3.png",
+          "duration_ms": 80,
+          "source_rect": [
+            768,
+            384,
+            384,
+            384
+          ]
+        }
+      ]
+    },
+    "right_click_reaction": {
+      "loop": false,
+      "frames": [
+        {
+          "path": "outfits/navy_scarf/motion_3.png",
+          "duration_ms": 180,
+          "source_rect": [
+            1152,
+            384,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_3.png",
+          "duration_ms": 180,
+          "source_rect": [
+            0,
+            768,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_3.png",
+          "duration_ms": 180,
+          "source_rect": [
+            384,
+            768,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_3.png",
+          "duration_ms": 180,
+          "source_rect": [
+            768,
+            768,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_3.png",
+          "duration_ms": 180,
+          "source_rect": [
+            1152,
+            768,
+            384,
+            384
+          ]
+        }
+      ]
+    },
+    "rest_prompt": {
+      "loop": false,
+      "frames": [
+        {
+          "path": "outfits/navy_scarf/motion_3.png",
+          "duration_ms": 50,
+          "source_rect": [
+            0,
+            1152,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_3.png",
+          "duration_ms": 60,
+          "source_rect": [
+            384,
+            1152,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_3.png",
+          "duration_ms": 60,
+          "source_rect": [
+            768,
+            1152,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_3.png",
+          "duration_ms": 60,
+          "source_rect": [
+            1152,
+            1152,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_4.png",
+          "duration_ms": 60,
+          "source_rect": [
+            0,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_4.png",
+          "duration_ms": 60,
+          "source_rect": [
+            384,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_4.png",
+          "duration_ms": 60,
+          "source_rect": [
+            768,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_4.png",
+          "duration_ms": 60,
+          "source_rect": [
+            1152,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_4.png",
+          "duration_ms": 60,
+          "source_rect": [
+            0,
+            384,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_4.png",
+          "duration_ms": 70,
+          "source_rect": [
+            384,
+            384,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_4.png",
+          "duration_ms": 70,
+          "source_rect": [
+            768,
+            384,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_4.png",
+          "duration_ms": 70,
+          "source_rect": [
+            1152,
+            384,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_4.png",
+          "duration_ms": 70,
+          "source_rect": [
+            0,
+            768,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_4.png",
+          "duration_ms": 70,
+          "source_rect": [
+            384,
+            768,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_4.png",
+          "duration_ms": 70,
+          "source_rect": [
+            768,
+            768,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_4.png",
+          "duration_ms": 70,
+          "source_rect": [
+            1152,
+            768,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_4.png",
+          "duration_ms": 70,
+          "source_rect": [
+            0,
+            1152,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_4.png",
+          "duration_ms": 70,
+          "source_rect": [
+            384,
+            1152,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_4.png",
+          "duration_ms": 70,
+          "source_rect": [
+            768,
+            1152,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_4.png",
+          "duration_ms": 70,
+          "source_rect": [
+            1152,
+            1152,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_5.png",
+          "duration_ms": 70,
+          "source_rect": [
+            0,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_5.png",
+          "duration_ms": 70,
+          "source_rect": [
+            384,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_5.png",
+          "duration_ms": 70,
+          "source_rect": [
+            768,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_5.png",
+          "duration_ms": 60,
+          "source_rect": [
+            1152,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_5.png",
+          "duration_ms": 60,
+          "source_rect": [
+            0,
+            384,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_5.png",
+          "duration_ms": 60,
+          "source_rect": [
+            384,
+            384,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_5.png",
+          "duration_ms": 60,
+          "source_rect": [
+            768,
+            384,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_5.png",
+          "duration_ms": 60,
+          "source_rect": [
+            1152,
+            384,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_5.png",
+          "duration_ms": 60,
+          "source_rect": [
+            0,
+            768,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_5.png",
+          "duration_ms": 60,
+          "source_rect": [
+            384,
+            768,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_5.png",
+          "duration_ms": 60,
+          "source_rect": [
+            768,
+            768,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_5.png",
+          "duration_ms": 100,
+          "source_rect": [
+            1152,
+            768,
+            384,
+            384
+          ]
+        }
+      ]
+    },
+    "yawn": {
+      "loop": false,
+      "frames": [
+        {
+          "path": "outfits/navy_scarf/motion_5.png",
+          "duration_ms": 80,
+          "source_rect": [
+            0,
+            1152,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_5.png",
+          "duration_ms": 60,
+          "source_rect": [
+            384,
+            1152,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_5.png",
+          "duration_ms": 60,
+          "source_rect": [
+            768,
+            1152,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_5.png",
+          "duration_ms": 60,
+          "source_rect": [
+            1152,
+            1152,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_6.png",
+          "duration_ms": 60,
+          "source_rect": [
+            0,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_6.png",
+          "duration_ms": 60,
+          "source_rect": [
+            384,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_6.png",
+          "duration_ms": 60,
+          "source_rect": [
+            768,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_6.png",
+          "duration_ms": 60,
+          "source_rect": [
+            1152,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_6.png",
+          "duration_ms": 60,
+          "source_rect": [
+            0,
+            384,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_6.png",
+          "duration_ms": 60,
+          "source_rect": [
+            384,
+            384,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_6.png",
+          "duration_ms": 60,
+          "source_rect": [
+            768,
+            384,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_6.png",
+          "duration_ms": 500,
+          "source_rect": [
+            1152,
+            384,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_6.png",
+          "duration_ms": 60,
+          "source_rect": [
+            0,
+            768,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_6.png",
+          "duration_ms": 60,
+          "source_rect": [
+            384,
+            768,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_6.png",
+          "duration_ms": 60,
+          "source_rect": [
+            768,
+            768,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_6.png",
+          "duration_ms": 60,
+          "source_rect": [
+            1152,
+            768,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_6.png",
+          "duration_ms": 60,
+          "source_rect": [
+            0,
+            1152,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_6.png",
+          "duration_ms": 60,
+          "source_rect": [
+            384,
+            1152,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_6.png",
+          "duration_ms": 60,
+          "source_rect": [
+            768,
+            1152,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_6.png",
+          "duration_ms": 60,
+          "source_rect": [
+            1152,
+            1152,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_7.png",
+          "duration_ms": 60,
+          "source_rect": [
+            0,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_7.png",
+          "duration_ms": 60,
+          "source_rect": [
+            384,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_7.png",
+          "duration_ms": 80,
+          "source_rect": [
+            768,
+            0,
+            384,
+            384
+          ]
+        }
+      ]
+    },
+    "look_grid": {
+      "loop": false,
+      "frames": [
+        {
+          "path": "outfits/navy_scarf/motion_7.png",
+          "duration_ms": 600,
+          "source_rect": [
+            1152,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_7.png",
+          "duration_ms": 600,
+          "source_rect": [
+            0,
+            384,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_7.png",
+          "duration_ms": 600,
+          "source_rect": [
+            384,
+            384,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_7.png",
+          "duration_ms": 600,
+          "source_rect": [
+            768,
+            384,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_7.png",
+          "duration_ms": 600,
+          "source_rect": [
+            1152,
+            384,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_7.png",
+          "duration_ms": 600,
+          "source_rect": [
+            0,
+            768,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_7.png",
+          "duration_ms": 600,
+          "source_rect": [
+            384,
+            768,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_7.png",
+          "duration_ms": 600,
+          "source_rect": [
+            768,
+            768,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_7.png",
+          "duration_ms": 600,
+          "source_rect": [
+            1152,
+            768,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_7.png",
+          "duration_ms": 600,
+          "source_rect": [
+            0,
+            1152,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_7.png",
+          "duration_ms": 600,
+          "source_rect": [
+            384,
+            1152,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_7.png",
+          "duration_ms": 600,
+          "source_rect": [
+            768,
+            1152,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_7.png",
+          "duration_ms": 600,
+          "source_rect": [
+            1152,
+            1152,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_8.png",
+          "duration_ms": 600,
+          "source_rect": [
+            0,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_8.png",
+          "duration_ms": 600,
+          "source_rect": [
+            384,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_8.png",
+          "duration_ms": 600,
+          "source_rect": [
+            768,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_8.png",
+          "duration_ms": 600,
+          "source_rect": [
+            1152,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_8.png",
+          "duration_ms": 600,
+          "source_rect": [
+            0,
+            384,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_8.png",
+          "duration_ms": 600,
+          "source_rect": [
+            384,
+            384,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_8.png",
+          "duration_ms": 600,
+          "source_rect": [
+            768,
+            384,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_8.png",
+          "duration_ms": 600,
+          "source_rect": [
+            1152,
+            384,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_8.png",
+          "duration_ms": 600,
+          "source_rect": [
+            0,
+            768,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_8.png",
+          "duration_ms": 600,
+          "source_rect": [
+            384,
+            768,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_8.png",
+          "duration_ms": 600,
+          "source_rect": [
+            768,
+            768,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_8.png",
+          "duration_ms": 600,
+          "source_rect": [
+            1152,
+            768,
+            384,
+            384
+          ]
+        }
+      ]
+    },
+    "play": {
+      "loop": false,
+      "frames": [
+        {
+          "path": "outfits/navy_scarf/motion_8.png",
+          "duration_ms": 180,
+          "source_rect": [
+            0,
+            1152,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_8.png",
+          "duration_ms": 180,
+          "source_rect": [
+            384,
+            1152,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_8.png",
+          "duration_ms": 180,
+          "source_rect": [
+            768,
+            1152,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_8.png",
+          "duration_ms": 180,
+          "source_rect": [
+            1152,
+            1152,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_9.png",
+          "duration_ms": 180,
+          "source_rect": [
+            0,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_9.png",
+          "duration_ms": 180,
+          "source_rect": [
+            384,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_9.png",
+          "duration_ms": 180,
+          "source_rect": [
+            768,
+            0,
+            384,
+            384
+          ]
+        }
+      ]
+    },
+    "look_cursor": {
+      "loop": false,
+      "frames": [
+        {
+          "path": "outfits/navy_scarf/motion_9.png",
+          "duration_ms": 600,
+          "source_rect": [
+            1152,
+            0,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_9.png",
+          "duration_ms": 600,
+          "source_rect": [
+            0,
+            384,
+            384,
+            384
+          ]
+        },
+        {
+          "path": "outfits/navy_scarf/motion_9.png",
+          "duration_ms": 600,
+          "source_rect": [
+            384,
+            384,
+            384,
+            384
+          ]
+        }
+      ]
+    },
+    "look_up_left": {
+      "loop": false,
+      "frames": [
+        {
+          "path": "outfits/navy_scarf/motion_9.png",
+          "duration_ms": 600,
+          "source_rect": [
+            768,
+            384,
+            384,
+            384
+          ]
+        }
+      ]
+    },
+    "look_up": {
+      "loop": false,
+      "frames": [
+        {
+          "path": "outfits/navy_scarf/motion_9.png",
+          "duration_ms": 600,
+          "source_rect": [
+            1152,
+            384,
+            384,
+            384
+          ]
+        }
+      ]
+    },
+    "look_up_right": {
+      "loop": false,
+      "frames": [
+        {
+          "path": "outfits/navy_scarf/motion_9.png",
+          "duration_ms": 600,
+          "source_rect": [
+            0,
+            768,
+            384,
+            384
+          ]
+        }
+      ]
+    },
+    "look_left": {
+      "loop": false,
+      "frames": [
+        {
+          "path": "outfits/navy_scarf/motion_9.png",
+          "duration_ms": 600,
+          "source_rect": [
+            384,
+            768,
+            384,
+            384
+          ]
+        }
+      ]
+    },
+    "look_center": {
+      "loop": false,
+      "frames": [
+        {
+          "path": "outfits/navy_scarf/motion_9.png",
+          "duration_ms": 600,
+          "source_rect": [
+            768,
+            768,
+            384,
+            384
+          ]
+        }
+      ]
+    },
+    "look_right": {
+      "loop": false,
+      "frames": [
+        {
+          "path": "outfits/navy_scarf/motion_9.png",
+          "duration_ms": 600,
+          "source_rect": [
+            1152,
+            768,
+            384,
+            384
+          ]
+        }
+      ]
+    },
+    "look_down_left": {
+      "loop": false,
+      "frames": [
+        {
+          "path": "outfits/navy_scarf/motion_9.png",
+          "duration_ms": 600,
+          "source_rect": [
+            0,
+            1152,
+            384,
+            384
+          ]
+        }
+      ]
+    },
+    "look_down": {
+      "loop": false,
+      "frames": [
+        {
+          "path": "outfits/navy_scarf/motion_9.png",
+          "duration_ms": 600,
+          "source_rect": [
+            384,
+            1152,
+            384,
+            384
+          ]
+        }
+      ]
+    },
+    "look_down_right": {
+      "loop": false,
+      "frames": [
+        {
+          "path": "outfits/navy_scarf/motion_9.png",
+          "duration_ms": 600,
+          "source_rect": [
+            768,
+            1152,
+            384,
+            384
+          ]
+        }
+      ]
+    }
+  },
+  "ambient_layers": {}
+}
