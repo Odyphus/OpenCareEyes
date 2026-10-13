@@ -128,7 +128,7 @@ class OverviewPage(ScrollPage):
         runtime_text.addWidget(self._runtime_status)
         runtime_text.addWidget(self._activity_status)
         runtime_text.addStretch()
-        self._restore_display_button = QPushButton("恢复原始显示")
+        self._restore_display_button = QPushButton("关闭软件显示效果")
         self._restore_display_button.setObjectName("quietButton")
         restorer = getattr(self._controller, "restore_display_effects", None)
         self._restore_display_button.setEnabled(callable(restorer))
@@ -136,7 +136,7 @@ class OverviewPage(ScrollPage):
             self._restore_display_button.clicked.connect(restorer)
         set_accessible(
             self._restore_display_button,
-            "恢复原始显示并关闭屏幕效果",
+            "关闭软件调暗和专注遮罩",
         )
         runtime_row.addLayout(runtime_text, 1)
         runtime_row.addWidget(self._restore_display_button)
@@ -165,7 +165,7 @@ class OverviewPage(ScrollPage):
         grid.setColumnStretch(1, 1)
         self.layout.addLayout(grid)
 
-        quick_card = Card("快速方案", "只改变色温与调暗，不会修改休息和专注设置。")
+        quick_card = Card("快速方案", "调整软件调暗；色温在 Windows 夜间模式中设置。")
         quick_row = QHBoxLayout()
         for key, label in (("office", "办公"), ("reading", "阅读"), ("night", "夜间"), ("game", "游戏")):
             button = QPushButton(label)
@@ -278,6 +278,7 @@ class OverviewPage(ScrollPage):
             self._runtime_status.setText(f"显示效果已验证 · {display_backend}")
         else:
             self._runtime_status.setText("显示效果未启用")
+        windows_color = first_state_value(state, "display_health.backend") == "windows_night_light"
         self._display_card.set_status(
             display_enabled,
             (
@@ -287,7 +288,11 @@ class OverviewPage(ScrollPage):
                 if display_suppressed
                 else _PROFILE_NAMES.get(profile, "自定义方案")
             ),
-            f"{temperature_description(temp)} {temp}K · 调暗 {dim_percent}%",
+            (
+                f"色温由 Windows 管理 · 软件调暗 {dim_percent}%"
+                if windows_color
+                else f"{temperature_description(temp)} {temp}K · 调暗 {dim_percent}%"
+            ),
             active_text=(
                 "自动暂停"
                 if display_desired and (display_suppressed or hdr_active)

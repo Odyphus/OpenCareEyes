@@ -80,7 +80,7 @@ class AutomationPage(ScrollPage):
     def _build_ui(self) -> None:
         self.layout.addWidget(PageHeader(
             "自动日程",
-            "按固定时间或当地日出日落切换显示效果。手动调整会保持到下一次自动切换。",
+            "按固定时间或当地日出日落切换软件调暗。夜间模式的强度和定时在 Windows 设置中调整。",
         ))
 
         status_card = Card("下一次动作")
@@ -507,6 +507,10 @@ class AutomationPage(ScrollPage):
     def render(self, state) -> None:
         self._rendering = True
         self._last_state = state
+        self._rules_table.setColumnHidden(
+            3,
+            first_state_value(state, "display_health.backend") == "windows_night_light",
+        )
         try:
             enabled = bool(first_state_value(state, "automation.enabled", default=False))
             mode = str(first_state_value(state, "automation.mode", default="sun"))

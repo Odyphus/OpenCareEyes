@@ -1,11 +1,11 @@
-"""Preset mode definitions."""
+"""Dimming presets; legacy temperatures are retained for stored-data compatibility."""
 
 PRESETS = {
     "office": {
         "temp": 5500,
         "dim": 0,
-        "desc": "办公方案 - 自然色温",
-        "desc_en": "Office - Natural colour temperature",
+        "desc": "办公方案 - 不调暗",
+        "desc_en": "Office - No dimming",
     },
     "game": {
         "temp": 6200,
@@ -16,20 +16,20 @@ PRESETS = {
     "movie": {
         "temp": 5000,
         "dim": 30,
-        "desc": "电影方案 - 柔和暖色",
-        "desc_en": "Movie - Soft warm tone",
+        "desc": "电影方案 - 柔和调暗",
+        "desc_en": "Movie - Soft dimming",
     },
     "reading": {
         "temp": 4500,
         "dim": 20,
-        "desc": "阅读方案 - 偏暖阅读",
-        "desc_en": "Reading - Warm reading tone",
+        "desc": "阅读方案 - 轻微调暗",
+        "desc_en": "Reading - Gentle dimming",
     },
     "night": {
         "temp": 3400,
         "dim": 50,
-        "desc": "夜间方案 - 暖色调暗",
-        "desc_en": "Night - Warm and dim",
+        "desc": "夜间方案 - 深度调暗",
+        "desc_en": "Night - Deeper dimming",
     },
     "custom": {
         "temp": 5000,

@@ -35,7 +35,7 @@ def controller(qtbot):
     instance._focus_timer.stop()
 
 
-@pytest.mark.parametrize('kind', ('temperature', 'dimmer', 'pet_scale', 'focus_dim'))
+@pytest.mark.parametrize('kind', ('dimmer', 'pet_scale', 'focus_dim'))
 def test_keyboard_slider_changes_survive_settings_reload(qtbot, controller, kind):
     instance, store = controller
     if kind == 'pet_scale':
@@ -47,7 +47,7 @@ def test_keyboard_slider_changes_survive_settings_reload(qtbot, controller, kind
         slider = page._dim_slider
     else:
         page = BlueLightPage(instance)
-        slider = page._temperature_slider if kind == 'temperature' else page._dim_slider
+        slider = page._dim_slider
     qtbot.addWidget(page)
     page.resize(760, 650)
     page.show()
@@ -57,10 +57,7 @@ def test_keyboard_slider_changes_survive_settings_reload(qtbot, controller, kind
     assert slider.value() != before
     value = slider.value()
     persisted = Settings(store)
-    if kind == 'temperature':
-        assert persisted.color_temperature == value
-        assert instance.state.display.color_temperature == value
-    elif kind == 'dimmer':
+    if kind == 'dimmer':
         assert persisted.dim_level == round(value * DIM_MAX / 100)
     elif kind == 'pet_scale':
         assert persisted.pet_scale_percent == value

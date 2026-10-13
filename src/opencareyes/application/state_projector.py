@@ -124,18 +124,23 @@ class StateProjector:
             request_id=display_request_id,
         )
 
+        display = (
+            display_override
+            if display_override is not None
+            else DisplayState(
+                filter_enabled=settings.filter_enabled,
+                color_temperature=settings.color_temperature,
+                dimmer_enabled=settings.dimmer_enabled,
+                dim_level=settings.dim_level,
+                preset=settings.current_preset,
+            )
+        )
+        windows_color = bool(getattr(self._blue_filter, "managed_by_windows", False))
+        if windows_color:
+            display = replace(display, filter_enabled=False, color_temperature=6500)
+
         return AppState(
-            display=(
-                display_override
-                if display_override is not None
-                else DisplayState(
-                    filter_enabled=settings.filter_enabled,
-                    color_temperature=settings.color_temperature,
-                    dimmer_enabled=settings.dimmer_enabled,
-                    dim_level=settings.dim_level,
-                    preset=settings.current_preset,
-                )
-            ),
+            display=display,
             breaks=BreakState(
                 enabled=settings.break_enabled,
                 phase=getattr(reminder, "phase", "stopped"),
@@ -199,7 +204,7 @@ class StateProjector:
                 )
             ),
             capabilities=CapabilitiesState(
-                filter_available=self._blue_filter is not None,
+                filter_available=self._blue_filter is not None and not windows_color,
                 dimmer_available=self._dimmer is not None,
                 breaks_available=self._break_reminder is not None,
                 focus_available=self._focus_mode is not None,
@@ -374,6 +379,13 @@ class StateProjector:
 
     def _display_health(self) -> DisplayHealthState:
         service = self._blue_filter
+        if getattr(service, "managed_by_windows", False):
+            return DisplayHealthState(
+                backend="windows_night_light",
+                status="ok",
+                reason_code="system_color_managed",
+                message="色温由 Windows 夜间模式管理，强度和定时请在系统设置中查看。",
+            )
         if service is None:
             return DisplayHealthState(
                 status="unavailable",
@@ -436,7 +448,11 @@ class StateProjector:
             and not getattr(reminder, "paused", False)
         )
         return EffectivePolicyState(
-            filter=feature(settings.filter_enabled, self._blue_filter),
+            filter=feature(
+                settings.filter_enabled
+                and not getattr(self._blue_filter, "managed_by_windows", False),
+                self._blue_filter,
+            ),
             dimmer=feature(settings.dimmer_enabled, self._dimmer),
             breaks=FeatureRuntimeState(
                 desired_enabled=settings.break_enabled,

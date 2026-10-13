@@ -39,7 +39,7 @@ class SchedulerRuntimeSnapshot:
 
 
 class Scheduler(QObject):
-    """Schedule blue-light filter state and expose the next boundary.
+    """Schedule app-owned dimming profiles and expose the next boundary.
 
     The legacy first positional argument remains accepted for source
     compatibility, but the scheduler never writes a display service. Runtime

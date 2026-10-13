@@ -600,7 +600,7 @@ class CompanionHomePage(ScrollPage):
         self._effects_card.body.setSpacing(6)
         self._effect_rows = {}
         for feature_id, label, route in (
-            ('filter', '色温', '屏幕舒适'),
+            ('filter', 'Windows 夜间模式', '屏幕舒适'),
             ('dimmer', '屏幕调暗', '屏幕舒适'),
             ('focus', '专注', '学习桌'),
         ):
@@ -614,7 +614,14 @@ class CompanionHomePage(ScrollPage):
             action = QPushButton('调整' if feature_id != 'focus' else '打开')
             action.setObjectName('quietButton')
             action.setAccessibleName(f'打开{label}设置')
-            action.clicked.connect(lambda _checked=False, selected=route: self.page_requested.emit(selected))
+            if feature_id == 'filter':
+                action.setText('打开')
+                opener = getattr(self._controller, 'open_windows_night_light', None)
+                action.setEnabled(callable(opener))
+                if callable(opener):
+                    action.clicked.connect(opener)
+            else:
+                action.clicked.connect(lambda _checked=False, selected=route: self.page_requested.emit(selected))
             row.addWidget(title)
             row.addWidget(status, 1)
             row.addWidget(action)
@@ -747,7 +754,7 @@ class CompanionHomePage(ScrollPage):
 
         paused = bool(first_state_value(state, 'global_pause.active', default=False))
         self._pause_button.setText('恢复全部' if paused else '暂停 30 分钟')
-        self._pause_button.setToolTip(presentation.pause_text if paused else '暂停色温、调暗、休息和专注效果，30 分钟后自动恢复')
+        self._pause_button.setToolTip(presentation.pause_text if paused else '暂停软件调暗、休息和专注效果，30 分钟后自动恢复')
         for effect in presentation.effects:
             label = self._effect_rows.get(effect.feature_id)
             if label is None:

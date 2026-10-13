@@ -39,6 +39,12 @@ class DisplayCommands:
 
     def set_filter_enabled(self, enabled: bool) -> bool:
         controller = self._controller
+        if enabled and controller.system_color_management:
+            controller.operation_failed.emit(
+                "system_color_managed",
+                "色温由 Windows 管理，请打开系统夜间模式设置。",
+            )
+            return False
         proposal = replace(
             controller._current_display_state(),
             filter_enabled=bool(enabled),
@@ -66,6 +72,12 @@ class DisplayCommands:
         persist: bool = True,
     ) -> bool:
         controller = self._controller
+        if controller.system_color_management:
+            controller.operation_failed.emit(
+                "system_color_managed",
+                "色温由 Windows 管理，请打开系统夜间模式设置。",
+            )
+            return False
         kelvin = max(TEMP_MIN, min(TEMP_MAX, int(kelvin)))
         try:
             controller._require_service(

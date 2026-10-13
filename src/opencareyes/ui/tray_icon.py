@@ -14,7 +14,6 @@ from opencareyes.ui.widgets import (
     first_state_value,
     format_duration,
     suppression_reason_description,
-    temperature_description,
 )
 
 
@@ -111,16 +110,15 @@ class TrayIcon(QSystemTrayIcon):
         more_menu = QMenu("更多操作", self._menu)
         self._menu.addMenu(more_menu)
         protection_menu = more_menu
-        self._filter_action = self._check_action(
-            "色温调节", self.toggle_filter, protection_menu
-        )
+        self._filter_action = protection_menu.addAction("Windows 夜间模式…")
+        self._filter_action.triggered.connect(self.toggle_filter)
         self._dimmer_action = self._check_action(
             "屏幕调暗", self.toggle_dimmer, protection_menu
         )
         self._focus_action = self._check_action(
             "专注模式", self.toggle_focus, protection_menu
         )
-        profile_menu = QMenu("显示方案", protection_menu)
+        profile_menu = QMenu("调暗方案", protection_menu)
         protection_menu.addMenu(profile_menu)
         self._profile_group = QActionGroup(self)
         self._profile_group.setExclusive(True)
@@ -205,10 +203,9 @@ class TrayIcon(QSystemTrayIcon):
             starter()
 
     def toggle_filter(self, checked: bool | None = None) -> None:
-        enabled = bool(first_state_value(
-            self._controller.state, "display.filter_enabled", default=False
-        ))
-        self._controller.set_feature_enabled("filter", not enabled if checked is None else checked)
+        opener = getattr(self._controller, "open_windows_night_light", None)
+        if callable(opener):
+            opener()
 
     def toggle_dimmer(self, checked: bool | None = None) -> None:
         enabled = bool(first_state_value(
@@ -284,7 +281,6 @@ class TrayIcon(QSystemTrayIcon):
         self.showMessage("OpenCareEyes 操作未完成", message, QSystemTrayIcon.Warning, 7000)
 
     def render(self, state) -> None:
-        filter_enabled = bool(first_state_value(state, "display.filter_enabled", default=False))
         dimmer_enabled = bool(first_state_value(state, "display.dimmer_enabled", default=False))
         break_enabled = bool(first_state_value(state, "breaks.enabled", default=False))
         focus_enabled = bool(first_state_value(state, "focus.enabled", default=False))
@@ -304,13 +300,11 @@ class TrayIcon(QSystemTrayIcon):
             state, "companion.enabled", default=True
         ))
         remaining = first_state_value(state, "breaks.remaining", default=0)
-        temp = int(first_state_value(state, "display.color_temperature", default=6500))
         dim_level = int(first_state_value(state, "display.dim_level", default=0))
         preset = str(first_state_value(state, "display.preset", default="custom"))
         globally_paused = bool(first_state_value(state, "global_pause.active", default=False))
 
         for action, checked in (
-            (self._filter_action, filter_enabled),
             (self._dimmer_action, dimmer_enabled),
             (self._break_action, break_enabled),
             (self._focus_action, focus_enabled),
@@ -324,10 +318,7 @@ class TrayIcon(QSystemTrayIcon):
         pet_available = self._mini_countdown is not None
         self._preview_pet_action.setEnabled(pet_available)
         self._reset_pet_action.setEnabled(pet_available)
-        self._filter_action.setText(
-            f"色温调节 · {temperature_description(temp)} {temp}K"
-            if filter_enabled else "色温调节"
-        )
+        self._filter_action.setText("Windows 夜间模式…")
         self._dimmer_action.setText(
             f"屏幕调暗 · {round(dim_level * 100 / 200)}%"
             if dimmer_enabled else "屏幕调暗"
