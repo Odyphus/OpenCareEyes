@@ -150,10 +150,14 @@ jobs:
           $marker = "upgrade-$([guid]::NewGuid().ToString('N'))"
 
           function Install-Package([string]$Installer, [string]$Label) {
-            & $Installer /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP- `
-              /MERGETASKS=desktopicon,!autostart "/DIR=$installDir"
-            if ($LASTEXITCODE -ne 0) {
-              throw "$Label installer exited with code $LASTEXITCODE"
+            $installLog = Join-Path $env:RUNNER_TEMP ((Split-Path $Installer -Leaf) + '.log')
+            $setup = Start-Process -FilePath $Installer -WindowStyle Hidden -Wait -PassThru -ArgumentList @(
+              '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-',
+              '/MERGETASKS=desktopicon,!autostart', "/DIR=`"$installDir`"", "/LOG=`"$installLog`""
+            )
+            Get-Content -LiteralPath $installLog | Select-String 'Selected tasks|desktop|icon|exit code'
+            if ($setup.ExitCode -ne 0) {
+              throw "$Label installer exited with code $($setup.ExitCode); see $installLog"
             }
           }
 
@@ -228,9 +232,10 @@ jobs:
           function Uninstall-Package {
             $uninstaller = Get-Item (Join-Path $installDir 'unins*.exe') |
               Select-Object -First 1
-            & $uninstaller.FullName /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
-            if ($LASTEXITCODE -ne 0) {
-              throw "uninstaller exited with code $LASTEXITCODE"
+            $uninstall = Start-Process -FilePath $uninstaller.FullName -WindowStyle Hidden -Wait -PassThru `
+              -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART'
+            if ($uninstall.ExitCode -ne 0) {
+              throw "uninstaller exited with code $($uninstall.ExitCode)"
             }
             $deadline = [DateTime]::UtcNow.AddSeconds(30)
             while ((Test-Path $installDir) -and [DateTime]::UtcNow -lt $deadline) {
@@ -315,7 +320,8 @@ jobs:
             $leftoverUninstaller = Get-Item (Join-Path $installDir 'unins*.exe') `
               -ErrorAction SilentlyContinue | Select-Object -First 1
             if ($leftoverUninstaller) {
-              & $leftoverUninstaller.FullName /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
+              Start-Process -FilePath $leftoverUninstaller.FullName -WindowStyle Hidden -Wait `
+                -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART'
             }
           }
       - uses: actions/upload-artifact@v4
