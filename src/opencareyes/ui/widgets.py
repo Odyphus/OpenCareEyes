@@ -93,6 +93,7 @@ def display_backend_description(backend: str) -> str:
 
     return {
         "gamma_ramp": "Windows 显示色彩调节",
+        "windows_night_light": "Windows 夜间模式",
         "gdi_gamma": "Windows 显示色彩调节",
         "overlay": "屏幕覆盖层",
         "GDI Gamma + 覆盖层": "Windows 显示色彩调节与屏幕覆盖层",

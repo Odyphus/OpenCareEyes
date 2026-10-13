@@ -28,7 +28,7 @@ from opencareyes.config.settings import PreferencesRepository
 from opencareyes.constants import PETS_DIR
 from opencareyes.controller import AppController
 from opencareyes.core.break_reminder import BreakReminder
-from opencareyes.core.display_worker import QueuedBlueLightFilter
+from opencareyes.core.system_color import SystemManagedColor
 from opencareyes.core.focus_mode import FocusMode
 from opencareyes.core.scheduler import Scheduler
 from opencareyes.core.screen_dimmer import ScreenDimmer
@@ -149,7 +149,7 @@ def main() -> None:
         log.error("The selected bundled pet pack could not be loaded: %s", pet_load_error)
     event_hub = WindowsEventHub.shared()
     event_hub.install(app)
-    blue_filter = QueuedBlueLightFilter(auto_watch_screens=False)
+    blue_filter = SystemManagedColor()
     dimmer = ScreenDimmer(watch_screen_events=False)
     break_reminder = BreakReminder()
     focus_mode = FocusMode(watch_screen_events=False)

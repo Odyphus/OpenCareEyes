@@ -214,6 +214,17 @@ class StatusPresenter:
         state: object,
         feature_id: Literal["filter", "dimmer", "breaks", "focus"],
     ) -> FeatureStatusPresentation:
+        if feature_id == "filter" and _read(state, "display_health.backend") == "windows_night_light":
+            return FeatureStatusPresentation(
+                feature_id="filter",
+                label="Windows 夜间模式",
+                desired_enabled=False,
+                effective_enabled=False,
+                suppressed_by=(),
+                resume_condition="",
+                status_text="由 Windows 管理",
+                detail="强度和定时在系统设置中调整；软件的调暗、暂停和自动方案独立运行。",
+            )
         runtime = _read(state, f"effective_policy.{feature_id}", None)
         desired_value = _read(runtime, "desired_enabled", _MISSING)
         desired = (

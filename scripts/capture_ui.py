@@ -52,8 +52,8 @@ class DemoController(QObject):
         next_event = datetime.now().astimezone() + timedelta(hours=2, minutes=18)
         self.state = AppState(
             display=DisplayState(
-                filter_enabled=True,
-                color_temperature=4500,
+                filter_enabled=False,
+                color_temperature=6500,
                 dimmer_enabled=True,
                 dim_level=36,
                 preset="reading",
@@ -78,7 +78,7 @@ class DemoController(QObject):
             ),
             global_pause=GlobalPauseState(),
             capabilities=CapabilitiesState(
-                filter_available=True,
+                filter_available=False,
                 dimmer_available=True,
                 breaks_available=True,
                 focus_available=True,
@@ -99,15 +99,15 @@ class DemoController(QObject):
                 recent_app_id="code.exe",
             ),
             effective_policy=EffectivePolicyState(
-                filter=FeatureRuntimeState(True, True),
+                filter=FeatureRuntimeState(False, False),
                 dimmer=FeatureRuntimeState(True, True),
                 breaks=FeatureRuntimeState(True, True),
                 focus=FeatureRuntimeState(False, False),
             ),
             display_health=DisplayHealthState(
-                backend="Windows GDI Gamma + 覆盖层",
+                backend="windows_night_light",
                 status="ok",
-                message="显示效果已验证",
+                message="色温由 Windows 夜间模式管理，强度和定时请在系统设置中查看。",
             ),
             break_cadence=BreakCadenceState(
                 mode="20-20-20",
@@ -135,7 +135,7 @@ def main() -> int:
     parser.add_argument("--theme", choices=("light", "dark"), required=True)
     parser.add_argument(
         "--page",
-        choices=("陪伴屋", "宠物图鉴", "学习桌", "休息角", "自动日程", "设置"),
+        choices=("陪伴屋", "宠物图鉴", "学习桌", "休息角", "屏幕舒适", "自动日程", "设置"),
         default="陪伴屋",
     )
     parser.add_argument("--output", type=Path, required=True)

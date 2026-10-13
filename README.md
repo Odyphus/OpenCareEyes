@@ -4,19 +4,19 @@
 
 # OpenCareEyes
 
-**Windows 桌面陪伴与护眼助手。** 一只可以互动的白鼬伙伴，加上屏幕色温、调暗、休息提醒和专注工具，陪你学习、写作和办公。
+**Windows 桌面陪伴与护眼助手。** 一只可以互动的白鼬伙伴，加上 Windows 夜间模式入口、软件调暗、休息提醒和专注工具，陪你学习、写作和办公。
 
 无需账号，核心功能离线运行。免费开源，支持 Windows 10 / 11。
 
-*A Windows desktop companion with color temperature adjustment, screen dimming and break reminders.*
+*A Windows desktop companion with Windows Night Light access, independent screen dimming and break reminders.*
 
 [![Windows](https://img.shields.io/badge/Windows-10%20%2F%2011-527A8B?style=flat-square)](https://github.com/Odyphus/OpenCareEyes/releases)
 [![Windows CI](https://github.com/Odyphus/OpenCareEyes/actions/workflows/windows-ci.yml/badge.svg)](https://github.com/Odyphus/OpenCareEyes/actions/workflows/windows-ci.yml)
 [![License](https://img.shields.io/badge/License-Apache--2.0-527A8B?style=flat-square)](LICENSE)
 
-**[下载安装版](https://github.com/Odyphus/OpenCareEyes/releases/download/v0.10.0b11/OpenCareEyes_Setup_0.10.0b11.exe)** · **[下载便携版](https://github.com/Odyphus/OpenCareEyes/releases/download/v0.10.0b11/OpenCareEyes_Portable_0.10.0b11.zip)** · [使用说明](使用说明.md) · [反馈问题](https://github.com/Odyphus/OpenCareEyes/issues/new/choose)
+**[下载安装版](https://github.com/Odyphus/OpenCareEyes/releases/download/v0.10.0b12/OpenCareEyes_Setup_0.10.0b12.exe)** · **[下载便携版](https://github.com/Odyphus/OpenCareEyes/releases/download/v0.10.0b12/OpenCareEyes_Portable_0.10.0b12.zip)** · [使用说明](使用说明.md) · [反馈问题](https://github.com/Odyphus/OpenCareEyes/issues/new/choose)
 
-> 当前体验版：**v0.10.0b11**。保留新版界面、低亮度休息场景和右键菜单；宠物除“摸摸头”“玩一会儿”外，恢复 v0.9 的动作。需要稳定版可下载 **[v0.9.0「百变衣橱」](https://github.com/Odyphus/OpenCareEyes/releases/tag/v0.9.0)**。测试版不替代稳定版。
+> 当前体验版：**v0.10.0b12**。色温改由 Windows 夜间模式管理，软件自己的调色路径已停用。保留新版界面、低亮度休息场景和右键菜单；宠物除“摸摸头”“玩一会儿”外，恢复 v0.9 的动作。需要稳定版可下载 **[v0.9.0「百变衣橱」](https://github.com/Odyphus/OpenCareEyes/releases/tag/v0.9.0)**。测试版不替代稳定版。
 
 ## 先看效果
 
@@ -47,9 +47,9 @@
 |---|---|
 | 想让桌面有一点陪伴 | 白鼬“鼬鼬”会回应点击与拖动；右键可互动、重置位置或关闭伙伴，衣橱提供 13 套完整造型。 |
 | 长时间盯着屏幕 | 配置短休息、长休息与活动加权节奏，选择渐进、全屏或严格提醒；可开始、延后或跳过本次休息。 |
-| 夜间阅读或办公 | 调整色温与软件调暗，选择显示方案；界面明确区分偏好、实际效果及 HDR 或情境限制。 |
+| 夜间阅读或办公 | 从软件打开 Windows 夜间模式，强度与定时在系统设置中调整；软件调暗和显示方案独立运行。 |
 | 需要专心一段时间 | 使用专注计时和背景暗化；全屏、演示、锁屏等情境下按规则暂停或让出。 |
-| 希望按时间自动切换 | 设置日间 / 夜间方案、固定时间或日出日落日程，也能按应用设置例外。 |
+| 希望按时间自动切换 | 按固定时间或日出日落切换软件调暗方案；Windows 夜间模式的定时在系统设置中调整。 |
 | 随手处理小事 | 从托盘打开倒计时、本地便签和电脑状态。 |
 
 ## 安装与第一次使用
@@ -63,7 +63,7 @@
 发布页附有 `SHA256SUMS.txt`，可核对下载文件：
 
 ```powershell
-Get-FileHash .\OpenCareEyes_Setup_0.10.0b11.exe -Algorithm SHA256
+Get-FileHash .\OpenCareEyes_Setup_0.10.0b12.exe -Algorithm SHA256
 Get-Content .\SHA256SUMS.txt
 ```
 
@@ -71,12 +71,14 @@ Get-Content .\SHA256SUMS.txt
 
 ## 这次更新
 
+- **色温交给 Windows**：移除自定义色温滑块，屏幕页、首页、托盘和原色温快捷键打开系统夜间模式。旧色温设置、自动方案及失败回退不再写入屏幕色彩曲线。
+- **调暗独立控制**：办公、阅读、夜间和游戏方案只调整软件调暗；关闭软件显示效果不修改系统夜间模式。
 - **动作选择回归**：原版与蓝围巾的“摸摸头”“玩一会儿”保持 b10 的画面和节奏；其他动作取回 v0.9 原始素材与时序，撤下新版多方向注视、阅读、挥手与懒腰造型。
 - **右键保留菜单**：互动、重置位置、关闭伙伴及键盘操作继续可用，不恢复旧右键动画。
 - **原版图标恢复**：继续使用 v0.9 蓝色眼睛图标；安装器为桌面和开始菜单使用独立图标文件名，避开此前设计使用的旧路径。
 - **保留界面升级**：四项导航、柔和配色、首页常用操作、按需展开的设置和低亮度休息场景继续保留。
 
-[本次动作回滚说明](docs/action-rollback-b11.md) · [界面与操作说明](docs/ui-ux-b9.md) · [完整更新记录](CHANGELOG.md)
+[色温调整说明](docs/windows-night-light-b12.md) · [动作回滚说明](docs/action-rollback-b11.md) · [界面与操作说明](docs/ui-ux-b9.md) · [完整更新记录](CHANGELOG.md)
 
 ## 常见问题
 
@@ -88,9 +90,9 @@ Get-Content .\SHA256SUMS.txt
 </details>
 
 <details>
-<summary><strong>为什么调色温有时没有生效？</strong></summary>
+<summary><strong>现在怎样调整色温？</strong></summary>
 
-色温通过 Windows Gamma Ramp 实现。HDR、驱动、显示设备、远程桌面或其他显示调节程序可能限制或覆盖它；软件会显示实际状态与原因。需要恢复屏幕时，使用“恢复原始显示并关闭屏幕效果”。
+打开“屏幕与休息 → 屏幕”，点击“打开 Windows 夜间模式”，在系统页面设置开启状态、暖色强度和定时。v0.10.0b12 停止软件自己的 Gamma 调色；暂停或退出软件也不改变 Windows 夜间模式。
 
 </details>
 
@@ -138,7 +140,7 @@ build.bat
 |---|---|
 | 桌面界面 | Python、PySide6 / Qt Widgets |
 | 宠物 | 声明式 JSON、透明 PNG / 2x 图集、有界缓存 |
-| 显示与情境 | Windows Gamma Ramp、Win32 原生事件、透明遮罩 |
+| 显示与情境 | Windows 夜间模式入口、Win32 原生事件、透明遮罩 |
 | 日程与配置 | Astral、本地 QSettings，配置 schema v7 |
 | 打包 | PyInstaller、Inno Setup、GitHub Actions |
 

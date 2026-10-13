@@ -161,7 +161,7 @@ class OnboardingDialog(QDialog):
         layout.setContentsMargins(0, 0, 0, 0)
         title = QLabel("先选择一个舒适的显示方案")
         title.setObjectName("onboardingTitle")
-        description = QLabel("稍后可随时调整。方案只影响色温与调暗强度。")
+        description = QLabel("方案只调整软件的屏幕调暗。色温由 Windows 夜间模式管理，稍后可从屏幕页面打开系统设置。")
         description.setObjectName("pageDescription")
         description.setWordWrap(True)
         layout.addWidget(title)
@@ -173,8 +173,8 @@ class OnboardingDialog(QDialog):
         self._profile_layout = options
         for key, label, detail in (
             ("office", "办公", "自然清晰"),
-            ("reading", "阅读", "柔和偏暖"),
-            ("night", "夜间", "暖色调暗"),
+            ("reading", "阅读", "轻微调暗"),
+            ("night", "夜间", "降低明亮感"),
             ("game", "游戏", "保持清爽"),
         ):
             choice = QRadioButton(f"{label}\n{detail}")

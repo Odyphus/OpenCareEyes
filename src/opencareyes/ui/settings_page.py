@@ -24,7 +24,7 @@ from opencareyes.ui.widgets import Card, Disclosure, PageHeader, ScrollPage, fir
 
 
 _HOTKEY_FIELDS = (
-    ("filter", "色温调节"),
+    ("filter", "打开 Windows 夜间模式"),
     ("dimmer", "屏幕调暗"),
     ("breaks", "休息提醒"),
     ("focus", "专注模式"),

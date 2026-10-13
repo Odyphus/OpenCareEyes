@@ -12,10 +12,12 @@ from typing import TYPE_CHECKING, Callable
 from PySide6.QtCore import (
     QObject,
     QTimer,
+    QUrl,
     Qt,
     Signal,
     Slot,
 )
+from PySide6.QtGui import QDesktopServices
 
 from .application.command_handlers import (
     AutomationCommands,
@@ -673,6 +675,24 @@ class AppController(QObject):
     def set_color_temperature(self, kelvin: int, persist: bool = True) -> bool:
         return self._display_commands.set_color_temperature(kelvin, persist)
 
+    @property
+    def system_color_management(self) -> bool:
+        return bool(getattr(self._blue_filter, "managed_by_windows", False))
+
+    def open_windows_night_light(self) -> bool:
+        """Open the supported Settings page without changing system colour."""
+        try:
+            opened = QDesktopServices.openUrl(QUrl("ms-settings:nightlight"))
+        except Exception:
+            log.exception("Could not open Windows Night Light settings")
+            opened = False
+        if not opened:
+            self.operation_failed.emit(
+                "night_light_settings",
+                "无法打开夜间模式，请在 Windows 设置 → 系统 → 屏幕中打开。",
+            )
+        return bool(opened)
+
     def set_dim_level(self, level: int, persist: bool = True) -> bool:
         return self._display_commands.set_dim_level(level, persist)
 
@@ -1107,8 +1127,8 @@ class AppController(QObject):
 
     def _settings_display_state(self) -> DisplayState:
         return DisplayState(
-            filter_enabled=bool(self._settings.filter_enabled),
-            color_temperature=int(self._settings.color_temperature),
+            filter_enabled=bool(self._settings.filter_enabled) and not self.system_color_management,
+            color_temperature=(6500 if self.system_color_management else int(self._settings.color_temperature)),
             dimmer_enabled=bool(self._settings.dimmer_enabled),
             dim_level=int(self._settings.dim_level),
             preset=str(self._settings.current_preset),
@@ -1242,6 +1262,8 @@ class AppController(QObject):
         settings_proposal: object | None = None,
         scheduler_proposal: object | None = None,
     ) -> bool:
+        if self.system_color_management:
+            proposal = replace(proposal, filter_enabled=False, color_temperature=6500)
         baseline = self._settings_display_state()
         desired = self._desired_for_display(proposal)
         previous = self._runtime_transaction
@@ -2198,8 +2220,10 @@ class AppController(QObject):
 
     def _hotkey_callbacks(self) -> dict[str, Callable[[], bool]]:
         return {
-            "filter": lambda: self.set_filter_enabled(
-                not self._settings.filter_enabled
+            "filter": (
+                self.open_windows_night_light
+                if self.system_color_management
+                else lambda: self.set_filter_enabled(not self._settings.filter_enabled)
             ),
             "break": lambda: self.set_break_enabled(
                 not self._settings.break_enabled

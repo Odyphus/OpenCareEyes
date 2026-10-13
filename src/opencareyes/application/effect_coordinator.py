@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import time
+from dataclasses import replace
 from PySide6.QtCore import QObject, Signal
 
 from opencareyes.domain.context import FeatureSuppression, SuppressionDecision
@@ -100,7 +101,7 @@ class EffectCoordinator(QObject):
     ) -> RuntimeIntent:
         """Capture current preferences without mutating a service."""
 
-        return RuntimeIntent(
+        return self._system_color_intent(RuntimeIntent(
             desired=(
                 desired
                 if desired is not None
@@ -130,6 +131,19 @@ class EffectCoordinator(QObject):
                 else bool(global_pause)
             ),
             preview=preview,
+        ))
+
+    def _system_color_intent(self, intent: RuntimeIntent) -> RuntimeIntent:
+        """Ignore legacy colour preferences, including automatic profiles."""
+        if not getattr(self._blue_filter, "managed_by_windows", False):
+            return intent
+        preview = intent.preview
+        if preview is not None:
+            preview = replace(preview, color_temperature=None)
+        return replace(
+            intent,
+            desired=replace(intent.desired, filter=False, color_temperature=6500),
+            preview=preview,
         )
 
     def reconcile(
@@ -144,6 +158,7 @@ class EffectCoordinator(QObject):
 
         if not isinstance(intent, RuntimeIntent):
             raise TypeError("intent must be a RuntimeIntent")
+        intent = self._system_color_intent(intent)
         before = self._capture_before_state()
         previous_intent = self._intent
         pending_requests: list[object] = []
@@ -231,6 +246,8 @@ class EffectCoordinator(QObject):
         display_purpose: str,
         force_display_commit: bool,
     ) -> object | None:
+        if getattr(self._blue_filter, "managed_by_windows", False):
+            return None
         suppression = intent.suppression.filter.suppressed
         hdr_active = bool(getattr(self._blue_filter, "hdr_active", False))
         target = (
