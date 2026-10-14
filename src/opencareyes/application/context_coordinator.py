@@ -160,6 +160,7 @@ class ContextCoordinator(QObject):
                 fullscreen_pause_enabled=bool(
                     self._settings.fullscreen_pause_enabled
                 ),
+                fullscreen_break_mode=getattr(self._settings, "fullscreen_break_mode", None),
                 natural_rest_enabled=bool(self._settings.natural_rest_enabled),
             ),
             self._app_rules(),

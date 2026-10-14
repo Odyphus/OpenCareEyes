@@ -148,6 +148,15 @@ class BreakPage(ScrollPage):
         self._reminder_style_combo.addItem("到点立即全屏", "fullscreen")
         set_accessible(self._reminder_style_combo, "休息提醒显示方式")
         reminder_form.addRow("到点后", self._reminder_style_combo)
+        self._fullscreen_mode_combo = QComboBox()
+        self._fullscreen_mode_combo.addItem("继续计时并提醒", "continue")
+        self._fullscreen_mode_combo.addItem("暂停计时", "pause")
+        set_accessible(self._fullscreen_mode_combo, "全屏时的休息处理方式")
+        reminder_form.addRow("全屏时", self._fullscreen_mode_combo)
+        self._fullscreen_mode_hint = QLabel()
+        self._fullscreen_mode_hint.setWordWrap(True)
+        self._fullscreen_mode_hint.setObjectName("cardDescription")
+        reminder_form.addRow(self._fullscreen_mode_hint)
         self._rest_scene_combo = QComboBox()
         for label, scene_id in (
             ('眺望远方', 'gaze'),
@@ -214,6 +223,9 @@ class BreakPage(ScrollPage):
         self._force_toggle.toggled.connect(self._controller.set_force_break)
         self._reminder_style_combo.currentIndexChanged.connect(
             self._reminder_style_changed
+        )
+        self._fullscreen_mode_combo.currentIndexChanged.connect(
+            self._fullscreen_mode_changed
         )
         self._rest_scene_combo.currentIndexChanged.connect(
             self._rest_scene_changed
@@ -315,6 +327,13 @@ class BreakPage(ScrollPage):
         companion = getattr(self._controller, 'set_companion_enabled', None)
         if callable(companion):
             companion(True)
+
+    def _fullscreen_mode_changed(self, index: int) -> None:
+        if self._rendering:
+            return
+        setter = getattr(self._controller, 'set_fullscreen_break_mode', None)
+        if callable(setter):
+            setter(str(self._fullscreen_mode_combo.itemData(index)))
 
     def _rest_scene_changed(self, index: int) -> None:
         if self._rendering:
@@ -430,6 +449,24 @@ class BreakPage(ScrollPage):
             if style_index >= 0:
                 with QSignalBlocker(self._reminder_style_combo):
                     self._reminder_style_combo.setCurrentIndex(style_index)
+            fullscreen_mode = str(first_state_value(
+                state, "breaks.fullscreen_mode", default="pause",
+            ))
+            fullscreen_index = self._fullscreen_mode_combo.findData(fullscreen_mode)
+            if fullscreen_index >= 0:
+                with QSignalBlocker(self._fullscreen_mode_combo):
+                    self._fullscreen_mode_combo.setCurrentIndex(fullscreen_index)
+            self._fullscreen_mode_combo.setEnabled(callable(getattr(
+                self._controller, 'set_fullscreen_break_mode', None,
+            )))
+            self._fullscreen_mode_hint.setText(
+                "全屏下照常计时，即使不动鼠标也不暂停；到点按所选方式提醒。"
+                if fullscreen_mode == "continue"
+                else "全屏下暂停计时和提醒；退出全屏后，从剩余时间继续。"
+            )
+            self._fullscreen_mode_combo.setToolTip(
+                "此选择独立于专注避让；锁屏、睡眠、手动暂停和应用例外仍会暂停提醒。"
+            )
             display_index = self._display_combo.findData(display_mode)
             if display_index >= 0:
                 with QSignalBlocker(self._display_combo):

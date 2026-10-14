@@ -780,6 +780,13 @@ class AutomationCommands:
             bool(enabled),
         )
 
+    def set_fullscreen_break_mode(self, mode: str) -> bool:
+        controller = self._controller
+        return controller._run(
+            "fullscreen_break_mode",
+            lambda: setattr(controller._settings, "fullscreen_break_mode", str(mode)),
+        )
+
     def set_fullscreen_pause_enabled(self, enabled: bool) -> bool:
         return self._controller._set_context_preference(
             "fullscreen_pause_enabled",

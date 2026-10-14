@@ -49,6 +49,7 @@ class DefaultPreferences:
     motion_mode: str = "system"
     smart_pause_enabled: bool = True
     fullscreen_pause_enabled: bool = True
+    fullscreen_break_mode: str = "pause"
     natural_rest_enabled: bool = True
     latitude: float = 39.9
     longitude: float = 116.4

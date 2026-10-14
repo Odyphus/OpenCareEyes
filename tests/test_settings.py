@@ -598,17 +598,17 @@ def test_migration_write_failure_restores_exact_snapshot():
 def test_future_schema_is_read_only_and_never_migrated():
     from opencareyes.config.settings import Settings
 
-    original = {"meta/schema_version": 9, "general/theme": "future"}
+    original = {"meta/schema_version": 10, "general/theme": "future"}
     store = MemoryStore(original)
     settings = Settings(store)
 
     assert settings.read_only is True
-    assert settings.stored_schema_version == 9
-    assert settings.schema_version == 9
+    assert settings.stored_schema_version == 10
+    assert settings.schema_version == 10
     assert store.writes == []
-    with pytest.raises(SettingsReadOnlyError, match="schema v9"):
+    with pytest.raises(SettingsReadOnlyError, match="schema v10"):
         settings.theme = "dark"
-    with pytest.raises(SettingsReadOnlyError, match="schema v9"):
+    with pytest.raises(SettingsReadOnlyError, match="schema v10"):
         settings.reset()
     assert store.values == original
 
@@ -807,7 +807,7 @@ def test_startup_recovers_pending_transaction_snapshot():
             "meta/pending_settings": True,
             "meta/pending_settings_operation": "transaction",
             "meta/pending_settings_snapshot": (
-                '{"general/theme":"dark","meta/schema_version":8}'
+                '{"general/theme":"dark","meta/schema_version":9}'
             ),
         }
     )
@@ -832,7 +832,7 @@ def test_startup_recovery_sync_failure_enters_read_only_mode():
             "meta/pending_settings": True,
             "meta/pending_settings_operation": "transaction",
             "meta/pending_settings_snapshot": (
-                '{"general/theme":"dark","meta/schema_version":8}'
+                '{"general/theme":"dark","meta/schema_version":9}'
             ),
         },
         fail_sync_calls={1},

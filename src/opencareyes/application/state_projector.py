@@ -161,6 +161,7 @@ class StateProjector:
                     getattr(settings, "break_reminder_style", "progressive")
                 ),
                 rest_scene=str(getattr(settings, 'break_rest_scene', 'gaze')),
+                fullscreen_mode=str(getattr(settings, 'fullscreen_break_mode', 'pause')),
             ),
             focus=FocusState(
                 enabled=settings.focus_enabled,

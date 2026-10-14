@@ -114,4 +114,5 @@ class AutoPausePreferences:
 
     smart_pause_enabled: bool = True
     fullscreen_pause_enabled: bool = True
+    fullscreen_break_mode: Literal["continue", "pause"] | None = None
     natural_rest_enabled: bool = True

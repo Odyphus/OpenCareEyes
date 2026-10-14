@@ -10,6 +10,8 @@ from PySide6.QtWidgets import (
     QHeaderView, QLabel, QPushButton, QTableWidget, QTableWidgetItem,
 )
 
+from opencareyes.application.status_presenter import StatusPresenter
+
 from opencareyes.ui.widgets import (
     Card, PageHeader, ScrollPage, feature_description, first_state_value,
     set_accessible, suppression_reason_description,
@@ -55,19 +57,19 @@ class AutomationPage(ScrollPage):
 
         smart_card = Card(
             "智能免打扰",
-            "全屏、演示或离开电脑时临时暂停提醒；不会修改原来的功能开关。",
+            "休息的全屏行为在“休息”页选择；这里设置专注避让、离开电脑和应用例外。",
         )
         smart_form = QFormLayout()
         smart_form.setHorizontalSpacing(24)
         smart_form.setVerticalSpacing(10)
         self._smart_pause_toggle = QCheckBox("启用情境感知")
-        self._fullscreen_pause_toggle = QCheckBox("全屏、演示和游戏时暂停")
+        self._fullscreen_pause_toggle = QCheckBox("全屏或演示时隐藏专注遮罩")
         self._natural_rest_toggle = QCheckBox("离开电脑时暂停提醒")
         set_accessible(self._smart_pause_toggle, "启用智能免打扰")
-        set_accessible(self._fullscreen_pause_toggle, "全屏时自动暂停")
+        set_accessible(self._fullscreen_pause_toggle, "全屏时隐藏专注遮罩")
         set_accessible(self._natural_rest_toggle, "启用自然休息")
         smart_form.addRow("总开关", self._smart_pause_toggle)
-        smart_form.addRow("全屏场景", self._fullscreen_pause_toggle)
+        smart_form.addRow("专注避让", self._fullscreen_pause_toggle)
         smart_form.addRow("离开电脑", self._natural_rest_toggle)
         natural_rest_hint = QLabel('离开 2 分钟后暂停；达到 5 分钟按自然休息处理。')
         natural_rest_hint.setWordWrap(True)
@@ -305,8 +307,13 @@ class AutomationPage(ScrollPage):
             ))
             if session != "active":
                 self._context_status.setText("当前会话不可交互，提醒已安全让出。")
-            elif fullscreen:
-                self._context_status.setText("检测到全屏应用，正在确认稳定状态…")
+            elif fullscreen or StatusPresenter.is_fullscreen_context(state):
+                mode = str(first_state_value(state, 'breaks.fullscreen_mode', default='pause'))
+                self._context_status.setText(
+                    "当前为全屏，休息继续计时并按所选方式提醒。"
+                    if mode == 'continue'
+                    else "检测到全屏应用，正在确认稳定状态…"
+                )
             else:
                 self._context_status.setText("当前没有需要暂停的情境。")
         self._resume_context_button.setVisible(

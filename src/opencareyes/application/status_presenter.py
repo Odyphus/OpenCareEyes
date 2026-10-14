@@ -153,6 +153,12 @@ def _format_duration(seconds: object) -> str:
 class StatusPresenter:
     """Project :class:`AppState` into user-facing, species-neutral status."""
 
+    @staticmethod
+    def is_fullscreen_context(state: object) -> bool:
+        return bool(_read(state, 'context.fullscreen', False)) or _read(
+            state, 'context.notification_mode', '',
+        ) in {'presentation', 'd3d_fullscreen'}
+
     @classmethod
     def project(cls, state: AppState) -> StatusPresentation:
         global_pause = bool(_read(state, "global_pause.active", False))

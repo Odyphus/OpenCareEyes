@@ -59,10 +59,21 @@ class AutoPausePolicy:
             and snapshot.session in {"locked", "suspended"}
             and snapshot.idle_seconds >= cls.NATURAL_REST_SECONDS
         )
+        fullscreen_reason = cls._fullscreen_reason(snapshot)
+        explicit_fullscreen_mode = preferences.fullscreen_break_mode
+        if explicit_fullscreen_mode is not None and explicit_fullscreen_mode not in {"continue", "pause"}:
+            raise ValueError("fullscreen break mode must be continue or pause")
+        if (
+            snapshot.session == "active"
+            and fullscreen_reason
+            and explicit_fullscreen_mode == "pause"
+            and not manual_break_override
+        ):
+            suppress("breaks", fullscreen_reason, "leave_fullscreen_context")
+
         if preferences.smart_pause_enabled and snapshot.session == "active":
-            fullscreen_reason = cls._fullscreen_reason(snapshot)
             if preferences.fullscreen_pause_enabled and fullscreen_reason:
-                if not manual_break_override:
+                if explicit_fullscreen_mode is None and not manual_break_override:
                     suppress("breaks", fullscreen_reason, "leave_fullscreen_context")
                 suppress("focus", fullscreen_reason, "leave_fullscreen_context")
 
@@ -81,6 +92,10 @@ class AutoPausePolicy:
         if (
             snapshot.session == "active"
             and snapshot.idle_seconds >= cls.IDLE_PAUSE_SECONDS
+            # An explicit fullscreen choice means the user may still be
+            # watching/using the screen without keyboard or mouse input.
+            # Neither mode treats that time as a completed natural rest.
+            and not (fullscreen_reason and explicit_fullscreen_mode is not None)
         ):
             if not manual_break_override:
                 suppress("breaks", "idle", "user_returns")

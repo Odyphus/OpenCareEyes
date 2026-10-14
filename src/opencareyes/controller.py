@@ -909,6 +909,9 @@ class AppController(QObject):
     def set_smart_pause_enabled(self, enabled: bool) -> bool:
         return self._automation_commands.set_smart_pause_enabled(enabled)
 
+    def set_fullscreen_break_mode(self, mode: str) -> bool:
+        return self._automation_commands.set_fullscreen_break_mode(mode)
+
     def set_fullscreen_pause_enabled(self, enabled: bool) -> bool:
         return self._automation_commands.set_fullscreen_pause_enabled(enabled)
 
