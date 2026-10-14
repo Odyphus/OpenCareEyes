@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 
 from PySide6.QtCore import QSignalBlocker
-from PySide6.QtGui import QAction, QColor, QIcon, QPainter, QPixmap
+from PySide6.QtGui import QAction, QActionGroup, QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 
 from opencareyes.application.status_presenter import StatusPresenter
@@ -122,6 +122,22 @@ class TrayIcon(QSystemTrayIcon):
         )
         self._pause_break_action = self._break_control_menu.addAction("暂停计时")
         self._pause_break_action.triggered.connect(self._toggle_break_pause)
+        self._fullscreen_break_menu = QMenu("全屏时的休息", self._break_control_menu)
+        self._break_control_menu.addMenu(self._fullscreen_break_menu)
+        self._fullscreen_break_group = QActionGroup(self)
+        self._fullscreen_break_group.setExclusive(True)
+        self._fullscreen_break_actions = {}
+        mode_setter = getattr(self._controller, 'set_fullscreen_break_mode', None)
+        for mode, label in (("continue", "继续计时并提醒"), ("pause", "暂停计时")):
+            action = self._fullscreen_break_menu.addAction(label)
+            action.setCheckable(True)
+            action.setEnabled(callable(mode_setter))
+            if callable(mode_setter):
+                action.triggered.connect(
+                    lambda _checked=False, selected=mode: mode_setter(selected)
+                )
+            self._fullscreen_break_group.addAction(action)
+            self._fullscreen_break_actions[mode] = action
         self._snooze_menu = QMenu("稍后提醒", self._break_control_menu)
         self._break_control_menu.addMenu(self._snooze_menu)
         for minutes in (5, 10, 30):
@@ -316,6 +332,10 @@ class TrayIcon(QSystemTrayIcon):
         self._break_action.setText(break_text)
         self._pause_break_action.setText("继续计时" if break_paused else "暂停计时")
         self._pause_break_action.setEnabled(break_enabled and not break_suppressed)
+        fullscreen_mode = str(first_state_value(state, 'breaks.fullscreen_mode', default='pause'))
+        for mode, action in self._fullscreen_break_actions.items():
+            with QSignalBlocker(action):
+                action.setChecked(mode == fullscreen_mode)
         self._break_control_menu.setEnabled(True)
         self._rest_now_action.setEnabled(break_enabled and not break_suppressed)
         self._snooze_menu.setEnabled(

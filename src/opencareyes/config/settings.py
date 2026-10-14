@@ -18,7 +18,7 @@ from opencareyes.config.presets import PRESETS
 from opencareyes.constants import APP_NAME, ORG_NAME
 
 
-SCHEMA_VERSION = 8
+SCHEMA_VERSION = 9
 
 logger = logging.getLogger(__name__)
 
@@ -297,6 +297,9 @@ class SettingsMigrator:
             if version < 8:
                 self._migrate_v7_to_v8(existing_profile)
                 version = 8
+            if version < 9:
+                self._migrate_v8_to_v9(existing_profile)
+                version = 9
             self._sync_checked()
             _clear_pending_snapshot(self._store)
         except Exception as exc:
@@ -509,6 +512,17 @@ class SettingsMigrator:
                 self._store.setValue('pause/mode', 'manual')
                 self._store.setValue('pause/until', '')
         self._store.setValue('meta/schema_version', 8)
+
+    def _migrate_v8_to_v9(self, existing_profile: bool) -> None:
+        """Separate break behaviour from fullscreen focus avoidance."""
+        if existing_profile and self._store.value('break/fullscreen_mode', None) is None:
+            paused = self._store.value(
+                'context/fullscreen_pause_enabled',
+                DEFAULT_PREFERENCES.fullscreen_pause_enabled,
+                type=bool,
+            )
+            self._store.setValue('break/fullscreen_mode', 'pause' if paused else 'continue')
+        self._store.setValue('meta/schema_version', 9)
 
     def _sync_checked(self) -> None:
         _sync_store_checked(self._store)
@@ -982,6 +996,19 @@ class Settings:
         self._set_value("general/motion_mode", value)
 
     # ---- Context-aware suppression ----
+    @property
+    def fullscreen_break_mode(self) -> str:
+        mode = str(self._s.value(
+            'break/fullscreen_mode', DEFAULT_PREFERENCES.fullscreen_break_mode,
+        ))
+        return mode if mode in {'continue', 'pause'} else DEFAULT_PREFERENCES.fullscreen_break_mode
+
+    @fullscreen_break_mode.setter
+    def fullscreen_break_mode(self, value: str) -> None:
+        if value not in {'continue', 'pause'}:
+            raise ValueError('fullscreen break mode must be continue or pause')
+        self._set_value('break/fullscreen_mode', value)
+
     @property
     def smart_pause_enabled(self) -> bool:
         return self._s.value(

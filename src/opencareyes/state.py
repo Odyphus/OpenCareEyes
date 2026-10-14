@@ -30,6 +30,7 @@ class BreakState:
     countdown_display: str = "tray"
     reminder_style: str = "progressive"
     rest_scene: str = 'gaze'
+    fullscreen_mode: str = 'pause'
 
 
 @dataclass(frozen=True, slots=True)

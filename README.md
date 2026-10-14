@@ -14,9 +14,9 @@
 [![Windows CI](https://github.com/Odyphus/OpenCareEyes/actions/workflows/windows-ci.yml/badge.svg)](https://github.com/Odyphus/OpenCareEyes/actions/workflows/windows-ci.yml)
 [![License](https://img.shields.io/badge/License-Apache--2.0-527A8B?style=flat-square)](LICENSE)
 
-**[下载安装版](https://github.com/Odyphus/OpenCareEyes/releases/download/v0.10.0b13/OpenCareEyes_Setup_0.10.0b13.exe)** · **[下载便携版](https://github.com/Odyphus/OpenCareEyes/releases/download/v0.10.0b13/OpenCareEyes_Portable_0.10.0b13.zip)** · [使用说明](使用说明.md) · [反馈问题](https://github.com/Odyphus/OpenCareEyes/issues/new/choose)
+**[下载安装版](https://github.com/Odyphus/OpenCareEyes/releases/download/v0.10.0b14/OpenCareEyes_Setup_0.10.0b14.exe)** · **[下载便携版](https://github.com/Odyphus/OpenCareEyes/releases/download/v0.10.0b14/OpenCareEyes_Portable_0.10.0b14.zip)** · [使用说明](使用说明.md) · [反馈问题](https://github.com/Odyphus/OpenCareEyes/issues/new/choose)
 
-> 当前体验版：**v0.10.0b13**。屏幕调暗仅保留手动开关和滑块，默认关闭，移除场景按钮及自动调暗；色温由 Windows 夜间模式管理。保留新版界面、低亮度休息场景和右键菜单；宠物除“摸摸头”“玩一会儿”外，恢复 v0.9 的动作。需要稳定版可下载 **[v0.9.0「百变衣橱」](https://github.com/Odyphus/OpenCareEyes/releases/tag/v0.9.0)**。测试版不替代稳定版。
+> 当前体验版：**v0.10.0b14**。新增“继续计时并提醒”和“暂停计时”两种全屏休息行为；手动调暗默认关闭，色温由 Windows 夜间模式管理。保留新版界面、低亮度休息场景和右键菜单；宠物除“摸摸头”“玩一会儿”外，恢复 v0.9 的动作。需要稳定版可下载 **[v0.9.0「百变衣橱」](https://github.com/Odyphus/OpenCareEyes/releases/tag/v0.9.0)**。测试版不替代稳定版。
 
 ## 先看效果
 
@@ -50,6 +50,7 @@
 | 夜间阅读或办公 | 从软件打开 Windows 夜间模式，强度与定时在系统设置中调整；软件调暗需要手动开启和调整。 |
 | 需要专心一段时间 | 使用专注计时和背景暗化；全屏、演示、锁屏等情境下按规则暂停或让出。 |
 | 需要降低屏幕亮度 | 手动开启调暗并调整滑块；不会随时间或应用切换明暗，退出后移除软件遮罩。 |
+| 全屏使用时 | 自己选择继续计时并提醒，或暂停计时；退出全屏后接着剩余时间继续。 |
 | 随手处理小事 | 从托盘打开倒计时、本地便签和电脑状态。 |
 
 ## 安装与第一次使用
@@ -63,7 +64,7 @@
 发布页附有 `SHA256SUMS.txt`，可核对下载文件：
 
 ```powershell
-Get-FileHash .\OpenCareEyes_Setup_0.10.0b13.exe -Algorithm SHA256
+Get-FileHash .\OpenCareEyes_Setup_0.10.0b14.exe -Algorithm SHA256
 Get-Content .\SHA256SUMS.txt
 ```
 
@@ -78,7 +79,7 @@ Get-Content .\SHA256SUMS.txt
 - **原版图标恢复**：继续使用 v0.9 蓝色眼睛图标；安装器为桌面和开始菜单使用独立图标文件名，避开此前设计使用的旧路径。
 - **保留界面升级**：四项导航、柔和配色、首页常用操作、按需展开的设置和低亮度休息场景继续保留。
 
-[手动调暗说明](docs/manual-dimming-b13.md) · [色温调整说明](docs/windows-night-light-b12.md) · [动作回滚说明](docs/action-rollback-b11.md) · [界面与操作说明](docs/ui-ux-b9.md) · [完整更新记录](CHANGELOG.md)
+[全屏休息说明](docs/fullscreen-break-b14.md) · [手动调暗说明](docs/manual-dimming-b13.md) · [色温调整说明](docs/windows-night-light-b12.md) · [动作回滚说明](docs/action-rollback-b11.md) · [界面与操作说明](docs/ui-ux-b9.md) · [完整更新记录](CHANGELOG.md)
 
 ## 常见问题
 

@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from opencareyes.application.status_presenter import StatusPresenter
 from opencareyes.ui.widgets import first_state_value
 from opencareyes.ui.theme import rest_palette
 from opencareyes.ui.rest_scene import GentleEntrance
@@ -343,7 +344,7 @@ class BreakPrompt(QWidget):
             enabled
             and phase == "prompting"
             and style == "progressive"
-            and display_mode != "floating"
+            and (display_mode != "floating" or StatusPresenter.is_fullscreen_context(state))
             and not force
             and not suppressed
             and stage in {"gentle", "prominent"}

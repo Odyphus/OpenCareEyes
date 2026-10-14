@@ -865,7 +865,7 @@ class CompanionRuntime:
         self.set_motion_reduced(not bool(enabled))
 
     def _sync_break_prompt(self, state, suppressed: bool = False) -> None:
-        if suppressed:
+        if suppressed or StatusPresenter.is_fullscreen_context(state):
             self._bubble.clear_rest_prompt()
             return
         if state.breaks.phase == 'resting':
