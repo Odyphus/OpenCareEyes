@@ -223,7 +223,7 @@ class StatusPresenter:
                 suppressed_by=(),
                 resume_condition="",
                 status_text="由 Windows 管理",
-                detail="强度和定时在系统设置中调整；软件的调暗、暂停和自动方案独立运行。",
+                detail="强度和定时在系统设置中调整；软件仅提供独立的手动调暗。",
             )
         runtime = _read(state, f"effective_policy.{feature_id}", None)
         desired_value = _read(runtime, "desired_enabled", _MISSING)

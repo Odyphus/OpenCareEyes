@@ -4,20 +4,12 @@ from __future__ import annotations
 
 from PySide6.QtCore import QSignalBlocker, Qt, QTimer
 from PySide6.QtWidgets import (
-    QBoxLayout, QCheckBox, QGridLayout, QHBoxLayout, QLabel, QPushButton, QSlider,
+    QBoxLayout, QCheckBox, QHBoxLayout, QLabel, QPushButton, QSlider,
 )
 
 from opencareyes.constants import DIM_MAX
 from opencareyes.ui.widgets import (
     Card, PageHeader, ScrollPage, first_state_value, set_accessible,
-)
-
-
-_PROFILES = (
-    ("office", "办公", "不调暗屏幕"),
-    ("reading", "阅读", "轻微调暗 10%"),
-    ("night", "夜间", "调暗屏幕 25%"),
-    ("game", "游戏", "不调暗屏幕"),
 )
 
 
@@ -38,13 +30,13 @@ class BlueLightPage(ScrollPage):
 
     def _build_ui(self) -> None:
         self.layout.addWidget(PageHeader(
-            "屏幕舒适度", "色温交给 Windows，屏幕调暗在这里调整。",
+            "屏幕舒适度", "色温交给 Windows，屏幕调暗只由你手动控制。",
         ))
         night_card = Card(
             "Windows 夜间模式", "在系统设置中开启夜间模式、调整暖色强度和定时。",
         )
         night_row = self._night_row = QBoxLayout(QBoxLayout.LeftToRight)
-        night_copy = QLabel("色温由 Windows 管理，软件中的方案只控制屏幕调暗。")
+        night_copy = QLabel("系统夜间模式独立运行，软件不会自动改变屏幕明暗。")
         night_copy.setObjectName("cardDescription")
         night_copy.setWordWrap(True)
         self._night_light_button = QPushButton("打开 Windows 夜间模式")
@@ -61,24 +53,9 @@ class BlueLightPage(ScrollPage):
         night_card.body.addLayout(night_row)
         self.layout.addWidget(night_card)
 
-        profile_card = Card("屏幕调暗", "选择一个调暗方案，或按当前环境微调。")
-        self._profile_grid = QGridLayout()
-        self._profile_grid.setHorizontalSpacing(10)
-        self._profile_grid.setVerticalSpacing(10)
-        self._profile_buttons: dict[str, QPushButton] = {}
-        for index, (key, label, description) in enumerate(_PROFILES):
-            button = QPushButton(label)
-            button.setObjectName("profileButton")
-            button.setCheckable(True)
-            button.setToolTip(description)
-            set_accessible(button, f"应用{label}调暗方案", description)
-            button.clicked.connect(
-                lambda checked=False, profile=key: self._controller.apply_display_profile(profile)
-            )
-            self._profile_grid.addWidget(button, index // 2, index % 2)
-            self._profile_buttons[key] = button
-        profile_card.body.addLayout(self._profile_grid)
-        profile_card.body.addSpacing(8)
+        profile_card = Card(
+            "手动调暗", "默认关闭。开启后按需调整；不会随时间或应用自动切换。",
+        )
         dim_top = QHBoxLayout()
         self._dimmer_toggle = QCheckBox("启用屏幕调暗")
         set_accessible(self._dimmer_toggle, "启用屏幕调暗")
@@ -125,11 +102,6 @@ class BlueLightPage(ScrollPage):
         direction = QBoxLayout.TopToBottom if compact else QBoxLayout.LeftToRight
         self._night_row.setDirection(direction)
         self._health_row.setDirection(direction)
-        columns = 2 if compact else 4
-        while self._profile_grid.count():
-            self._profile_grid.takeAt(0)
-        for index, button in enumerate(self._profile_buttons.values()):
-            self._profile_grid.addWidget(button, index // columns, index % columns)
 
     def _connect_signals(self) -> None:
         self._dimmer_toggle.toggled.connect(
@@ -158,7 +130,6 @@ class BlueLightPage(ScrollPage):
     def render(self, state) -> None:
         dimmer_enabled = bool(first_state_value(state, "display.dimmer_enabled", default=False))
         dim_level = int(first_state_value(state, "display.dim_level", default=0))
-        preset = str(first_state_value(state, "display.preset", "display.profile", default="custom"))
         pending = bool(first_state_value(state, "display_health.pending", default=False))
         status = str(first_state_value(state, "display_health.status", default="ok"))
         message = str(first_state_value(state, "display_health.message", default=""))
@@ -175,13 +146,22 @@ class BlueLightPage(ScrollPage):
         elif status in {"error", "failed", "unavailable"}:
             self._health_label.setText(message or "软件显示效果暂时不可用。")
         else:
-            self._health_label.setText("屏幕调暗已开启" if dimmer_enabled else "屏幕调暗已关闭")
+            effective = bool(first_state_value(
+                state, "effective_policy.dimmer.effective_enabled", default=dimmer_enabled,
+            ))
+            if dimmer_enabled and not effective:
+                text = "屏幕调暗已暂停，恢复全部效果后继续。"
+            elif dimmer_enabled and dim_level == 0:
+                text = "屏幕调暗已开启 · 当前 0%，屏幕未调暗。"
+            elif dimmer_enabled:
+                text = f"手动调暗 {round(dim_level * 100 / max(1, DIM_MAX))}%"
+            else:
+                text = "屏幕调暗已关闭，调整滑块不会自动开启。"
+            self._health_label.setText(text)
         available = bool(first_state_value(state, "capabilities.dimmer_available", default=True))
         self._dimmer_toggle.setEnabled(available)
         self._dim_slider.setEnabled(available and not pending)
-        for key, button in self._profile_buttons.items():
-            with QSignalBlocker(button):
-                button.setChecked(key == preset)
+
 
 
 ScreenComfortPage = BlueLightPage

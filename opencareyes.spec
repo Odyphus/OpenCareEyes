@@ -75,6 +75,9 @@ a = Analysis(
     hooksconfig={},
     runtime_hooks=[],
     excludes=[
+        # Legacy controller type hints must not pull the retired scheduler
+        # into the manual-only production executable.
+        "opencareyes.core.scheduler",
         "pip",
         "pkg_resources",
         "pytest",

@@ -185,7 +185,7 @@ def test_automation_settings_fit_the_narrow_window_without_horizontal_clipping(q
     page.resize(448, 520)
     page.show()
     qtbot.waitUntil(lambda: page.content.width() <= page.viewport().width())
-    assert page._rules_table.columnCount() == 6
+    assert page._rules_table.columnCount() == 4
 
 
 @pytest.mark.parametrize('theme', ('light', 'dark'))

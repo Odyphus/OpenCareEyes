@@ -14,9 +14,9 @@
 [![Windows CI](https://github.com/Odyphus/OpenCareEyes/actions/workflows/windows-ci.yml/badge.svg)](https://github.com/Odyphus/OpenCareEyes/actions/workflows/windows-ci.yml)
 [![License](https://img.shields.io/badge/License-Apache--2.0-527A8B?style=flat-square)](LICENSE)
 
-**[下载安装版](https://github.com/Odyphus/OpenCareEyes/releases/download/v0.10.0b12/OpenCareEyes_Setup_0.10.0b12.exe)** · **[下载便携版](https://github.com/Odyphus/OpenCareEyes/releases/download/v0.10.0b12/OpenCareEyes_Portable_0.10.0b12.zip)** · [使用说明](使用说明.md) · [反馈问题](https://github.com/Odyphus/OpenCareEyes/issues/new/choose)
+**[下载安装版](https://github.com/Odyphus/OpenCareEyes/releases/download/v0.10.0b13/OpenCareEyes_Setup_0.10.0b13.exe)** · **[下载便携版](https://github.com/Odyphus/OpenCareEyes/releases/download/v0.10.0b13/OpenCareEyes_Portable_0.10.0b13.zip)** · [使用说明](使用说明.md) · [反馈问题](https://github.com/Odyphus/OpenCareEyes/issues/new/choose)
 
-> 当前体验版：**v0.10.0b12**。色温改由 Windows 夜间模式管理，软件自己的调色路径已停用。保留新版界面、低亮度休息场景和右键菜单；宠物除“摸摸头”“玩一会儿”外，恢复 v0.9 的动作。需要稳定版可下载 **[v0.9.0「百变衣橱」](https://github.com/Odyphus/OpenCareEyes/releases/tag/v0.9.0)**。测试版不替代稳定版。
+> 当前体验版：**v0.10.0b13**。屏幕调暗仅保留手动开关和滑块，默认关闭，移除场景按钮及自动调暗；色温由 Windows 夜间模式管理。保留新版界面、低亮度休息场景和右键菜单；宠物除“摸摸头”“玩一会儿”外，恢复 v0.9 的动作。需要稳定版可下载 **[v0.9.0「百变衣橱」](https://github.com/Odyphus/OpenCareEyes/releases/tag/v0.9.0)**。测试版不替代稳定版。
 
 ## 先看效果
 
@@ -47,15 +47,15 @@
 |---|---|
 | 想让桌面有一点陪伴 | 白鼬“鼬鼬”会回应点击与拖动；右键可互动、重置位置或关闭伙伴，衣橱提供 13 套完整造型。 |
 | 长时间盯着屏幕 | 配置短休息、长休息与活动加权节奏，选择渐进、全屏或严格提醒；可开始、延后或跳过本次休息。 |
-| 夜间阅读或办公 | 从软件打开 Windows 夜间模式，强度与定时在系统设置中调整；软件调暗和显示方案独立运行。 |
+| 夜间阅读或办公 | 从软件打开 Windows 夜间模式，强度与定时在系统设置中调整；软件调暗需要手动开启和调整。 |
 | 需要专心一段时间 | 使用专注计时和背景暗化；全屏、演示、锁屏等情境下按规则暂停或让出。 |
-| 希望按时间自动切换 | 按固定时间或日出日落切换软件调暗方案；Windows 夜间模式的定时在系统设置中调整。 |
+| 需要降低屏幕亮度 | 手动开启调暗并调整滑块；不会随时间或应用切换明暗，退出后移除软件遮罩。 |
 | 随手处理小事 | 从托盘打开倒计时、本地便签和电脑状态。 |
 
 ## 安装与第一次使用
 
 1. 在 [版本发布页](https://github.com/Odyphus/OpenCareEyes/releases) 选择安装版或便携版。安装版可创建快捷方式；便携 ZIP 解压后运行 `OpenCareEyes.exe`。
-2. 首次启动按欢迎流程选择显示方案、休息节奏和开机自启。全部设置之后都可以调整。
+2. 首次启动按欢迎流程选择桌面伙伴、休息节奏和开机自启。全部设置之后都可以调整。
 3. 程序驻留托盘：左键图标打开或收起伙伴小屋，右键访问休息、暂停、伙伴和小工具。
 
 宠物操作：**单击互动，长按或移动后拖动，右键打开菜单**。选择“关闭桌面伙伴”后，可以在托盘重新勾选“显示桌面伙伴”；休息提醒仍继续计时。
@@ -63,7 +63,7 @@
 发布页附有 `SHA256SUMS.txt`，可核对下载文件：
 
 ```powershell
-Get-FileHash .\OpenCareEyes_Setup_0.10.0b12.exe -Algorithm SHA256
+Get-FileHash .\OpenCareEyes_Setup_0.10.0b13.exe -Algorithm SHA256
 Get-Content .\SHA256SUMS.txt
 ```
 
@@ -71,14 +71,14 @@ Get-Content .\SHA256SUMS.txt
 
 ## 这次更新
 
-- **色温交给 Windows**：移除自定义色温滑块，屏幕页、首页、托盘和原色温快捷键打开系统夜间模式。旧色温设置、自动方案及失败回退不再写入屏幕色彩曲线。
-- **调暗独立控制**：办公、阅读、夜间和游戏方案只调整软件调暗；关闭软件显示效果不修改系统夜间模式。
+- **色温交给 Windows**：移除自定义色温滑块，屏幕页、首页、托盘和原色温快捷键打开系统夜间模式。旧色温设置及失败回退不再写入屏幕色彩曲线。
+- **调暗手动控制**：默认关闭，只保留开关和滑块；时间与应用切换不会改变调暗。关闭软件显示效果不修改系统夜间模式。
 - **动作选择回归**：原版与蓝围巾的“摸摸头”“玩一会儿”保持 b10 的画面和节奏；其他动作取回 v0.9 原始素材与时序，撤下新版多方向注视、阅读、挥手与懒腰造型。
 - **右键保留菜单**：互动、重置位置、关闭伙伴及键盘操作继续可用，不恢复旧右键动画。
 - **原版图标恢复**：继续使用 v0.9 蓝色眼睛图标；安装器为桌面和开始菜单使用独立图标文件名，避开此前设计使用的旧路径。
 - **保留界面升级**：四项导航、柔和配色、首页常用操作、按需展开的设置和低亮度休息场景继续保留。
 
-[色温调整说明](docs/windows-night-light-b12.md) · [动作回滚说明](docs/action-rollback-b11.md) · [界面与操作说明](docs/ui-ux-b9.md) · [完整更新记录](CHANGELOG.md)
+[手动调暗说明](docs/manual-dimming-b13.md) · [色温调整说明](docs/windows-night-light-b12.md) · [动作回滚说明](docs/action-rollback-b11.md) · [界面与操作说明](docs/ui-ux-b9.md) · [完整更新记录](CHANGELOG.md)
 
 ## 常见问题
 
@@ -92,7 +92,7 @@ Get-Content .\SHA256SUMS.txt
 <details>
 <summary><strong>现在怎样调整色温？</strong></summary>
 
-打开“屏幕与休息 → 屏幕”，点击“打开 Windows 夜间模式”，在系统页面设置开启状态、暖色强度和定时。v0.10.0b12 停止软件自己的 Gamma 调色；暂停或退出软件也不改变 Windows 夜间模式。
+打开“屏幕与休息 → 屏幕”，点击“打开 Windows 夜间模式”，在系统页面设置开启状态、暖色强度和定时。自 v0.10.0b12 起停止软件自己的 Gamma 调色；暂停或退出软件也不改变 Windows 夜间模式。
 
 </details>
 
@@ -106,7 +106,7 @@ Get-Content .\SHA256SUMS.txt
 ## 隐私与边界
 
 - 不创建账号，不含广告或遥测；不保存鼠标轨迹、窗口标题、前台应用历史或宠物互动次数。
-- 核心功能离线运行，日出日落在本机根据用户提供的位置计算。
+- 核心功能离线运行；屏幕调暗不使用定时任务或应用例外自动切换。
 - 只有主动点击“检查更新”才访问 GitHub，不在启动或后台检查，不自动下载安装。
 - 便签本地保存，正文不进入运行日志或诊断包；应用例外只保存 EXE 文件名。
 

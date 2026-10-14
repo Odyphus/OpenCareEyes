@@ -1431,4 +1431,4 @@ class PreferencesPage(_SectionPages):
     from opencareyes.ui.settings_page import SettingsPage
     from opencareyes.ui.automation_page import AutomationPage
 
-    sections = (('常规', SettingsPage), ('自动日程', AutomationPage))
+    sections = (('常规', SettingsPage), ('免打扰', AutomationPage))

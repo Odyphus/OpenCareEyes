@@ -57,10 +57,12 @@ class EffectCoordinator(QObject):
         dimmer=None,
         break_reminder=None,
         focus_mode=None,
+        manual_dimming_only: bool = False,
         parent: QObject | None = None,
     ):
         super().__init__(parent)
         self._settings = settings
+        self._manual_dimming_only = bool(manual_dimming_only)
         self._blue_filter = blue_filter
         self._dimmer = dimmer
         self._break_reminder = break_reminder
@@ -101,7 +103,7 @@ class EffectCoordinator(QObject):
     ) -> RuntimeIntent:
         """Capture current preferences without mutating a service."""
 
-        return self._system_color_intent(RuntimeIntent(
+        return self._normalise_display_intent(RuntimeIntent(
             desired=(
                 desired
                 if desired is not None
@@ -133,8 +135,14 @@ class EffectCoordinator(QObject):
             preview=preview,
         ))
 
-    def _system_color_intent(self, intent: RuntimeIntent) -> RuntimeIntent:
-        """Ignore legacy colour preferences, including automatic profiles."""
+    def _normalise_display_intent(self, intent: RuntimeIntent) -> RuntimeIntent:
+        """Enforce system colour ownership and stable, manual dimming."""
+        if self._manual_dimming_only:
+            intent = replace(
+                intent,
+                suppression=replace(intent.suppression, dimmer=FeatureSuppression()),
+                schedule=None,
+            )
         if not getattr(self._blue_filter, "managed_by_windows", False):
             return intent
         preview = intent.preview
@@ -158,7 +166,7 @@ class EffectCoordinator(QObject):
 
         if not isinstance(intent, RuntimeIntent):
             raise TypeError("intent must be a RuntimeIntent")
-        intent = self._system_color_intent(intent)
+        intent = self._normalise_display_intent(intent)
         before = self._capture_before_state()
         previous_intent = self._intent
         pending_requests: list[object] = []

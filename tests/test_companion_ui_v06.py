@@ -531,7 +531,8 @@ def test_onboarding_starts_with_the_companion_and_tray_is_grouped():
     dialog = OnboardingDialog(controller)
     assert dialog._stack.currentIndex() == 0
     assert dialog._pet_toggle.isChecked()
-    assert '4' in dialog._step_label.text()
+    assert dialog._stack.count() == 3
+    assert '3' in dialog._step_label.text()
 
     panel = SimpleNamespace(show_page=lambda _name: None, show=lambda: None)
     tray = TrayIcon(controller, panel)

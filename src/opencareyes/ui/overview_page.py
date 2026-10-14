@@ -89,9 +89,6 @@ class OverviewPage(ScrollPage):
         pause_menu.addAction("暂停 1 小时").triggered.connect(
             lambda: self._controller.pause_all(minutes=60)
         )
-        pause_menu.addAction("直到下一次自动切换").triggered.connect(
-            lambda: self._controller.pause_all(minutes=None, until_next_schedule=True)
-        )
         pause_menu.addAction("直到手动恢复").triggered.connect(
             lambda: self._controller.pause_all(minutes=None)
         )
@@ -156,7 +153,7 @@ class OverviewPage(ScrollPage):
         set_accessible(self._resume_context_button, "本次场景继续休息提醒")
         self._break_card.body.addWidget(self._resume_context_button)
         self._focus_card = StatusCard("专注模式")
-        self._automation_card = StatusCard("自动化")
+        self._automation_card = StatusCard("免打扰")
         grid.addWidget(self._display_card, 0, 0)
         grid.addWidget(self._break_card, 0, 1)
         grid.addWidget(self._focus_card, 1, 0)
@@ -165,19 +162,6 @@ class OverviewPage(ScrollPage):
         grid.setColumnStretch(1, 1)
         self.layout.addLayout(grid)
 
-        quick_card = Card("快速方案", "调整软件调暗；色温在 Windows 夜间模式中设置。")
-        quick_row = QHBoxLayout()
-        for key, label in (("office", "办公"), ("reading", "阅读"), ("night", "夜间"), ("game", "游戏")):
-            button = QPushButton(label)
-            button.setObjectName("profileButton")
-            button.clicked.connect(
-                lambda checked=False, profile=key: self._controller.apply_display_profile(profile)
-            )
-            set_accessible(button, f"应用{label}显示方案")
-            quick_row.addWidget(button)
-        quick_row.addStretch()
-        quick_card.body.addLayout(quick_row)
-        self.layout.addWidget(quick_card)
         self.layout.addStretch()
 
     @staticmethod
@@ -397,27 +381,21 @@ class OverviewPage(ScrollPage):
             focus_detail,
         )
 
-        automation_enabled = bool(first_state_value(state, "automation.enabled", default=False))
         smart_enabled = bool(first_state_value(
             state, "automation.smart_pause.enabled", default=True
         ))
-        event = str(first_state_value(state, "automation.next_event", default=""))
-        event_at = first_state_value(state, "automation.next_event_at", default=None)
-        override = bool(first_state_value(state, "automation.manual_override", default=False))
         context_app = str(first_state_value(state, "context.foreground_app_id", default=""))
         context_fullscreen = bool(first_state_value(state, "context.fullscreen", default=False))
         context_detail = (
             f"当前全屏：{context_app or '未知应用'}"
             if context_fullscreen
-            else "显示方案自动切换"
+            else "按当前情境暂停休息与专注，手动调暗保持不变"
         )
         self._automation_card.set_status(
-            automation_enabled or smart_enabled,
+            smart_enabled,
             (
                 break_value
                 if break_suppressed
-                else self._format_event(event, event_at)
-                if automation_enabled
                 else "智能免打扰已启用"
                 if smart_enabled
                 else "未启用"
@@ -425,9 +403,7 @@ class OverviewPage(ScrollPage):
             (
                 break_resume
                 if break_suppressed
-                else "手动调整将在此时恢复自动化"
-                if override
                 else context_detail
             ),
-            active_text="运行中" if automation_enabled else "情境感知",
+            active_text="情境感知",
         )

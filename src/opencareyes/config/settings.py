@@ -18,7 +18,7 @@ from opencareyes.config.presets import PRESETS
 from opencareyes.constants import APP_NAME, ORG_NAME
 
 
-SCHEMA_VERSION = 7
+SCHEMA_VERSION = 8
 
 logger = logging.getLogger(__name__)
 
@@ -294,6 +294,9 @@ class SettingsMigrator:
             if version < 7:
                 self._migrate_v6_to_v7(existing_profile)
                 version = 7
+            if version < 8:
+                self._migrate_v7_to_v8(existing_profile)
+                version = 8
             self._sync_checked()
             _clear_pending_snapshot(self._store)
         except Exception as exc:
@@ -493,6 +496,19 @@ class SettingsMigrator:
             ) is None:
                 self._store.setValue('companion/outfit_preferences_json', '{}')
         self._store.setValue('meta/schema_version', 7)
+
+    def _migrate_v7_to_v8(self, existing_profile: bool) -> None:
+        """Retire automatic dimming and opt existing users out once."""
+        if existing_profile:
+            self._store.setValue('dimmer/enabled', False)
+            self._store.setValue('filter/schedule_enabled', False)
+            self._store.setValue('preset/current', 'custom')
+            if self._store.value('pause/mode', 'none') == 'next_schedule':
+                # With no schedule boundary, retain the user's pause until
+                # they explicitly resume; other pause modes remain intact.
+                self._store.setValue('pause/mode', 'manual')
+                self._store.setValue('pause/until', '')
+        self._store.setValue('meta/schema_version', 8)
 
     def _sync_checked(self) -> None:
         _sync_store_checked(self._store)

@@ -39,7 +39,9 @@ class FakeController(QObject):
         return self._call("break_mode")
 
     def set_feature_enabled(self, _feature: str, _enabled: bool) -> bool:
-        return self._call("break_enable")
+        if _feature == "dimmer":
+            assert _enabled is False
+        return self._call(_feature + "_enable")
 
     def set_autostart(self, _enabled: bool) -> bool:
         return self._call("autostart")
@@ -66,23 +68,19 @@ def gui_app():
 
 
 @pytest.mark.parametrize(
-    ("fail_on", "automation"),
+    "fail_on",
     (
-        ("profile", False),
-        ("break_mode", False),
-        ("break_enable", False),
-        ("autostart", False),
-        ("schedule", True),
-        ("complete", False),
+        "dimmer_enable",
+        "break_mode",
+        "breaks_enable",
+        "autostart",
+        "complete",
     ),
 )
-def test_failed_setup_command_keeps_dialog_open(gui_app, fail_on, automation):
+def test_failed_setup_command_keeps_dialog_open(gui_app, fail_on):
     controller = FakeController(fail_on)
     dialog = OnboardingDialog(controller)
     dialog._stack.setCurrentIndex(dialog._stack.count() - 1)
-    dialog._automation_toggle.setChecked(automation)
-    if automation:
-        dialog._city_combo.setCurrentIndex(1)
 
     dialog._advance()
 
@@ -102,28 +100,27 @@ def test_successful_setup_completes_before_closing(gui_app):
     dialog._advance()
 
     assert controller.calls == [
-        "profile",
+        "dimmer_enable",
         "break_mode",
-        "break_enable",
+        "breaks_enable",
         "autostart",
-        "schedule",
         "complete",
     ]
     assert controller.completed is True
     assert dialog.result() == QDialog.DialogCode.Accepted
 
 
-def test_automation_setup_uses_one_schedule_command(gui_app):
+def test_setup_has_three_steps_and_never_configures_display_automation(gui_app):
     controller = FakeController()
     dialog = OnboardingDialog(controller)
     dialog._stack.setCurrentIndex(dialog._stack.count() - 1)
-    dialog._automation_toggle.setChecked(True)
-    dialog._city_combo.setCurrentIndex(1)
 
     dialog._advance()
 
     assert "location" not in controller.calls
-    assert controller.calls.count("schedule") == 1
+    assert "schedule" not in controller.calls
+    assert "profile" not in controller.calls
+    assert dialog._stack.count() == 3
     assert controller.completed is True
 
 
@@ -148,7 +145,7 @@ def test_onboarding_fits_small_available_geometry_without_horizontal_scroll(
     assert dialog._content_scroll.horizontalScrollBarPolicy() == Qt.ScrollBarAlwaysOff
     assert dialog._content_scroll.horizontalScrollBar().maximum() == 0
     assert dialog._content_scroll.verticalScrollBar().maximum() > 0
-    assert dialog._profile_layout.direction() == QBoxLayout.TopToBottom
+    assert dialog._break_layout.direction() == QBoxLayout.TopToBottom
     assert dialog._next_button.isVisible()
 
 

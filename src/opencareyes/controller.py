@@ -218,6 +218,7 @@ class AppController(QObject):
         system_metrics=None,
         parent: QObject | None = None,
         initial_wardrobe_error: str = '',
+        manual_dimming_only: bool = False,
     ):
         super().__init__(parent)
         self._settings = settings
@@ -225,7 +226,8 @@ class AppController(QObject):
         self._dimmer = dimmer
         self._break_reminder = break_reminder
         self._focus_mode = focus_mode
-        self._scheduler = scheduler
+        self.manual_dimming_only = bool(manual_dimming_only)
+        self._scheduler = None if self.manual_dimming_only else scheduler
         self._hotkeys = hotkeys
         self._effects = effect_coordinator or EffectCoordinator(
             settings,
@@ -233,6 +235,7 @@ class AppController(QObject):
             dimmer=dimmer,
             break_reminder=break_reminder,
             focus_mode=focus_mode,
+            manual_dimming_only=self.manual_dimming_only,
         )
         self._update_checker = (
             update_service
@@ -277,8 +280,9 @@ class AppController(QObject):
             dimmer=dimmer,
             break_reminder=break_reminder,
             focus_mode=focus_mode,
-            scheduler=scheduler,
+            scheduler=self._scheduler,
             hotkeys=hotkeys,
+            manual_dimming_only=self.manual_dimming_only,
         )
 
         self._pause_timer = QTimer(self)
