@@ -134,6 +134,7 @@ class CompanionRuntime:
             visual_prompt_stage,
             state.breaks.force_break,
             break_visual_suppressed,
+            StatusPresenter.is_fullscreen_context(state),
         )
         if break_semantic != self._last_break_semantic:
             self._last_break_semantic = break_semantic

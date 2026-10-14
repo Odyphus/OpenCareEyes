@@ -24,6 +24,9 @@ from opencareyes.ui.tray_icon import TrayIcon
 from tests.test_context_coordination import FakeSensor
 from tests.test_controller import FakeDisplayEffect, FakeFocus
 from tests.test_settings import MemoryStore
+from tests.test_companion_runtime import FakeSurface, FakeBubble, FIXTURE_ROOT
+from opencareyes.application.companion_coordinator import CompanionCoordinator
+from opencareyes.application.pet_pack_registry import PetPackRegistry
 
 
 @pytest.mark.parametrize('mode', ['continue', 'pause'])
@@ -242,3 +245,33 @@ def test_fullscreen_progressive_prompt_uses_corner_even_with_floating_pet(qtbot,
         breaks=FeatureRuntimeState(suppressed_by=('fullscreen',)),
     )))
     assert not prompt.isVisible()
+
+
+@pytest.mark.parametrize('stage', ['gentle', 'prominent'])
+def test_leaving_fullscreen_restores_pending_floating_prompt_without_stage_change(qtbot, stage):
+    settings = Settings(MemoryStore())
+    companion = CompanionCoordinator(
+        PetPackRegistry(FIXTURE_ROOT, app_version='0.7.0'), 'snow_ferret',
+    )
+    controller = AppController(settings, companion=companion)
+    bubble = FakeBubble()
+    runtime = CompanionRuntime(controller, companion, FakeSurface(), bubble)
+    fullscreen = replace(
+        controller.state,
+        breaks=BreakState(enabled=True, phase='prompting', countdown_display='floating'),
+        break_prompt=BreakPromptState(stage=stage),
+        context=ContextState(fullscreen=True, notification_mode='normal'),
+    )
+    prompt = BreakPrompt()
+    qtbot.addWidget(prompt)
+    runtime.sync_state(fullscreen)
+    prompt.render(fullscreen)
+    assert not bubble.is_rest_prompt_active and prompt.isVisible()
+    windowed = replace(fullscreen, context=ContextState(notification_mode='normal'))
+    runtime.sync_state(windowed)
+    prompt.render(windowed)
+    assert bubble.is_rest_prompt_active and not prompt.isVisible()
+    runtime.sync_state(fullscreen)
+    prompt.render(fullscreen)
+    assert not bubble.is_rest_prompt_active and prompt.isVisible()
+    runtime.shutdown()
