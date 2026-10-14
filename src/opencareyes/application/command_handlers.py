@@ -132,6 +132,11 @@ class DisplayCommands:
         mark_manual_override: bool = True,
     ) -> bool:
         controller = self._controller
+        if controller.manual_dimming_only:
+            controller.operation_failed.emit(
+                "manual_dimming_only", "屏幕调暗仅支持手动调整，请使用开关和滑块。",
+            )
+            return False
         try:
             proposal = controller._display_profile_state(name)
         except (KeyError, ImportError, SyntaxError, ValueError) as exc:
@@ -603,6 +608,11 @@ class AutomationCommands:
         sunset_offset: int | None = None,
     ) -> bool:
         controller = self._controller
+        if controller.manual_dimming_only:
+            controller.operation_failed.emit(
+                "manual_dimming_only", "自动调暗已停用，请手动调整屏幕调暗。",
+            )
+            return False
         enabled = bool(enabled)
         selected_mode = mode or controller._settings.schedule_mode
         if selected_mode not in {"sun", "fixed"}:
@@ -825,6 +835,8 @@ class AutomationCommands:
 
     def on_scheduled_filter_state_requested(self, enabled: bool) -> None:
         controller = self._controller
+        if controller.manual_dimming_only:
+            return
         controller._clear_next_schedule_pause()
         profile = (
             getattr(controller._settings, "schedule_night_profile", "night")
@@ -835,6 +847,8 @@ class AutomationCommands:
 
     def on_scheduled_profile_requested(self, profile: str) -> None:
         controller = self._controller
+        if controller.manual_dimming_only:
+            return
         controller._clear_next_schedule_pause()
         controller.apply_display_profile(
             str(profile),

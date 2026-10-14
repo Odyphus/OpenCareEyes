@@ -174,7 +174,10 @@ def test_automation_does_not_offer_to_pause_windows_night_light(qtbot, system_co
     controller, _settings, _dimmer, _calls, _store = system_controller
     page = AutomationPage(controller)
     qtbot.addWidget(page)
-    assert page._rules_table.isColumnHidden(3)
+    assert page._rules_table.columnCount() == 4
+    assert [page._rules_table.horizontalHeaderItem(i).text() for i in range(3)] == [
+        '应用', '暂停休息', '隐藏专注',
+    ]
 
 
 def test_dimming_failure_compensates_without_a_colour_flash(system_controller):

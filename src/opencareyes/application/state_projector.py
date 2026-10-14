@@ -54,13 +54,15 @@ class StateProjector:
         focus_mode=None,
         scheduler=None,
         hotkeys=None,
+        manual_dimming_only: bool = False,
     ):
         self._settings = settings
         self._blue_filter = blue_filter
         self._dimmer = dimmer
         self._break_reminder = break_reminder
         self._focus_mode = focus_mode
-        self._scheduler = scheduler
+        self._manual_dimming_only = bool(manual_dimming_only)
+        self._scheduler = None if manual_dimming_only else scheduler
         self._hotkeys = hotkeys
 
     def build(
@@ -139,6 +141,9 @@ class StateProjector:
         if windows_color:
             display = replace(display, filter_enabled=False, color_temperature=6500)
 
+        if self._manual_dimming_only:
+            display = replace(display, preset="custom")
+
         return AppState(
             display=display,
             breaks=BreakState(
@@ -163,7 +168,10 @@ class StateProjector:
                 session_ends_at=focus_session_ends_at,
             ),
             automation=AutomationState(
-                enabled=settings.filter_schedule_enabled,
+                enabled=(
+                    False if self._manual_dimming_only
+                    else settings.filter_schedule_enabled
+                ),
                 mode=settings.schedule_mode,
                 next_event=getattr(scheduler, "next_event", None),
                 next_event_at=getattr(scheduler, "next_event_at", None),

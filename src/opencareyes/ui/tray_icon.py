@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 
 from PySide6.QtCore import QSignalBlocker
-from PySide6.QtGui import QAction, QActionGroup, QColor, QIcon, QPainter, QPixmap
+from PySide6.QtGui import QAction, QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 
 from opencareyes.application.status_presenter import StatusPresenter
@@ -97,9 +97,6 @@ class TrayIcon(QSystemTrayIcon):
         pause_menu.addAction("1 小时").triggered.connect(
             lambda: self._controller.pause_all(minutes=60)
         )
-        pause_menu.addAction("直到下一次自动切换").triggered.connect(
-            lambda: self._controller.pause_all(minutes=None, until_next_schedule=True)
-        )
         pause_menu.addAction("直到手动恢复").triggered.connect(
             lambda: self._controller.pause_all(minutes=None)
         )
@@ -118,25 +115,6 @@ class TrayIcon(QSystemTrayIcon):
         self._focus_action = self._check_action(
             "专注模式", self.toggle_focus, protection_menu
         )
-        profile_menu = QMenu("调暗方案", protection_menu)
-        protection_menu.addMenu(profile_menu)
-        self._profile_group = QActionGroup(self)
-        self._profile_group.setExclusive(True)
-        self._profile_actions: dict[str, QAction] = {}
-        for key, label in (
-            ("office", "办公"),
-            ("reading", "阅读"),
-            ("night", "夜间"),
-            ("game", "游戏"),
-        ):
-            action = profile_menu.addAction(label)
-            action.setCheckable(True)
-            action.triggered.connect(
-                lambda checked=False, profile=key: self.apply_preset(profile)
-            )
-            self._profile_group.addAction(action)
-            self._profile_actions[key] = action
-
         self._break_control_menu = QMenu("休息提醒", more_menu)
         more_menu.addMenu(self._break_control_menu)
         self._break_action = self._check_action(
@@ -175,13 +153,13 @@ class TrayIcon(QSystemTrayIcon):
                 lambda _checked=False, selected=tool_id: self._controller.show_quick_tool(selected)
             )
 
-        settings_menu = QMenu("设置与自动化", more_menu)
+        settings_menu = QMenu("设置", more_menu)
         more_menu.addMenu(settings_menu)
         self._autostart_action = self._check_action(
             "开机自动启动", self._controller.set_autostart, settings_menu
         )
-        settings_menu.addAction("自动日程…").triggered.connect(
-            lambda: self._panel.show_page("自动日程")
+        settings_menu.addAction("免打扰…").triggered.connect(
+            lambda: self._panel.show_page("免打扰")
         )
         settings_menu.addAction("设置…").triggered.connect(
             lambda: self._panel.show_page("设置")
@@ -189,6 +167,12 @@ class TrayIcon(QSystemTrayIcon):
         self._menu.addSeparator()
         self._menu.addAction("退出 OpenCareEyes").triggered.connect(QApplication.quit)
         self._menu.aboutToShow.connect(lambda: self.render(self._controller.state))
+        # Retain Python wrappers as well as Qt parents. Inspecting menuAction
+        # and menu() can otherwise release a submenu wrapper on some bindings,
+        # invalidating actions that render() still needs.
+        self._submenu_refs = (
+            pause_menu, more_menu, companion_menu, tools_menu, settings_menu,
+        )
         self.setContextMenu(self._menu)
 
     def _check_action(self, text: str, callback, menu=None) -> QAction:
@@ -220,9 +204,6 @@ class TrayIcon(QSystemTrayIcon):
     def toggle_focus(self, checked: bool | None = None) -> None:
         enabled = bool(first_state_value(self._controller.state, "focus.enabled", default=False))
         self._controller.set_feature_enabled("focus", not enabled if checked is None else checked)
-
-    def apply_preset(self, name: str) -> None:
-        self._controller.apply_display_profile(name)
 
     def _toggle_pet(self, visible: bool) -> None:
         setter = getattr(self._controller, "set_companion_enabled", None)
@@ -301,7 +282,6 @@ class TrayIcon(QSystemTrayIcon):
         ))
         remaining = first_state_value(state, "breaks.remaining", default=0)
         dim_level = int(first_state_value(state, "display.dim_level", default=0))
-        preset = str(first_state_value(state, "display.preset", default="custom"))
         globally_paused = bool(first_state_value(state, "global_pause.active", default=False))
 
         for action, checked in (
@@ -359,10 +339,6 @@ class TrayIcon(QSystemTrayIcon):
                 "system_suspended",
             }.intersection(break_suppressed)
         )
-        for name, action in self._profile_actions.items():
-            with QSignalBlocker(action):
-                action.setChecked(name == preset)
-
         autostart = bool(first_state_value(state, "general.autostart", default=False))
         with QSignalBlocker(self._autostart_action):
             self._autostart_action.setChecked(autostart)

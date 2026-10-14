@@ -8,7 +8,6 @@ from PySide6.QtWidgets import (
     QBoxLayout,
     QButtonGroup,
     QCheckBox,
-    QComboBox,
     QDialog,
     QFrame,
     QHBoxLayout,
@@ -61,9 +60,8 @@ class OnboardingDialog(QDialog):
 
         self._stack = QStackedWidget()
         self._stack.addWidget(self._companion_step())
-        self._stack.addWidget(self._display_step())
         self._stack.addWidget(self._break_step())
-        self._stack.addWidget(self._automation_step())
+        self._stack.addWidget(self._startup_step())
         self._stack.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
         self._stack.currentChanged.connect(self._update_navigation)
         self._content_scroll = QScrollArea()
@@ -155,42 +153,6 @@ class OnboardingDialog(QDialog):
         layout.addStretch()
         return page
 
-    def _display_step(self) -> QWidget:
-        page = QWidget()
-        layout = QVBoxLayout(page)
-        layout.setContentsMargins(0, 0, 0, 0)
-        title = QLabel("先选择一个舒适的显示方案")
-        title.setObjectName("onboardingTitle")
-        description = QLabel("方案只调整软件的屏幕调暗。色温由 Windows 夜间模式管理，稍后可从屏幕页面打开系统设置。")
-        description.setObjectName("pageDescription")
-        description.setWordWrap(True)
-        layout.addWidget(title)
-        layout.addWidget(description)
-
-        card = Card()
-        self._profile_group = QButtonGroup(self)
-        options = QHBoxLayout()
-        self._profile_layout = options
-        for key, label, detail in (
-            ("office", "办公", "自然清晰"),
-            ("reading", "阅读", "轻微调暗"),
-            ("night", "夜间", "降低明亮感"),
-            ("game", "游戏", "保持清爽"),
-        ):
-            choice = QRadioButton(f"{label}\n{detail}")
-            choice.setObjectName("choiceButton")
-            choice.setProperty("profile", key)
-            choice.setMinimumHeight(82)
-            set_accessible(choice, f"{label}显示方案，{detail}")
-            self._profile_group.addButton(choice)
-            options.addWidget(choice)
-            if key == "office":
-                choice.setChecked(True)
-        card.body.addLayout(options)
-        layout.addWidget(card)
-        layout.addStretch()
-        return page
-
     def _break_step(self) -> QWidget:
         page = QWidget()
         layout = QVBoxLayout(page)
@@ -227,13 +189,13 @@ class OnboardingDialog(QDialog):
         layout.addStretch()
         return page
 
-    def _automation_step(self) -> QWidget:
+    def _startup_step(self) -> QWidget:
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setContentsMargins(0, 0, 0, 0)
-        title = QLabel("最后，让它自动运行")
+        title = QLabel("最后，选择启动方式")
         title.setObjectName("onboardingTitle")
-        description = QLabel("这些选项都可稍后修改。位置只保存在本机。")
+        description = QLabel("屏幕调暗默认关闭，需要时手动开启；色温在 Windows 夜间模式中设置。")
         description.setObjectName("pageDescription")
         description.setWordWrap(True)
         layout.addWidget(title)
@@ -242,26 +204,8 @@ class OnboardingDialog(QDialog):
         card = Card()
         self._autostart_toggle = QCheckBox("登录 Windows 后自动启动")
         self._autostart_toggle.setChecked(True)
-        self._automation_toggle = QCheckBox("按日出日落自动切换显示方案")
-        self._city_combo = QComboBox()
-        self._city_combo.addItem("请选择城市", None)
-        for city, coordinates in (
-            ("北京", (39.9042, 116.4074)),
-            ("上海", (31.2304, 121.4737)),
-            ("广州", (23.1291, 113.2644)),
-            ("深圳", (22.5431, 114.0579)),
-            ("成都", (30.5728, 104.0668)),
-            ("济南", (36.6512, 117.1201)),
-        ):
-            self._city_combo.addItem(city, coordinates)
-        self._city_combo.setEnabled(False)
-        self._automation_toggle.toggled.connect(self._city_combo.setEnabled)
         set_accessible(self._autostart_toggle, "开机自动启动")
-        set_accessible(self._automation_toggle, "按日出日落自动切换")
-        set_accessible(self._city_combo, "选择城市")
         card.body.addWidget(self._autostart_toggle)
-        card.body.addWidget(self._automation_toggle)
-        card.body.addWidget(self._city_combo)
         layout.addWidget(card)
         layout.addStretch()
         return page
@@ -295,7 +239,6 @@ class OnboardingDialog(QDialog):
         direction = QBoxLayout.TopToBottom if narrow else QBoxLayout.LeftToRight
         for layout in (
             self._companion_layout,
-            self._profile_layout,
             self._break_layout,
         ):
             layout.setDirection(direction)
@@ -333,11 +276,6 @@ class OnboardingDialog(QDialog):
         if self._stack.currentIndex() < self._stack.count() - 1:
             self._stack.setCurrentIndex(self._stack.currentIndex() + 1)
             return
-        if self._automation_toggle.isChecked() and self._city_combo.currentData() is None:
-            self._city_combo.setFocus()
-            self._city_combo.setToolTip("请先选择城市")
-            self._city_combo.showPopup()
-            return
         if self._commit():
             self.accept()
 
@@ -345,13 +283,8 @@ class OnboardingDialog(QDialog):
         self._error_label.clear()
         self._error_label.hide()
 
-        profile_button = self._profile_group.checkedButton()
-        if profile_button is None:
-            self._show_error("onboarding_profile", "请选择一个显示方案后重试。")
-            return False
         if not self._run_command(
-            self._controller.apply_display_profile,
-            profile_button.property("profile"),
+            self._controller.set_feature_enabled, "dimmer", False,
         ):
             return False
 
@@ -402,21 +335,6 @@ class OnboardingDialog(QDialog):
             self._autostart_toggle.isChecked(),
         ):
             return False
-        if self._automation_toggle.isChecked():
-            latitude, longitude = self._city_combo.currentData()
-            if not self._run_command(
-                self._controller.set_schedule,
-                True,
-                mode="sun",
-                latitude=latitude,
-                longitude=longitude,
-                city=self._city_combo.currentText(),
-            ):
-                return False
-        else:
-            if not self._run_command(self._controller.set_schedule, False):
-                return False
-
         complete = getattr(self._controller, "complete_onboarding", None)
         if not callable(complete):
             complete = getattr(self._controller, "mark_onboarding_complete", None)

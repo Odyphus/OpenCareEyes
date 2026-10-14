@@ -30,7 +30,6 @@ from opencareyes.controller import AppController
 from opencareyes.core.break_reminder import BreakReminder
 from opencareyes.core.system_color import SystemManagedColor
 from opencareyes.core.focus_mode import FocusMode
-from opencareyes.core.scheduler import Scheduler
 from opencareyes.core.screen_dimmer import ScreenDimmer
 from opencareyes.diagnostics import configure_logging
 from opencareyes.platform.context_sensor import ContextSensor
@@ -153,7 +152,6 @@ def main() -> None:
     dimmer = ScreenDimmer(watch_screen_events=False)
     break_reminder = BreakReminder()
     focus_mode = FocusMode(watch_screen_events=False)
-    scheduler = Scheduler(settings=settings)
     hotkeys = HotkeyManager(event_hub=event_hub)
     context_sensor = ContextSensor(event_hub=event_hub)
     effect_coordinator = EffectCoordinator(
@@ -162,6 +160,7 @@ def main() -> None:
         dimmer=dimmer,
         break_reminder=break_reminder,
         focus_mode=focus_mode,
+        manual_dimming_only=True,
     )
     context_runtime = ContextCoordinator(
         settings,
@@ -175,7 +174,6 @@ def main() -> None:
         dimmer=dimmer,
         break_reminder=break_reminder,
         focus_mode=focus_mode,
-        scheduler=scheduler,
         hotkeys=hotkeys,
         effect_coordinator=effect_coordinator,
         companion=companion,
@@ -184,6 +182,7 @@ def main() -> None:
         note_repository=note_repository,
         system_metrics=system_metrics,
         initial_wardrobe_error=initial_wardrobe_error,
+        manual_dimming_only=True,
     )
     _restore_startup_outfit(settings, companion, controller)
     chime_service = HourlyChimeService(app)
@@ -283,7 +282,6 @@ def main() -> None:
             refresh_display_topology()
 
     event_hub.display_changed.connect(refresh_display_topology)
-    event_hub.clock_changed.connect(scheduler.reschedule)
     event_hub.clock_changed.connect(chime_service.reschedule)
     event_hub.session_locked.connect(refresh_after_session_change)
     event_hub.system_suspended.connect(refresh_after_session_change)
@@ -342,7 +340,6 @@ def main() -> None:
         # Remove runtime effects through the same boundary used while running,
         # without overwriting the user's saved preferences.
         effect_coordinator.reconcile(effect_coordinator.intent_from_settings(global_pause=True))
-        scheduler.stop()
         hotkeys.unregister_all()
         event_hub.shutdown(app)
         if not blue_filter.shutdown():
