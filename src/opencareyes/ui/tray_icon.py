@@ -167,6 +167,12 @@ class TrayIcon(QSystemTrayIcon):
         self._menu.addSeparator()
         self._menu.addAction("退出 OpenCareEyes").triggered.connect(QApplication.quit)
         self._menu.aboutToShow.connect(lambda: self.render(self._controller.state))
+        # Retain Python wrappers as well as Qt parents. Inspecting menuAction
+        # and menu() can otherwise release a submenu wrapper on some bindings,
+        # invalidating actions that render() still needs.
+        self._submenu_refs = (
+            pause_menu, more_menu, companion_menu, tools_menu, settings_menu,
+        )
         self.setContextMenu(self._menu)
 
     def _check_action(self, text: str, callback, menu=None) -> QAction:

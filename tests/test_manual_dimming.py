@@ -1,6 +1,7 @@
 """Manual dimming must stay stable across upgrades, contexts and restarts."""
 
 from dataclasses import replace
+import gc
 
 import pytest
 from PySide6.QtCore import Qt
@@ -202,6 +203,12 @@ def test_screen_keyboard_and_tray_control_the_same_manual_setting(qtbot, manual_
         texts = set(labels(tray.contextMenu()))
         assert not {'调暗方案', '自动日程…', '直到下一次自动切换'}.intersection(texts)
         assert '免打扰…' in texts
+        # Repeated native-menu inspection and wrapper collection must not
+        # destroy actions before a controller update (observed on CI 3.11).
+        for _ in range(10):
+            assert set(labels(tray.contextMenu())) == texts
+            gc.collect()
+            controller.refresh_state()
         tray._dimmer_action.trigger()
         assert not settings.dimmer_enabled and not dimmer.enabled
     finally:
